@@ -1,0 +1,341 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   BSpline.hpp
+//! @author Thomas Rueberg
+//! @date   2012
+
+#ifndef base_sfun_bspline_hpp
+#define base_sfun_bspline_hpp
+
+//------------------------------------------------------------------------------
+#include <base/verify.hpp>
+// base/sfun includes
+#include <base/sfun/ShapeFunTraits.hpp>
+#include <base/sfun/Lagrange1D.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace sfun{
+        
+        template<unsigned DEGREE, int CONTINUITY=DEGREE-1>
+        class BSpline;
+
+        namespace detail_{
+
+            //! Knot span in function of the spline continuity
+            template<int J, unsigned K>
+            struct Knot
+            {
+                // clustered knots at integral numbers
+                static const int value = (J >= 0 ? J/K : (J+1)/K - 1);
+            };
+
+            //! Left factor of divided difference
+            template<int T1, int T2>
+            struct Left
+            {
+                static double apply( const double& t )
+                {
+                    return (t - T1) / static_cast<double>(T2 - T1);
+                }
+            };
+
+            //! Left factor of divided difference, special case = 0
+            template<int T1>
+            struct Left<T1,T1>
+            {
+                static double apply( const double& t ) { return 0.; }
+            };
+
+            //! Right factor of divided difference
+            template<int T1, int T2>
+            struct Right
+            {
+                static double apply( const double& t )
+                {
+                    return (T2 - t) / static_cast<double>(T2 - T1);
+                }
+            };
+            
+            //! Right factor of divided difference, special case = 0
+            template<int T1>
+            struct Right<T1,T1>
+            {
+                static double apply( const double& t ) { return 0.; }
+            };
+
+            //! Factor for derivatives
+            template<int T1, int T2>
+            struct Deriv
+            {
+                static double apply( const double & t )
+                {
+                    return 1. / static_cast<double>(T2 - T1);
+                }
+            };
+
+            //! Factor for derivatives, special case = 0
+            template<int T1>
+            struct Deriv<T1,T1>
+            {
+                static double apply( const double & t ) { return 0.; }
+            };
+
+            //! Recursive definition of a bspline
+            template<int J, unsigned P, unsigned K>
+            struct BSpline
+            {
+                
+                static double fun( const double& t )
+                {
+                    return
+                        Left<  Knot<J  ,  K>::value,
+                               Knot<J+P,  K>::value >::apply( t ) *
+                        BSpline<J,  P-1,K>::fun( t ) +
+                        Right< Knot<J  +1,K>::value,
+                               Knot<J+P+1,K>::value >::apply( t ) *
+                        BSpline<J+1,P-1,K>::fun( t );
+                }
+
+                static double grad( const double& t )
+                {
+                    return
+                        P * Deriv< Knot<J,    K>::value,
+                                   Knot<J+P  ,K>::value >::apply( t ) *
+                        BSpline<J,P-1,K>::fun( t ) -
+                        P * Deriv< Knot<J+1,  K>::value,
+                                   Knot<J+P+1,K>::value >::apply( t ) *
+                        BSpline<J+1,P-1,K>::fun( t );
+                }
+
+                static double hessian( const double& t )
+                {
+                    return
+                        P * Deriv< Knot<J,K>::value,
+                                   Knot<J+P,K>::value >::apply( t ) *
+                        BSpline<J,P-1,K>::grad( t ) -
+                        P * Deriv< Knot<J+1,K>::value,
+                                   Knot<J+P+1,K>::value >::apply( t ) *
+                        BSpline<J+1,P-1,K>::grad( t );
+                }
+            };
+
+            //! Specialised spline: characteristic function
+            template<int J, unsigned K>
+            struct BSpline<J,0,K>
+            {
+                static double fun( const double& t )
+                {
+                    return ( t <=  Knot<J,  K>::value ? 0. :
+                             t >   Knot<J+1,K>::value ? 0. : 1. );
+                }
+            };
+
+            //------------------------------------------------------------------
+            //! End of recursion templates inherit from this dummy
+            struct DoNothing
+            {
+                template<typename ARG>
+                static void apply( const double t, ARG& values ) { return; }
+            };
+
+            //! Evaluation of the relevant spline functions
+            template<unsigned DEGREE, int CONTINUITY, int CTR=DEGREE>
+            struct RecursiveBSplineFunEval
+            {
+                typedef
+                base::sfun::ShapeFunResultArrays<1,DEGREE+1,
+                                                 base::sfun::ScalarShapeFunResult>  SFRA;
+
+                static void apply( const double& xi,
+                                   typename SFRA::FunArray& values )
+                {
+                    values[ CTR ] =
+                        BSpline<-(CONTINUITY+1)+CTR,DEGREE,DEGREE-CONTINUITY>::fun( xi );
+
+                    RecursiveBSplineFunEval<DEGREE,CONTINUITY,CTR-1>::apply( xi, values );
+                }
+            };
+
+            //! End of recursion
+            template<unsigned DEGREE, int CONTINUITY>
+            struct RecursiveBSplineFunEval<DEGREE,CONTINUITY,-1> : public DoNothing { };
+            
+            //------------------------------------------------------------------
+            template<unsigned DEGREE, int CONTINUITY, int CTR=DEGREE>
+            struct RecursiveBSplineGradEval
+            {
+                typedef
+                base::sfun::ShapeFunResultArrays<1,DEGREE+1,
+                                                 base::sfun::ScalarShapeFunResult>  SFRA;
+
+                //! Evaluation of the relevant spline function derivatives
+                static void apply( const double& xi,
+                                   typename SFRA::GradArray& values )
+                {
+                    values[CTR][0] =
+                        BSpline<-(CONTINUITY+1)+CTR,DEGREE,DEGREE-CONTINUITY>::grad( xi );
+
+                    RecursiveBSplineGradEval<DEGREE,CONTINUITY,CTR-1>::apply( xi, values );
+                }
+            };
+
+            template<unsigned DEGREE, int CONTINUITY>
+            struct RecursiveBSplineGradEval<DEGREE,CONTINUITY,-1> : public DoNothing{ };
+
+            //------------------------------------------------------------------
+            template<unsigned DEGREE, int CONTINUITY, int CTR=DEGREE>
+            struct RecursiveBSplineHessianEval
+            {
+                typedef
+                base::sfun::ShapeFunResultArrays<1,DEGREE+1,
+                                                 base::sfun::ScalarShapeFunResult>  SFRA;
+
+                //! Evaluation of the relevant spline function second derivatives
+                static void apply( const double& xi,
+                                   typename SFRA::HessianArray& values )
+                {
+                    values[CTR](0,0) =
+                        BSpline<-(CONTINUITY+1)+CTR,DEGREE,DEGREE-CONTINUITY>::hessian( xi );
+
+                    RecursiveBSplineHessianEval<DEGREE,CONTINUITY,CTR-1>::apply( xi, values );
+                }
+            };
+
+            template<unsigned DEGREE, int CONTINUITY>
+            struct RecursiveBSplineHessianEval<DEGREE,CONTINUITY,-1> : public DoNothing{};
+
+        } // namespace detail_
+
+    }
+}
+
+//------------------------------------------------------------------------------
+/** One-dimensional B-Splines and derivatives as finite element basis functions.
+ *  This class implements one-dimensional B-splines and their derivatives for
+ *  arbitrary polynomial degrees and continuities. Continuity means the
+ *  continuity of the spline across the nodes. If the spline with polynomial
+ *  degree \f$ p \f$ has it maximal continuity, it is \f$ C^{p-1} \f$-continuous
+ *  over the nodes. In general, this class provides \f$ C^{p-k} \f$-continuous
+ *  splines, with \f$ 1 \leq k \leq p+1 \f$. The defect \f$ k \f$ translates into
+ *  the continuity \f$ c \f$ by means of
+ *  \f[
+ *         c = p - k
+ *  \f]
+ *
+ *  ### Definition of B-splines ###
+ *  The implementation is based on the recursive definition of a B-spline of
+ *  degree \f$ p \f$ (and continuity \f$ c \f$)
+ *  \f[
+ *         B_j^{p}(t) =
+ *                  \frac{t -       t_j}{t_{j+p}   - t_{j}  } B^{p-1}_j(t) +
+ *                  \frac{t_{j+p+1} - t}{t_{j+p+1} - t_{j+1}} B^{p-1}_{j+1}(t)
+ *  \f]
+ *  with the lowest-order spline as the characteristic function
+ *  \f[
+ *         B_j^{0}(t) = \chi_{t_j,t_{j+1}}(t)
+ *  \f]
+ *  which evaluates to \f$ 1 \f$ if \f$ t_{j} \leq t < t_{j+1} \f$ and
+ *  to \f$ 0 \f$ else. The first-order derivative of this B-spline is given by
+ *  \f[
+ *      (d/d t) B_j^p (t) =
+ *              \frac{p}{t_{j+p}   - t_{j}  } B^{p-1}_j    (t) +
+ *              \frac{p}{t_{j+p+1} - t_{j+1}} B^{p-1}_{j+1}(t)
+ *  \f]
+ *  and higher-order derivatives follow from this formula recursively.
+ *  These defintions are take from the notion of a non-uniform B-Spline
+ *  (http://en.wikipedia.org/wiki/B-spline) and the derivatives can be found in
+ *  http://www.cs.mtu.edu/~shene/COURSES/cs3621/NOTES/spline/B-spline/bspline-derv.html
+ *
+ *  ### Continuity ###
+ *  In order to achieve the loss of continuity \f$ k > 1 \f$ as pointed out above,
+ *  the knot span \f$ t_0 \leq t_1 \leq ... \leq t_j \leq t_{j+1} \f$ is
+ *  manipulated accordingly. For \f$ k = 1 \f$ we assume a knot span
+ *  \f$
+ *        t^1_j = j
+ *  \f$
+ *  i.e. the integral numbers. For higher values of \f$ k \f$ the knots are
+ *  clustered at the integral numbers. We get
+ *  \f$
+ *        t^k_j = j/k
+ *  \f$
+ *  based on integer division, e.g. \f$ t^2_3 = 3/2 = 1 \f$
+ *  (or \f$ t^k_j = (j+1)/k -1 \f$ for negative values of \f$ j \f$).
+ *  In order to have no numerical problems for these clustered knot values which
+ *  imply zero-sized intervals, the fractions given in the definition of the
+ *  spline and its derivative assume the value zero if the difference of the
+ *  denominator equals zero.
+ *  
+ *  ### FE-Basis functions ###
+ *  The above defintions give rise to a spline as a piece-wise polynomial curve
+ *  with a certain support in which the curve is non-zero. In order to use
+ *  splines as FE basis functions, we only consider the interval
+ *  \f$ 0 < t < 1\f$ and the splines which are non-zero in this interval.
+ *  So, for given polynomial degree \f$ p \f$ and continuity \f$ c \f$
+ *  the splines \f$ B^p_j \f$ with
+ *  \f[
+ *        -(c+1) \leq j \leq p - (c+1)
+ *  \f]
+ *  are of interest, because splines for any other value of the counter \f$ j\f$
+ *  are zero in the considered intervale \f$ (0,1) \f$.
+ *
+ *  \tparam DEGREE        Polynomial degree of the B-Spline
+ *  \tparam CONTINUITY    Degree of continuity
+ */
+template<unsigned DEGREE, int CONTINUITY> 
+class base::sfun::BSpline
+{
+public:
+    //! @name Template parameters
+    //@{
+    static const unsigned degree     = DEGREE;
+    static const int      continuity = CONTINUITY;
+    //@}
+
+    STATIC_ASSERT_MSG( (static_cast<int>(degree) > continuity) and
+                       (continuity >= -1   ), "Continuity not possible" );
+
+    //! Number of non-zero functions in this interval
+    static const unsigned numFun   = degree+1;
+
+    //! Local dimension
+    static const unsigned dim      = 1;
+
+    //! Traits object for type definitions
+    typedef base::sfun::ShapeFunResultArrays<dim,numFun,
+                                             base::sfun::ScalarShapeFunResult>  SFRA;
+
+    //--------------------------------------------------------------------------
+    //! @name Use types from traits object
+    //!{
+    typedef typename SFRA::VecDim                VecDim;
+    typedef typename SFRA::FunArray              FunArray;    
+    typedef typename SFRA::GradArray             GradArray;   
+    typedef typename SFRA::HessianArray          HessianArray;
+    //@}
+
+    //--------------------------------------------------------------------------
+    //! Evaluation functions
+    //@{
+    //! Plain function evaluation
+    void fun( const VecDim & xi, FunArray & values ) const
+    {
+        detail_::RecursiveBSplineFunEval<degree,continuity>::apply( xi[0], values );
+    }
+    //! Evaluation of the functions' gradients
+    void gradient( const VecDim & xi, GradArray & values ) const
+    {
+        detail_::RecursiveBSplineGradEval<degree,continuity>::apply( xi[0], values );
+    }
+    //! Evaluation of the functions' Hessians
+    void hessian(  const VecDim & xi, HessianArray & values ) const
+    {
+        detail_::RecursiveBSplineHessianEval<degree,continuity>::apply( xi[0], values );
+    }
+    //@}
+};
+
+#endif

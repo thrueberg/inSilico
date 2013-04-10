@@ -1,0 +1,69 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   numbering.hpp
+//! @author Thomas Rueberg
+//! @date   2012
+
+#ifndef base_dof_numbering_hpp
+#define base_dof_numbering_hpp
+
+//------------------------------------------------------------------------------
+// base includes
+#include <base/types.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace dof{
+
+        template<typename DOFITER>
+        std::size_t numberDoFsConsecutively( DOFITER first, DOFITER last,
+                                             std::size_t init = 0 );
+        
+        /** Possible:
+         *  - one number per vector dof (pressure correction methods)
+         *  - renumbering based on mesh and container
+         *    using a graph-based optimisation
+         */
+
+    }
+}
+
+//------------------------------------------------------------------------------
+/** Number all dofs in a given range consecutively.
+ *  For given range of DoFs, number all the active components.
+ *  Optionally, the caller can provide an initial number to begin with.
+ *  \param[in] first,last  Range of DoF iterators
+ *  \param[in] init        Start numbering with this number
+ *  \return                Number of DoF-components numbered in the range.
+ */
+template<typename DOFITER>
+std::size_t base::dof::numberDoFsConsecutively( DOFITER first, DOFITER last,
+                                                std::size_t init = 0 )
+{
+    // dof counter
+    std::size_t counter = init;
+
+    // size of individual dof object deduced from the iterator type
+    static const unsigned size =
+        base::TypeReduction<typename DOFITER::value_type>::Type::size;
+
+    // go through the given range of dof-iterators
+    for ( DOFITER dIter = first; dIter != last; ++dIter ) {
+
+        // Number all indices of the current object with running counter
+        for ( unsigned d = 0; d < size; d ++ ) {
+            if ( (*dIter) -> isActive( d ) )
+                (*dIter) -> setIndex( d, counter++ );
+        }
+            
+    }
+
+    // Let the call know how many dofs there are
+    return counter - init;
+}
+
+
+#endif

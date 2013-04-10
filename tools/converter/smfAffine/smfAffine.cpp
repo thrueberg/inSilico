@@ -1,0 +1,188 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   smfAffine.cpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+//------------------------------------------------------------------------------
+// std includes
+#include <iostream>
+#include <fstream>
+#include <string>
+// boost includes
+#include <boost/lexical_cast.hpp>
+// base includes
+#include <base/verify.hpp>
+#include <base/linearAlgebra.hpp>
+// base/mesh includes
+#include <base/mesh/Node.hpp>
+#include <base/mesh/Element.hpp>
+#include <base/mesh/Unstructured.hpp>
+// base/io includes
+#include <base/io/smf/Reader.hpp>
+#include <base/io/smf/Writer.hpp>
+// tools/converter/smf2xx includes
+#include <tools/converter/smf2xx/SMFHeader.hpp>
+#include <tools/converter/smf2xx/Conversion.hpp>
+
+//------------------------------------------------------------------------------
+namespace tools{
+    namespace converter{
+        namespace smfAffine{
+
+            //------------------------------------------------------------------
+            // 3D transformation matrix and translation vector
+            typedef typename base::MatrixType<3,3,double>::Type Mat;
+            typedef typename base::VectorType<3,double>::Type   Vec;
+
+            static Mat A = Mat::Identity();
+            static Vec c = Vec::Zero();
+    
+            //------------------------------------------------------------------
+            /** Read smf file, apply affine transformation and write new smf file
+             *  \tparam SHAPE  Type of element shape
+             *  \tparam DEGREE Polynomial degree of the element
+             */
+            template<base::Shape SHAPE,unsigned DEGREE>
+            struct Converter
+            {
+                static void apply( std::istream& smfIn,
+                                   std::ostream& smfOut )
+                {
+                    // Attributes of the mesh
+                    static const base::Shape shape   = SHAPE;
+                    static const unsigned degree     = DEGREE;
+                    static const unsigned    dim     = 3;
+        
+                    // Typedefs for defining a mesh
+                    typedef base::mesh::Node<dim>                 Node;
+                    typedef base::LagrangeShapeFun<degree,shape>  SFun;
+                    typedef base::mesh::Element<Node,SFun>        Element;
+                    typedef base::mesh::Unstructured<Element>     Mesh;
+
+                    // Mesh object
+                    Mesh mesh;
+
+                    // SMF input
+                    base::io::smf::Reader<Mesh> smfReader;
+                    smfReader( mesh, smfIn );
+
+                    // go through nodes and modify coordinates
+                    typename Mesh::NodePtrIter nIter = mesh.nodesBegin();
+                    typename Mesh::NodePtrIter nEnd  = mesh.nodesEnd();
+                    for (; nIter != nEnd; ++nIter ) {
+                        Vec xOld;
+                        (*nIter) -> getX( &(xOld[0]) );
+                        const Vec xNew = A * xOld + c;
+                        (*nIter) -> setX( &(xNew[0]) );
+                    }
+
+                    // SMF output
+                    base::io::smf::Writer<Mesh> smfWriter;
+                    smfWriter( mesh, smfOut );
+                }
+
+            };
+
+    
+        } // namespace smfAffine
+    } // namespace converter
+} // namespace tools
+
+//------------------------------------------------------------------------------
+/** Read smf formatted file, create a temporary mesh and write gnuplot data file
+ */
+int main( int argc, char * argv[] )
+{
+    namespace smfAffine = tools::converter::smfAffine;
+    namespace smf2xx    = tools::converter::smf2xx;
+    
+    // Sanity check of the number of input arguments
+    if ( argc != 2 ) {
+        std::cout << "Usage:  " << argv[0]
+                  << " file.smf \n\n";
+        return 0;
+    }
+
+    std::cout << "------------------------------------------\n"
+              << "**  Affine transformation: y = A x + c  **\n"
+              << "------------------------------------------\n";
+
+    // Name of smf input file, its basename and the data output file name
+    const std::string smfFileIn  = boost::lexical_cast<std::string>( argv[1] );
+    const std::string base       = smfFileIn.substr(0, smfFileIn.find( ".smf") );
+    const std::string smfFileOut  = base + ".aff.smf";
+
+    // Element attributes
+    base::Shape elementShape;
+    unsigned    elementNumPoints;
+    
+    {
+        // extract data from header
+        std::ifstream smf( smfFileIn.c_str() );
+        smf2xx::readSMFHeader( smf, elementShape, elementNumPoints );
+        smf.close();
+    }
+
+    // User input of transformation matrix and vector
+    {
+        std::cout << "* Enter coefficients of A:\n";
+        for ( unsigned i = 0; i < 3; i++ ) {
+            for ( unsigned j = 0; j < 3; j++ ) {
+
+                const double deflt = static_cast<double>( i==j );
+                std::cout << "    A(" << i << ", " << j << ") "
+                          << "[default: " << deflt << "]  = ";
+
+                std::string aux;
+                std::getline( std::cin, aux );
+                if ( aux.length() > 0 )
+                    smfAffine::A(i,j) = boost::lexical_cast<double>( aux );
+            }
+        }
+        
+        std::cout << "* Enter coefficients of c:\n";
+        for ( unsigned i = 0; i < 3; i++ ) {
+
+            const double deflt = 0.;
+            std::cout << "    c(" << i << ") "
+                      << "[default: " << deflt << "]  = ";
+
+            std::string aux;
+            std::getline( std::cin, aux );
+            if ( aux.length() > 0 )
+                smfAffine::c[i] = boost::lexical_cast<double>( aux );
+        }
+
+        std::cout << "* Entered \n "
+                  << " A = \n" << smfAffine::A << "\n"
+                  << " c = " << smfAffine::c.transpose() << "\n";
+
+        // sanity check
+        const double detA = smfAffine::A.determinant();
+        VERIFY_MSG( (detA > 0.),
+                    "Determinant of matrix has to be larger than zero" );
+        
+    }
+
+    // Input and output file streams
+    std::ifstream smfIn(   smfFileIn.c_str() );
+    std::ofstream smfOut( smfFileOut.c_str() );
+
+    // write to file for traceback
+    smfOut << "# Generated by smfAffine \n";
+
+    // Call generic conversion helper
+    smf2xx::Conversion< smfAffine::Converter >::apply( elementShape,
+                                                       elementNumPoints,
+                                                       smfIn, smfOut );
+
+    // Close the streams
+    smfIn.close();
+    smfOut.close();
+    
+    return 0;
+}

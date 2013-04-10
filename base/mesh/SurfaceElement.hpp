@@ -1,0 +1,162 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   SurfaceElement.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_mesh_surfaceelement_hpp
+#define base_mesh_surfaceelement_hpp
+
+//------------------------------------------------------------------------------
+// boost includes
+#include <boost/utility.hpp>
+#include <boost/array.hpp>
+// base includes
+#include <base/verify.hpp>
+#include <base/shape.hpp>
+#include <base/LagrangeShapeFun.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace mesh{
+
+        template<typename ELEMENT>
+        class SurfaceElement;
+
+        namespace detail_{
+
+            //------------------------------------------------------------------
+            //! Helper Traits class for automatically deriving from the
+            //! right element class
+            template<typename ELEMENT>
+            struct SurfaceElementTraits
+            {
+                typedef typename ELEMENT::Node Node;
+                static const base::Shape shape =
+                    base::FaceShape<ELEMENT::shape>::value;
+                typedef base::LagrangeShapeFun<ELEMENT::GeomFun::degree,
+                                               shape>  GeomFun;
+            };
+        
+        }
+
+    }
+}
+
+//------------------------------------------------------------------------------
+/** Representation of a surface element as a parametric restriction of a
+ *  volume element.
+ *  In addition to a normal base::mesh::Element, this class stores a pointer to
+ *  the domain element it is associated with and the parametric coordinates
+ *  of that domain element which define this surface element.
+ *
+ *  \tparam ELEMENT  Type of volume element
+ */
+template<typename ELEMENT>
+class base::mesh::SurfaceElement
+    : public base::mesh::Element< typename detail_::SurfaceElementTraits<ELEMENT>::Node,
+                                  typename detail_::SurfaceElementTraits<ELEMENT>::GeomFun >
+{
+public:
+    //! Template parameter: element of volume mesh
+    typedef ELEMENT DomainElement;
+
+    //! Type of nodes is the same as for the volume
+    typedef typename DomainElement::Node Node;
+
+    //! Traits for type definitions
+    typedef detail_::SurfaceElementTraits<DomainElement>  SET;
+
+    //! Local dimension of the surface
+    static const unsigned dim = base::ShapeDim<SET::shape>::value;
+
+    //! Shape: always a simplex
+    static const base::Shape shape = SET::shape;
+
+    //! Geometry function: Lagrangian with same degree as volume element
+    typedef typename SET::GeomFun GeomFun;
+
+    //! Inherits from this element
+    typedef base::mesh::Element<Node,GeomFun>       BasisElement;
+
+    //! Local coordinates of the volume element
+    typedef typename base::VectorType<dim+1>::Type  DomainCoordinate;
+
+    //! Storage of the parametric coordinates of the volume element
+    typedef boost::array<DomainCoordinate,BasisElement::numNodes> ParamtricArray;
+
+    //! Constructor which invalidates data
+    SurfaceElement( )
+        : domainElementPtr_( NULL )
+    {
+        parametric_.assign( base::invalidVector<dim+1>() );
+    }
+
+    //! @name Set and get volume element pointer
+    //@{
+    void setDomainElementPointer( const DomainElement* vep )
+    {
+        domainElementPtr_ = vep;
+    }
+
+    const DomainElement* getDomainElementPointer() const
+    {
+        return domainElementPtr_;
+    }
+    //@}
+
+    //! @name Access to parametric coordinates
+    //@{
+    typedef typename ParamtricArray::iterator ParamIter;
+    ParamIter parametricBegin() { return parametric_.begin(); }
+    ParamIter parametricEnd()   { return parametric_.end();   }
+
+    typedef typename ParamtricArray::const_iterator ParamConstIter;
+    ParamConstIter parametricBegin() const { return parametric_.begin(); }
+    ParamConstIter parametricEnd()   const { return parametric_.end();   }
+    //@}
+    
+    //! Override the ID function
+    std::size_t getID() const { return domainElementPtr_ -> getID(); }
+
+    //--------------------------------------------------------------------------
+    /** Computation of a domain-element parametric coordinate.
+     *  This element stores in addition to BasisElement the values of
+     *  domain parametric coordinates of its corresponding domain element.
+     *  By evaluating the linear combination
+     *  \f[
+     *       \xi(\eta) = \sum \phi^K(\eta) \xi^K
+     *  \f]
+     *  the parametric coordinate of the domain element at a local
+     *  coordinate \f$ \eta \f$ of this surface element is computed.
+     *  \param[in]  eta Local surface parameter coordinate
+     *  \return         Value of the corresponding domain coordinate
+     */
+    DomainCoordinate
+    localDomainCoordinate( const typename GeomFun::VecDim& eta ) const
+    {
+        // initialise with zero
+        DomainCoordinate xi = DomainCoordinate::Constant( 0. );
+
+        // evalute the geomtry function of this element
+        typename GeomFun::FunArray funValues;
+        (BasisElement::geomFun()).fun( eta, funValues );
+
+        for ( unsigned p = 0; p < parametric_.size(); p++ )
+            xi += parametric_[p] * funValues[p];
+
+        return xi;
+    }
+        
+
+    
+private:
+    const DomainElement* domainElementPtr_; //! Pointer to connected volume element
+    ParamtricArray       parametric_;       //! Storage of parametric coordinates
+};
+
+
+#endif

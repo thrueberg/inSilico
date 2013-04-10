@@ -1,0 +1,74 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   types.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_types_hpp
+#define base_types_hpp
+
+//------------------------------------------------------------------------------
+// boost includes
+#include <boost/type_traits.hpp>
+// base includes
+#include <base/verify.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+
+    //----------------------------------------------------------------------
+    /** Convenience structure for compile-time check of types.
+     *  As functors of take argument types with reference, pointer and/or
+     *  const declarations, a direct type check is only possible after
+     *  reduction to a plain type, e.g., const int&  --> int.
+     *  This functor reduces the passed type to its plain version.
+     *  \tparam T  Input type with all the qualifiers
+     */
+    template<typename T>
+    struct TypeReduction
+    {
+        typedef typename boost::remove_const<T>::type             T1;
+        typedef typename boost::remove_reference<T1>::type        T2;
+        typedef typename boost::remove_pointer<T2>::type          T3;
+        typedef typename boost::remove_reference<T3>::type        T4;
+        typedef typename boost::remove_const<T4>::type            T5;
+
+        //! The desired result: underlying type of 'T'
+        typedef T5 Type;
+    };
+
+    //----------------------------------------------------------------------
+    /** Assert at compile-time the equality of the plain types.
+     *  For security and convenience, it is recommandable to have a
+     *  compile-time type check. In order to do so, put a variable
+     *  \code
+     *    static base::aux::TypeEquality<T,U>  sanity;
+     *  \endcode
+     *  somewhere in your code. Alternatively, in order to avoid compiler
+     *  warnings, in template functions you can also put
+     *  \code
+     *    base::aux::TypeEquality<T,U>();
+     *  \endcode
+     *  This creates an unusable temporary only for the type checking.
+     *  If the reduced types (see TypeReduction)
+     *  of T and U do not match, a compile-time assertion fails.
+     *  \tparam T,U  Types to compare
+     */
+    template<typename T, typename U>
+    struct TypeEquality
+    {
+        // Reduce T and U to their plain types
+        typedef typename base::TypeReduction<T>::Type PlainT;
+        typedef typename base::TypeReduction<U>::Type PlainU;
+
+        // Make sure the plain type matches the expected one
+        STATIC_ASSERT_MSG( ( boost::is_same<PlainT,PlainU>::value ),
+                           "Types do not match" );
+    };
+
+} // namespace base
+
+#endif

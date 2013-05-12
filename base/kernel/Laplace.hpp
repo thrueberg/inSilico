@@ -36,7 +36,7 @@ namespace base{
  *      - \nabla^2 f = \sum_{i=1}^d \frac{\partial^2 f}{\partial x_i^2}
  *  \f]
  *  In general, \f$ f \f$ can be the \f$ i \f$-th compenent \f$ u_i \f$ of some
- *  vector field.Here, the domain part of the bilinear form obtained from
+ *  vector field. Here, the domain part of the bilinear form obtained from
  *  integration by parts is implemented
  *  \f[
  *      \int_\Omega (-\kappa \nabla^2 u) v dx =
@@ -99,10 +99,10 @@ public:
      *   \param[in]  weight   Weight corresponding to the quadrature point
      *   \param[out] matrix   Result storage
      */
-    void operator()( const FieldTuple&  fieldTuple,
-                     const LocalVecDim& xi,
-                     const double       weight,
-                     base::MatrixD&     matrix ) const
+    void tangentStiffness( const FieldTuple&  fieldTuple,
+                           const LocalVecDim& xi,
+                           const double       weight,
+                           base::MatrixD&     matrix ) const
     {
         // Extract element pointer from tuple
         const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
@@ -119,8 +119,8 @@ public:
             (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
 
         // Sizes and sanity checks
-        const unsigned numRowBlocks = testGradX.size();
-        const unsigned numColBlocks = trialGradX.size();
+        const unsigned numRowBlocks = static_cast<unsigned>( testGradX.size()  );
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
         assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * doFSize );
         assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * doFSize );
 
@@ -144,7 +144,66 @@ public:
             }
         }
 
+        return;
     }
+
+    //--------------------------------------------------------------------------
+    void coNormalDerivative( const FieldTuple&  fieldTuple,
+                             const LocalVecDim& xi,
+                             const GlobalVecDim& normal,
+                             base::MatrixD& result ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*   geomEp  = fieldTuple.geomElementPtr();
+        const TrialElement*  trialEp = fieldTuple.trialElementPtr();
+
+        this -> normalDerivativeHelper_( geomEp, trialEp, xi,
+                                         normal, result );
+    }
+
+    //--------------------------------------------------------------------------
+    void dualCoNormalDerivative( const FieldTuple&  fieldTuple,
+                                 const LocalVecDim& xi,
+                                 const GlobalVecDim& normal,
+                                 base::MatrixD& result ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp = fieldTuple.geomElementPtr();
+        const TestElement*  testEp = fieldTuple.testElementPtr();
+
+        this -> normalDerivativeHelper_( geomEp, testEp, xi,
+                                         normal, result );
+    }
+
+private:
+
+    template<typename FIELDELEMENT>
+    void normalDerivativeHelper_( const GeomElement*  geomEp,
+                                  const FIELDELEMENT* fieldEp,
+                                  const LocalVecDim&  xi,
+                                  const GlobalVecDim& normal,
+                                  base::MatrixD& result ) const
+    {
+        // evaluate gradient of trial functions
+        std::vector<GlobalVecDim> fieldGradX;
+        (fieldEp -> fEFun()).evaluateGradient( geomEp, xi, fieldGradX );
+
+        const unsigned numColBlocks = fieldGradX.size();
+
+        result = base::MatrixD::Zero( +doFSize, numColBlocks * doFSize );
+
+        for ( unsigned i = 0; i < numColBlocks; i++ ) {
+        
+            const double entry = factor_ * base::dotProduct( normal, fieldGradX[i] );
+            
+            for ( unsigned d = 0; d < doFSize; d++)
+                result( d, i*doFSize + d) = entry;
+
+        }
+        
+        return;
+    }
+
 
 private:
     const double factor_; //!< Scalar multiplier (e.g. conductivity)

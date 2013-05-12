@@ -43,7 +43,8 @@ public:
     {
         rhs_.resize( size );
         rhs_.fill( 0. );
-        lhs_.resize( size, size );
+        lhs_.resize( static_cast<int>(size),
+                     static_cast<int>(size) );
     }
 
     //--------------------------------------------------------------------------
@@ -52,12 +53,14 @@ public:
                       const RDOFS  & rowDofs,
                       const CDOFS  & colDofs )
     {
-        const unsigned numRowDofs = rowDofs.size();
-        const unsigned numColDofs = colDofs.size();
+        const std::size_t numRowDofs = rowDofs.size();
+        const std::size_t numColDofs = colDofs.size();
 
-        for ( unsigned i = 0; i < numRowDofs; i ++ ) {
-            for ( unsigned j = 0; j < numColDofs; j ++ ) {
-                triplets_.push_back( Triplet( rowDofs[i], colDofs[j], matrix(i,j) ) );
+        for ( std::size_t i = 0; i < numRowDofs; i ++ ) {
+            for ( std::size_t j = 0; j < numColDofs; j ++ ) {
+                triplets_.push_back( Triplet( static_cast<unsigned>(rowDofs[i]),
+                                              static_cast<unsigned>(colDofs[j]),
+                                              matrix(i,j) ) );
             }
         }
 
@@ -69,11 +72,11 @@ public:
     void insertToRHS( const VECTOR & vector,
                       const DOFS   & dofs )
     {
-        const unsigned numDofs = dofs.size();
+        const std::size_t numDofs = dofs.size();
 
-        assert( static_cast<int>(numDofs) == vector.size() );
+        assert( static_cast<std::ptrdiff_t>(numDofs) == vector.size() );
 
-        for ( unsigned i = 0; i < numDofs; i ++ ) {
+        for ( std::size_t i = 0; i < numDofs; i ++ ) {
 
             rhs_[ dofs[i] ] += vector[i];
         }
@@ -139,7 +142,7 @@ public:
     }
 
     //--------------------------------------------------------------------------
-    void debug( std::ostream & out) const
+    void debugLHS( std::ostream & out) const
     {
         for ( int k=0; k < lhs_.outerSize(); k++ ) {
             for ( Eigen::SparseMatrix<number>::InnerIterator it(lhs_,k); it; ++it) {
@@ -149,6 +152,12 @@ public:
         }
     }
 
+    //--------------------------------------------------------------------------
+    void debugRHS( std::ostream & out) const
+    {
+        for ( int i = 0; i < rhs_.size(); i++ )
+            out << i << " " << rhs_[i] << "\n";
+    }
     
 private:
     std::vector< Triplet > triplets_;

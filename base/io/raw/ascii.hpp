@@ -30,13 +30,15 @@ namespace base{
                     static void apply( const DOFVALUE& value,
                                        std::ostream& out )
                     {
-                        for ( int d1 = 0; d1 < value.rows(); d1 ++ ) {
-                            for ( int d2 = 0; d2 < value.cols(); d2 ++ ) {
+                        for ( int d1 = 0; d1 < base::MatRows<DOFVALUE>::value; d1 ++ ) {
+                            for ( int d2 = 0; d2 < base::MatCols<DOFVALUE>::value; d2 ++ ) {
                                 out << value(d1,d2) << " ";
                             }
                         }
+                        
                         // hack to avoid 2D vectors
-                        if ( value.size() == 2 ) out << "0";
+                        if ( base::MatSize<DOFVALUE>::value == 2 )
+                            out << "0";
                     }
                 };
 
@@ -44,6 +46,17 @@ namespace base{
                 struct WriteDoFValue<double>
                 {
                     static void apply( const double& value,
+                                       std::ostream& out )
+                    {
+                        out << value;
+                    }
+
+                };
+
+                template<>
+                struct WriteDoFValue<bool>
+                {
+                    static void apply( const bool& value,
                                        std::ostream& out )
                     {
                         out << value;

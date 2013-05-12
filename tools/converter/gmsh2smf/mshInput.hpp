@@ -34,9 +34,9 @@ namespace tools{
 
             //! Read sectio of elements
             void readElements( std::istream& inp,
-                               std::vector<unsigned>&               elementTypes,
-                               std::vector<unsigned>&               elementFirstTags, 
-                               std::vector<std::vector<unsigned> >& connectivities );
+                               std::vector<unsigned>&                  elementTypes,
+                               std::vector<unsigned>&                  elementFirstTags, 
+                               std::vector<std::vector<std::size_t> >& connectivities );
 
             //! Manage the tags and their state of being read
             class TagReader;
@@ -116,7 +116,8 @@ void  tools::converter::gmsh2smf::readNodes( std::istream& inp,
 void tools::converter::gmsh2smf::readElements( std::istream& inp,
                                                std::vector<unsigned>& elementTypes,
                                                std::vector<unsigned>& elementFirstTags, 
-                                               std::vector<std::vector<unsigned> >& connectivities )
+                                               std::vector<std::vector<std::size_t> >&
+                                               connectivities )
 {
     unsigned numElements;
     inp >> numElements;
@@ -139,9 +140,9 @@ void tools::converter::gmsh2smf::readElements( std::istream& inp,
         const unsigned numNodes = gmsh2smf::numNodesPerElement( type );
 
         // read connectivity
-        std::vector<unsigned> connec;
+        std::vector<std::size_t> connec;
         for ( unsigned n = 0; n < numNodes; n++ ) {
-            unsigned nodeId;
+            std::size_t nodeId;
             inp >> nodeId;
             connec.push_back( nodeId-1 );
 
@@ -175,8 +176,12 @@ private:
 public:
     //! Initialise arrays
     TagReader()
-        : tagNames_( {{ "MeshFormat", "PhysicalNames", "Nodes", "Elements" }} )
     {
+        tagNames_[0] = "MeshFormat";
+        tagNames_[1] = "PhysicalNames";
+        tagNames_[2] = "Nodes";
+        tagNames_[3] = "Elements";
+
         tagStates_.assign( OPEN );
     }
 
@@ -245,7 +250,7 @@ public:
     {
         const std::string word = this -> readTagline_( inp );
 
-        const unsigned numReadTags =
+        const std::size_t numReadTags =
             std::count_if( tagStates_.begin(), tagStates_.end(),
                            boost::bind( std::equal_to<State>(), _1, READ ) );
 
@@ -257,7 +262,7 @@ public:
 
         const  boost::array<State,4>::iterator iter = std::find( tagStates_.begin(),
                                                                  tagStates_.end(), READ );
-        const unsigned readTagNum = std::distance( tagStates_.begin(), iter );
+        const std::size_t readTagNum = std::distance( tagStates_.begin(), iter );
 
         const std::string expectedWord = "End" + tagNames_[ readTagNum ];
 
@@ -278,8 +283,8 @@ public:
     }
 
 private:
-    const boost::array< std::string, 4 > tagNames_;
-    boost::array< State, 4 >             tagStates_;
+    boost::array< std::string, 4 > tagNames_;
+    boost::array< State, 4 >       tagStates_;
 };
 
 #endif

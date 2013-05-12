@@ -84,22 +84,24 @@ public:
     static const unsigned dim     = DIM;
     static const unsigned doFSize = 1;
 
-    typedef typename base::VectorType<dim,    double>::Type     VecDim;
-    typedef typename base::VectorType<doFSize,double>::Type     VecDoF;
-    typedef typename base::MatrixType<dim,doFSize,double>::Type Grad;
+    typedef typename base::Vector<dim,    double>::Type     VecDim;
+    typedef typename base::Vector<doFSize,double>::Type     VecDoF;
+    typedef typename base::Matrix<dim,doFSize,double>::Type Grad;
 
+    //! Evaluate the fundamental solution for arguments x and y
     VecDoF fun( const VecDim& x, const VecDim& y ) const
     {
-        const double dist = (y - x).norm();
+        const double dist = base::norm(y - x);
         const double factor = 1./(2.*(dim-1)*M_PI);
         VecDoF result;
         result[0] = factor * detail_::LaplaceKernel<dim>::apply( dist );
         return result;
     }
 
+    //! Evaluate the gradient of the fundamental solution for given x and y
     Grad grad( const VecDim& x, const VecDim& y ) const
     {
-        const double dist = (y - x).norm();
+        const double dist = base::norm(y - x);
         const double factor =
             -1./(2.*(dim-1)*M_PI) / (base::Power<dim>::apply( dist ) );
 
@@ -108,6 +110,7 @@ public:
             Grad(d,0) = factor * (y[d] - x[d]);
     }
 
+    //! Evaluate the co-normal derivative for given x, y and normal vector
     VecDoF coNormal( const VecDim& x, const VecDim& y,
                      const VecDim& normal ) const
     {
@@ -130,9 +133,9 @@ public:
     static const unsigned dim     = DIM;
     static const unsigned doFSize = dim;
 
-    typedef typename base::VectorType<dim,    double>::Type     VecDim;
-    typedef typename base::VectorType<doFSize,double>::Type     VecDoF;
-    typedef typename base::MatrixType<dim,doFSize,double>::Type Grad;
+    typedef typename base::Vector<dim,    double>::Type     VecDim;
+    typedef typename base::Vector<doFSize,double>::Type     VecDoF;
+    typedef typename base::Matrix<dim,doFSize,double>::Type Grad;
 
     FundSolElastoStatic( const double lambda, const double mu )
         : lambda_( lambda ), mu_( mu ) { }
@@ -144,7 +147,7 @@ public:
             1. /(4. * (dim-1) * M_PI ) *
             (lambda_ + mu_) / (lambda_ + 2.* mu_) / mu_;
 
-        const double dist   = (y - x).norm();
+        const double dist   = base::norm(y - x);
 
         typedef Grad MatDimDim;
 
@@ -181,8 +184,11 @@ public:
     }
 
 private:
+    //! @name Lame parameters
+    //@{
     const double lambda_;
     const double mu_;
+    //@}
     
 };
 

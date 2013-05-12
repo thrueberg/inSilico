@@ -31,7 +31,7 @@ namespace tools{
 
             //! Reorder GMSH index logic to SMF index logic
             void reorderConnectivity( const unsigned type,
-                                      std::vector<unsigned>& connec );
+                                      std::vector<std::size_t>& connec );
 
         }
     }
@@ -231,7 +231,7 @@ std::string tools::converter::gmsh2smf::smfNameOfElementType( const unsigned typ
  *  \param[in,out] connec  Connectivity before and after reordering
  */
 void tools::converter::gmsh2smf::reorderConnectivity( const unsigned type,
-                                                      std::vector<unsigned>& connec )
+                                                      std::vector<std::size_t>& connec )
 {
     switch( type )
     {
@@ -241,7 +241,7 @@ void tools::converter::gmsh2smf::reorderConnectivity( const unsigned type,
 
     case 27:
     {
-        std::vector<unsigned> tmp = connec;
+        std::vector<std::size_t> tmp = connec;
         const boost::array<unsigned,18> eightPlusIdx =
             {{ 8, 11, 13,  9, 16, 18, 19, 17, 10, 12, 14, 15, // edges
                24, 25, 21, 23, 24, 22 }};                      // faces

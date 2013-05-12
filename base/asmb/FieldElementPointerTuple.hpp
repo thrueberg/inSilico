@@ -37,6 +37,38 @@ namespace base{
         //----------------------------------------------------------------------
         namespace detail_{
 
+        }
+        
+        //! Generate a tuple from a surface field tuple
+        template<typename SFEPT>
+        struct DomainFieldElementPointerTuple
+        {
+            typedef FieldElementPointerTuple<
+                typename
+                base::TypeReduction<typename
+                                    SFEPT::GeomElementPtr>::Type::DomainElement*,
+                typename SFEPT::TestElementPtr,
+                typename SFEPT::TrialElementPtr,
+                typename SFEPT::AuxField1ElementPtr,
+                typename SFEPT::AuxField2ElementPtr,
+                typename SFEPT::AuxField3ElementPtr>
+            Type;
+
+            static Type convert( const SFEPT & sfept )
+            {
+                return Type( sfept.geomElementPtr() -> getDomainElementPointer(),
+                             sfept.template copy<1>(),
+                             sfept.template copy<2>(),
+                             sfept.template copy<3>(),
+                             sfept.template copy<4>(),
+                             sfept.template copy<5>() );
+            }
+        };
+
+
+        //----------------------------------------------------------------------
+        namespace detail_{
+
             //------------------------------------------------------------------
             // Helper to bind the type of FieldElementPointerTuple given 
             // iterators as types
@@ -154,6 +186,14 @@ public:
         return tuple_.template get<N>();
     }
 
+    //! Value access via index without bound check
+    template<unsigned N>
+    const typename boost::tuples::element<N,Tuple>::type copy() const
+    {
+        STATIC_ASSERT_MSG( N < 6, "Access exceeds implementation" );
+        return tuple_.template get<N>();
+    }
+
     //! @name Access with names
     //@{
     GeomElementPtr           geomElementPtr() const { return this ->template get<0>(); }
@@ -180,7 +220,8 @@ public:
                                 tuple_.template get<5>() );
     }
     //@}
-    
+
+        
 private:
     //! A tuple of element pointers (and dummy place holders
     Tuple tuple_;

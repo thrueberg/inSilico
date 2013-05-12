@@ -9,6 +9,7 @@
 #include <base/mesh/CreateBoundaryMesh.hpp>
 #include <base/Quadrature.hpp>
 #include <base/LagrangeShapeFun.hpp>
+#include <base/io/Format.hpp>
 #include <base/io/smf/Reader.hpp>
 #include <base/io/vtk/LegacyWriter.hpp>
 #include <base/dof/DegreeOfFreedom.hpp>
@@ -48,9 +49,9 @@ public:
           gamma_( gamma )
     { }
 
-    typedef typename base::VectorType<1  >::Type   VecDof;
-    typedef typename base::VectorType<DIM>::Type   VecDim;
-    typedef typename base::MatrixType<DIM,1>::Type GradType;
+    typedef typename base::Vector<1  >::Type   VecDof;
+    typedef typename base::Vector<DIM>::Type   VecDim;
+    typedef typename base::Matrix<DIM,1>::Type GradType;
 
 
     VecDof evaluate( const VecDim& x ) const
@@ -168,7 +169,7 @@ int main( int argc, char * argv[] )
     }
 
     const std::string smfFile  = boost::lexical_cast<std::string>( argv[1] );
-    const std::string baseName = smfFile.substr( 0, smfFile.find( ".smf" ) );
+    const std::string baseName = base::io::baseName( smfFile, ".smf" );
 
     //--------------------------------------------------------------------------
     const unsigned    geomDeg  = 1;
@@ -288,12 +289,7 @@ int main( int argc, char * argv[] )
         std::ofstream vtk( vtkFile.c_str() );
         base::io::vtk::LegacyWriter vtkWriter( vtk );
         vtkWriter.writeUnstructuredGrid( mesh );
-        {
-            // Evaluate the solution field at every geometry node
-            std::vector<base::VectorType<doFSize>::Type> nodalValues;
-            base::post::evaluateAtNodes( mesh, field, nodalValues );
-            vtkWriter.writePointData( nodalValues.begin(), nodalValues.end(), "heat" );
-        }
+        base::io::vtk::writePointData( vtkWriter, mesh, field, "temperature" );
         vtk.close();
     }
 

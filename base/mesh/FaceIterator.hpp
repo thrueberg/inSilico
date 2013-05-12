@@ -121,7 +121,8 @@ public:
                                    const Face> Facade;
 
     //! Element face traits
-    typedef base::mesh::ElementFaceTraits<Element::shape,nFace> ElementFaceTraits;
+    typedef base::mesh::ElementFaceTraits<Element::shape,nFace,
+                                          std::size_t> ElementFaceTraits;
 
     //! Lookup object
     typedef typename base::mesh::ElementFaces<Element::shape,nFace> ElementFaces;

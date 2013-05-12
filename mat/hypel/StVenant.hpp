@@ -109,7 +109,8 @@ public:
         C.block( 0, 0, 3, 3 ) = Tensor::Constant( lambda_ );
 
         //
-        for ( unsigned i = 0; i < 6; i ++ ) C( i, i ) +=  2. * mu_;
+        for ( unsigned i = 0; i < 3; i ++ ) C( i, i ) +=  2. * mu_;
+        for ( unsigned i = 3; i < 6; i ++ ) C( i, i ) +=       mu_;
     }
     
     

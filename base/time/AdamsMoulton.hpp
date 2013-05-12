@@ -110,25 +110,24 @@ namespace base{
         //----------------------------------------------------------------------
         // Q=1
         template<>
-        const typename AdamsMoulton<1>::RHSWeightsArray AdamsMoulton<1>::b_ =
-        {{ 1.0 }};
+        const AdamsMoulton<1>::RHSWeightsArray AdamsMoulton<1>::b_ = {{ 1.0 }};
 
         //----------------------------------------------------------------------
         // Q=2
         template<>
-        const typename AdamsMoulton<2>::RHSWeightsArray AdamsMoulton<2>::b_ =
+        const AdamsMoulton<2>::RHSWeightsArray AdamsMoulton<2>::b_ =
         {{ 0.5, 0.5 }};
         
         //----------------------------------------------------------------------
         // Q=3
         template<>
-        const typename AdamsMoulton<3>::RHSWeightsArray AdamsMoulton<3>::b_ =
+        const AdamsMoulton<3>::RHSWeightsArray AdamsMoulton<3>::b_ =
         {{ 5./12., 2./3., -1./12 }};
 
         //----------------------------------------------------------------------
         // Q=4
         template<>
-        const typename AdamsMoulton<4>::RHSWeightsArray AdamsMoulton<4>::b_ =
+        const AdamsMoulton<4>::RHSWeightsArray AdamsMoulton<4>::b_ =
         {{ 3./8., 19./24., -5./24., 1./24. }};
 
     }

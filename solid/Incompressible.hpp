@@ -105,7 +105,7 @@ class solid::Incompressible
  *      \int_{\Omega_0} S_{iso} : (F^T \nabla_X v) d X
  *  \f]
  *  in residualForce(), or rather this term with \f$ p^{n+1-s} \f$ and
- *  \f$ u^{n+1-s} \f$ in residualForceHistoryU<NHIST>().
+ *  \f$ u^{n+1-s} \f$ in residualForceHistory<NHIST>().
  *  \tparam MATERIAL    Type of (almost) incompressible material
  *  \tparam FIELDTUPLE  Type of tuple with the field elements
  */ 
@@ -337,7 +337,7 @@ private:
  *     \int_{\Omega_0} J(u) \Delta p (\nabla_x \cdot v) d X
  *  \f]
  *  Note that the residual force term is completely implemented in
- *  solid::IncompressibleUU<MATERIAL,FIELDTUPLE> .
+ *  solid::IncompressibleUU.
  *  \tparam FIELDTUPLE   Type of field tuple
  */
 template<typename FIELDTUPLE>
@@ -361,10 +361,6 @@ public:
 
     //! Number of DoFs per vectorial entry
     static const unsigned nDoFs = TestElement::DegreeOfFreedom::size;
-
-        //! Flag for equal test and form functions --> Bubnov-Galerkin
-    static const bool bubnov = boost::is_same<TrialElement,
-                                              TestElement>::value;
 
     //! Local coordinate
     typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
@@ -530,10 +526,6 @@ public:
     typedef typename FieldTuple::TestElement      TestElement;
     typedef typename FieldTuple::TrialElement     TrialElement;
     //@}
-
-     //! Flag for equal test and form functions --> Bubnov-Galerkin
-    static const bool bubnov = boost::is_same<TrialElement,
-                                              TestElement>::value;
 
     //! Local coordinate
     typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;

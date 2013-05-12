@@ -16,8 +16,6 @@
 // base includes
 #include <base/geometry.hpp>
 #include <base/linearAlgebra.hpp>
-// base/aux includes
-#include <base/aux/algorithms.hpp>
 // base/asmb includes
 #include <base/asmb/ForceIntegrator.hpp>
 
@@ -33,24 +31,24 @@ namespace base{
         /** Convenience function for the computation of the body force term.
          *
          */
-        template<typename QUADRATURE, typename SOLVER, typename BOUNDFIELD>
+        template<typename QUADRATURE, typename SOLVER, typename FIELDBINDER>
         void bodyForceComputation(
             const QUADRATURE& quadrature,
             SOLVER& solver,
-            const BOUNDFIELD& boundField,
-            const typename BodyForce<typename BOUNDFIELD::ElementPtrTuple>::ForceFun& ff )
+            const FIELDBINDER& fieldBinder,
+            const typename BodyForce<typename FIELDBINDER::ElementPtrTuple>::ForceFun& ff )
         {
             // body force wrapper
-            BodyForce<typename BOUNDFIELD::ElementPtrTuple> bodyForce( ff );
+            BodyForce<typename FIELDBINDER::ElementPtrTuple> bodyForce( ff );
             
             // force integrator
             typedef ForceIntegrator<QUADRATURE,SOLVER,
-                                    typename BOUNDFIELD::ElementPtrTuple> ForceInt;
+                                    typename FIELDBINDER::ElementPtrTuple> ForceInt;
             
             typename ForceInt::ForceKernel forceKernel =
                 boost::bind( bodyForce, _1, _2, _3, _4 );
             ForceInt forceInt( forceKernel, quadrature, solver );
-            std::for_each( boundField.elementsBegin(), boundField.elementsEnd(),
+            std::for_each( fieldBinder.elementsBegin(), fieldBinder.elementsEnd(),
                            forceInt );
         }
 
@@ -92,9 +90,11 @@ public:
     //! Type of global vector
     typedef typename base::GeomTraits<GeomElement>::GlobalVecDim GlobalVecDim;
 
+    //! Size of a DoF
+    static const unsigned doFSize = TestElement::DegreeOfFreedom::size;
+
     //! Type of result vector
-    typedef typename
-    base::VectorType<TestElement::DegreeOfFreedom::size,number>::Type VecDof;
+    typedef typename base::Vector<doFSize,number>::Type VecDof;
 
     //! Type of force function
     typedef boost::function<VecDof( const GlobalVecDim& )> ForceFun;
@@ -135,8 +135,7 @@ public:
         (testEp -> fEFun()).evaluate( geomEp, xi, funValues );
 
         // deduce the size of every contribution
-        const unsigned numFun = funValues.size();
-        const unsigned doFSize = vector.size() / numFun;
+        const unsigned numFun = static_cast<unsigned>( funValues.size() );
 
         // Loop over shape functions
         for ( unsigned s = 0; s < numFun; s++ ) {

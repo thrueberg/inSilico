@@ -158,6 +158,14 @@ public:
                            (fieldTuple_.template get<4>()).elementsEnd() );
     }
 
+    //! Random-access to the pointer tuples
+    ElementPtrTuple elementPtr( const std::size_t& e ) const
+    {
+        FieldIterator iter = this -> elementsBegin();
+        std::advance( iter, e );
+        return *iter;
+    }
+
 private:
     //! Mesh reference
     MESH&      mesh_;

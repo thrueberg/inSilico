@@ -14,6 +14,7 @@
 // base includes
 #include <base/shape.hpp>
 #include <base/meta.hpp>
+#include <base/BSplineShapeFun.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -25,11 +26,8 @@ namespace base{
         template<unsigned DIM, unsigned DEGREE, int CONTINUITY>
         struct BSplineCell
         {
-            //! 1D Shape function            
-            typedef base::sfun::BSpline<DEGREE,CONTINUITY> BSpline;
-
-            //! Tensor-product gives element shape function
-            typedef base::sfun::TensorProduct<BSpline,DIM> ShapeFun;
+            //! BSpline based shape functions
+            typedef base::BSplineShapeFun<DIM,DEGREE,CONTINUITY> ShapeFun;
 
             //! Total number of DoFs
             static const unsigned numTotalDoFs = ShapeFun::numFun;

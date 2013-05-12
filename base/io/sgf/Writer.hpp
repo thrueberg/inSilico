@@ -34,9 +34,11 @@ namespace base{
                 template<typename VEC>
                 void writeVec( const VEC & vec, std::ostream & out )
                 {
-                    for ( int d = 0; d < vec.size(); d++ )
+                    const int size = static_cast<int>( vec.size() );
+                    
+                    for ( int d = 0; d < size; d++ )
                         out << vec[d] << " ";
-                    for ( int d = vec.size(); d < 3; d++ )
+                    for ( int d = size; d < 3; d++ )
                         out << "0 ";
                     out << '\n';
                 }

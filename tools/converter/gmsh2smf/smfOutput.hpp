@@ -33,10 +33,10 @@ namespace tools{
                                  const std::map< unsigned, unsigned >& elementMap,
                                  const unsigned domNum,
                                  const std::string coordFile,
-                                 const unsigned numNodes,
+                                 const std::size_t numNodes,
                                  const std::vector<unsigned>& elementTypes,
                                  const std::vector<unsigned>& elementFirstTags,
-                                 const std::vector< std::vector<unsigned> >& connectivities );
+                                 const std::vector< std::vector<std::size_t> >& connectivities );
         }
     }
 }
@@ -63,10 +63,10 @@ void tools::converter::gmsh2smf::writeTopology(  const std::string& outFileBaseN
                                                  const std::map< unsigned, unsigned >& elementMap,
                                                  const unsigned domNum,
                                                  const std::string coordFile,
-                                                 const unsigned numNodes,
+                                                 const std::size_t numNodes,
                                                  const std::vector<unsigned>& elementTypes,
                                                  const std::vector<unsigned>& elementFirstTags,
-                                                 const std::vector< std::vector<unsigned> >&
+                                                 const std::vector< std::vector<std::size_t> >&
                                                  connectivities )
 {
 
@@ -103,12 +103,12 @@ void tools::converter::gmsh2smf::writeTopology(  const std::string& outFileBaseN
                  ( elementTypes[e]     == eType ) ){
 
                 //! Extract element
-                const std::vector<unsigned> element =
+                const std::vector<std::size_t> element =
                     connectivities[e];
                 
                 //! Write connectivity
                 std::copy( element.begin(), element.end(),
-                           std::ostream_iterator<unsigned>( conn, " ") );
+                           std::ostream_iterator<std::size_t>( conn, " ") );
                 conn << "\n";
             }
             

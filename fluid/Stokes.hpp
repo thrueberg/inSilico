@@ -93,7 +93,7 @@ public:
     {
         // call generic laplace kernel
         base::kernel::Laplace<FieldTuple> laplace( viscosity_ );
-        laplace( fieldTuple, xi, weight, matrix );
+        laplace.tangentStiffness( fieldTuple, xi, weight, matrix );
     }
 
     //--------------------------------------------------------------------------
@@ -112,7 +112,7 @@ public:
      *      F[M*d+i] = \int_\Omega \mu \phi^M_{,k} (u^{n-s}_{,k}) dx
      *  \f]
      */
-    template<typename HIST>
+    template<unsigned HIST>
     void residualForceHistory( const FieldTuple&   fieldTuple,
                                const LocalVecDim&  xi,
                                const double        weight,
@@ -129,7 +129,7 @@ public:
             (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
 
         // get velocity gradient
-        const typename base::MatrixType<globalDim, nDoFs>::Type  gradU
+        const typename base::Matrix<globalDim, nDoFs>::Type  gradU
             = fluid::velocityGradientHistory<HIST>( geomEp, trialEp, xi );
         
         for ( unsigned M = 0; M < testGradX.size(); M++ ) {
@@ -249,7 +249,7 @@ public:
      *      F[M*d+i] = - \int_\Omega \phi^M_{,i} p^{n-s} dx
      *  \f]
      */
-    template<typename HIST>
+    template<unsigned HIST>
     void residualForceHistory( const FieldTuple&   fieldTuple,
                                const LocalVecDim&  xi,
                                const double        weight,
@@ -348,7 +348,7 @@ public:
      *      F[M*d+i] = - \int_\Omega \psi^M (\nabla \cdot u^{n-s}) dx
      *  \f]
      */
-    template<typename HIST>
+    template<unsigned HIST>
     void residualForceHistory( const FieldTuple&   fieldTuple,
                                const LocalVecDim&  xi,
                                const double        weight,
@@ -369,7 +369,7 @@ public:
         const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );        
         
         for ( unsigned M = 0; M < testFun.size(); M++ ) {
-            vector[M] += (changeSign_ ? +1.0: -1.0) * 
+            vector[M] += (changeSign_ ? -1.0 : +1.0) * 
                 testFun[M] * divU * detJ * weight;
         }
     }

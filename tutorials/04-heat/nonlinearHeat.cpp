@@ -17,7 +17,6 @@
 #include <base/dof/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
-#include <base/aux/algorithms.hpp>
 
 #include <base/dof/Distribute.hpp>
 #include <base/dof/constrainBoundary.hpp>
@@ -28,6 +27,7 @@
 #include <base/post/evaluateAtNodes.hpp>
 #include <base/solver/Eigen3.hpp>
 #include <base/io/vtk/LegacyWriter.hpp>
+#include <base/io/Format.hpp>
 
 #include <heat/Static.hpp>
 #include <mat/thermal/FenicsTest.hpp>
@@ -36,20 +36,20 @@
 //------------------------------------------------------------------------------
 // Reference solution, see mat/thermal/FenicsTest.hpp
 template<unsigned DIM>
-base::VectorType<1,double>::Type
-referenceSolution( const typename base::VectorType<DIM,double>::Type& x,
+base::Vector<1,double>::Type
+referenceSolution( const typename base::Vector<DIM,double>::Type& x,
                    const double m )
 {
     const double fac = std::pow( 2.0, m+1.0 );
     const double mantissa = (fac-1.0) * x[0] + 1.0;
     const double result = std::pow( mantissa, 1./(m+1.0) ) - 1.0;
-    return base::VectorType<1,double>::Type::Constant( result );
+    return base::Vector<1,double>::Type::Constant( result );
 }
 
 //------------------------------------------------------------------------------
 // u(0) = 0 and u(1) = 1
 template<unsigned DIM, typename DOF>
-void dirichletBC( const typename base::VectorType<DIM,double>::Type& x,
+void dirichletBC( const typename base::Vector<DIM,double>::Type& x,
                   DOF* doFPtr ) 
 {
     const double tol = 1.e-5;
@@ -73,7 +73,7 @@ int main( int argc, char * argv[] )
     }
         
     const std::string smfFile  = boost::lexical_cast<std::string>( argv[1] );
-    const std::string baseName = smfFile.substr( 0, smfFile.find( ".smf" ) );
+    const std::string baseName = base::io::baseName( smfFile, ".smf" );
 
     const unsigned maxIter   = 10;
     const double   tolerance = 1.e-8;
@@ -209,12 +209,7 @@ int main( int argc, char * argv[] )
         std::ofstream vtk( vtkFile.c_str() );
         base::io::vtk::LegacyWriter vtkWriter( vtk );
         vtkWriter.writeUnstructuredGrid( mesh );
-        {
-            // Evaluate the solution field at every geometry node
-            std::vector<base::VectorType<doFSize>::Type> nodalValues;
-            base::post::evaluateAtNodes( mesh, field, nodalValues );
-            vtkWriter.writePointData( nodalValues.begin(), nodalValues.end(), "heat" );
-        }
+        base::io::vtk::writePointData( vtkWriter, mesh, field, "temperature" );
         vtk.close();
     }
 

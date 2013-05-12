@@ -46,8 +46,7 @@ namespace tools{
                                    std::ostream& sgfOut )
                 {
                     // Typedefs for defining a grid
-                    typedef typename base::MultiIndex<DIM>::Type   Index;
-                    typedef base::mesh::Node<DIM,Index>            Node;
+                    typedef base::mesh::Node<DIM>                  Node;
                     typedef base::sfun::BSpline<DEGREE>            BSpline;
                     typedef base::sfun::TensorProduct<BSpline,DIM> GeomFun;
                     typedef base::mesh::Element<Node,GeomFun>      Element;

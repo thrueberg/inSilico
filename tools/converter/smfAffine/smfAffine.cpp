@@ -35,8 +35,8 @@ namespace tools{
 
             //------------------------------------------------------------------
             // 3D transformation matrix and translation vector
-            typedef typename base::MatrixType<3,3,double>::Type Mat;
-            typedef typename base::VectorType<3,double>::Type   Vec;
+            typedef base::Matrix<3,3,double>::Type Mat;
+            typedef base::Vector<3,double>::Type   Vec;
 
             static Mat A = Mat::Identity();
             static Vec c = Vec::Zero();

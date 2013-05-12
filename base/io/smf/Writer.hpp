@@ -68,10 +68,10 @@ public:
 
         // write number of nodes and elements
         {
-            const unsigned nNodes    = std::distance( mesh.nodesBegin(),
-                                                      mesh.nodesEnd() );
-            const unsigned nElements = std::distance( mesh.elementsBegin(),
-                                                      mesh.elementsEnd() );
+            const std::size_t nNodes    = std::distance( mesh.nodesBegin(),
+                                                         mesh.nodesEnd() );
+            const std::size_t nElements = std::distance( mesh.elementsBegin(),
+                                                         mesh.elementsEnd() );
             smf << nNodes << "  " << nElements << "\n";
         }
         

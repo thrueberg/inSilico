@@ -16,6 +16,7 @@
 #include <boost/tuple/tuple.hpp>
 // base includes
 #include <base/numbers.hpp>
+#include <base/shape.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{

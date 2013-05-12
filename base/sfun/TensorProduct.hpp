@@ -242,14 +242,14 @@ namespace base{
                 {
                     // get values from lower dimension
                     typename LowerDimEvaluation::SFRA::FunArray lowerDimValues;
-                    const typename LowerDimEvaluation::SFRA::VecDim lowerXi
-                        = xi.template head<DIM-1>();
+                    const typename LowerDimEvaluation::SFRA::VecDim lowerXi =
+                        base::head<DIM-1>( xi );
                     
                     LowerDimEvaluation::fun( shapeFun1D, lowerXi, lowerDimValues );
 
                     // get values from one-dimensional quadrature
                     typename SFUN::FunArray oneDimValues;
-                    const typename SFUN::VecDim oneDXi = xi.template tail<1>();
+                    const typename SFUN::VecDim oneDXi = base::tail<1>( xi );
 
                     shapeFun1D.fun( oneDXi, oneDimValues );
 
@@ -265,7 +265,8 @@ namespace base{
                             values[ ctr++ ] = lowerDimValues[nInner] * oneDimValues[nOuter];
                         }
                     }
-                    
+
+                    return;
                 }
 
                 //--------------------------------------------------------------
@@ -278,7 +279,7 @@ namespace base{
                     typename LowerDimEvaluation::SFRA::FunArray     lowerDimValues;
                     typename LowerDimEvaluation::SFRA::GradArray    lowerDimGradients;
                     const typename LowerDimEvaluation::SFRA::VecDim lowerXi
-                        = xi.template head<DIM-1>();
+                        = base::head<DIM-1>( xi );
                     
                     LowerDimEvaluation::fun( shapeFun1D, lowerXi, lowerDimValues );
                     LowerDimEvaluation::gradient( shapeFun1D, lowerXi, lowerDimGradients );
@@ -286,7 +287,7 @@ namespace base{
                     // get values from one-dimensional quadrature
                     typename SFUN::FunArray     oneDimValues;
                     typename SFUN::GradArray    oneDimGradients;
-                    const typename SFUN::VecDim oneDXi = xi.template tail<1>();
+                    const typename SFUN::VecDim oneDXi = base::tail<1>( xi );
 
                     shapeFun1D.fun( oneDXi, oneDimValues );
                     shapeFun1D.gradient( oneDXi, oneDimGradients );
@@ -314,6 +315,7 @@ namespace base{
                         }
                     }
                     
+                    return;
                 }
 
                 //--------------------------------------------------------------
@@ -327,7 +329,7 @@ namespace base{
                     typename LowerDimEvaluation::SFRA::GradArray    lowerDimGradients;
                     typename LowerDimEvaluation::SFRA::HessianArray lowerDimHessians;
                     const typename LowerDimEvaluation::SFRA::VecDim lowerXi
-                        = xi.template head<DIM-1>();
+                        = base::head<DIM-1>( xi );
                     
                     LowerDimEvaluation::fun( shapeFun1D, lowerXi, lowerDimValues );
                     LowerDimEvaluation::gradient( shapeFun1D, lowerXi, lowerDimGradients );
@@ -337,7 +339,7 @@ namespace base{
                     typename SFUN::FunArray     oneDimValues;
                     typename SFUN::GradArray    oneDimGradients;
                     typename SFUN::HessianArray oneDimHessians;
-                    const typename SFUN::VecDim oneDXi = xi.template tail<1>();
+                    const typename SFUN::VecDim oneDXi = base::tail<1>( xi );
 
                     shapeFun1D.fun( oneDXi, oneDimValues );
                     shapeFun1D.gradient( oneDXi, oneDimGradients );
@@ -378,7 +380,8 @@ namespace base{
                             ctr++;
                         }
                     }
-                    
+
+                    return;
                 }
 
                 //--------------------------------------------------------------
@@ -404,16 +407,18 @@ namespace base{
                         for ( unsigned nInner = 0;
                               nInner < LowerDimEvaluation::numFun; nInner ++ ) {
 
-                            supportPoints[ctr].template head<DIM-1>() =
-                                lowerDimSupportPoints[nInner];
+                            for ( unsigned d = 0; d < DIM-1; d++ )
+                                supportPoints[ctr][d] =
+                                    lowerDimSupportPoints[nInner][d];
 
-                            supportPoints[ctr].template tail<1>() =
-                                oneDimSupportPoints[nOuter];
+                            supportPoints[ctr][DIM-1] =
+                                oneDimSupportPoints[nOuter][0];
 
                             ctr++;
                         }
                     }
-                    
+
+                    return;
                 }
                 
 

@@ -61,7 +61,7 @@ public:
     static const unsigned numPoints   = base::MToTheN<numPoints1D,dim>::value;
 
     //! Local coordinate vector
-    typedef typename base::VectorType<dim>::Type     VecDim;
+    typedef typename base::Vector<dim>::Type     VecDim;
 
     //! Iterator for external access
     typedef typename boost::array< std::pair<double, VecDim>,
@@ -100,7 +100,7 @@ namespace base{
             template<typename QUAD>
             struct TensorProductConstructor<QUAD,1>
             {
-                typedef typename base::VectorType<1>::Type Vec1;
+                typedef typename base::Vector<1>::Type Vec1;
 
                 //! Construct 1D-Tensor product rule (dummy)
                 void operator()( boost::array<std::pair<double, Vec1>, 
@@ -122,7 +122,7 @@ namespace base{
             template<typename QUAD, unsigned DIM>
             struct TensorProductConstructor
             {
-                typedef typename base::VectorType<DIM>::Type VecDim;
+                typedef typename base::Vector<DIM>::Type VecDim;
 
                 //! Overloaded function call operator generates the quadrature rule
                 void operator()( boost::array<std::pair<double, VecDim>, 
@@ -146,8 +146,8 @@ namespace base{
                             weightsAndPoints[ index ].first = lower -> first;
                         
                             // copy points into [0,DIM-1) subrange of the DIM-points
-                            weightsAndPoints[index].second.template head<DIM-1>()
-                                = lower -> second;
+                            for ( unsigned d = 0; d < DIM-1; d++ )
+                                weightsAndPoints[index].second[d] = (lower->second)[d];
                         
                             index ++;
                         }
@@ -166,11 +166,12 @@ namespace base{
                         
                             const unsigned index = outer * lowerNumPoints + inner;
                             weightsAndPoints[index].first *= iter -> first;
-                            weightsAndPoints[index].second.template tail<1>()
-                                = iter -> second;
+                            weightsAndPoints[index].second[DIM-1] = (iter -> second)[0];
                         
                         }
                     }
+                    
+                    return;
                 }
 
             };

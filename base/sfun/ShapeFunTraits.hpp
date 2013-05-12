@@ -25,16 +25,16 @@ namespace base{
         struct ScalarShapeFunResult
         {
             typedef double                                   Fun;
-            typedef typename base::VectorType<DIM>::Type     Grad;
-            typedef typename base::MatrixType<DIM,DIM>::Type Hessian;
+            typedef typename base::Vector<DIM>::Type     Grad;
+            typedef typename base::Matrix<DIM,DIM>::Type Hessian;
         };
 
         //! Result types for vectorial shape functions (e.g. Raviart-Thomas)
         template<unsigned DIM>
         struct VectorShapeFunResult
         {
-            typedef typename base::VectorType<DIM>::Type     Fun;
-            typedef typename base::MatrixType<DIM,DIM>::Type Grad;
+            typedef typename base::Vector<DIM>::Type     Fun;
+            typedef typename base::Matrix<DIM,DIM>::Type Grad;
             typedef typename boost::array<Grad,DIM>          Hessian;
         };
 
@@ -45,7 +45,7 @@ namespace base{
         struct ShapeFunResultArrays
         {
             //! Evaluation point coordinate
-            typedef typename base::VectorType<DIM>::Type      VecDim;
+            typedef typename base::Vector<DIM>::Type      VecDim;
 
             //! Traits object for result type declarations
             typedef  SHAPEFUNRESULT<DIM>                      SFR;

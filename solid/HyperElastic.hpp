@@ -271,7 +271,7 @@ private:
      *  deformation gradient tensor \f$ F \f$, and the material elasticity
      *  tensor \f$ C \f$.
      *  Note that \f$ C \f$ is stored in the Voigt notation and therefore the
-     *  access index pairs, e.g. \f$ 1 \leq A,J \leq 3 \f$, are converted to
+     *  access index pairs, e.g. \f$ 1 \leq A,J \leq 3 \f$, is converted to
      *  a Voigt index \f$ 1 \leq v \leq 6 \f$.
      *
      *  \param[in]  F        Deformation gradient

@@ -47,7 +47,7 @@ public:
     //@}
 
     //! Index storage
-    typedef boost::array<unsigned,size>       IndexArray;
+    typedef boost::array<std::size_t,size>    IndexArray;
     
     //! Value storage
     typedef boost::array<number,size>         ValueArray;
@@ -65,7 +65,8 @@ public:
     {
         indices_.assign( base::invalidInt );
         for ( unsigned h = 0; h < nHist+1; h++ )
-            values_[h].assign(  0. );
+            for ( unsigned s = 0; s < size; s++ )
+                values_[h][s] = 0.;
         activity_.assign( true );
     }
 
@@ -78,7 +79,7 @@ public:
         for ( unsigned d = 0; d < size; d ++ ) indices_[d] = *iter++;
     }
 
-    void setIndex( const unsigned which, const unsigned value )
+    void setIndex( const unsigned which, const std::size_t value )
     {
         indices_[ which ] = value;
     }
@@ -93,7 +94,7 @@ public:
         std::copy( indices_.begin(), indices_.end(), iter );
     }
 
-    unsigned getIndex( const unsigned which ) const
+    std::size_t getIndex( const unsigned which ) const
     {
         return indices_[ which ];
     }
@@ -110,6 +111,11 @@ public:
     number getValue( const unsigned which ) const
     {
         return values_[0][which];
+    }
+
+    void clearValue( )
+    {
+        values_[0].assign( 0. );
     }
     //@}
 
@@ -171,6 +177,12 @@ public:
                 *iter = constraints_[d];
             ++iter;
         }
+    }
+
+    void clearConstraints()
+    {
+        constraints_.clear();
+        activity_.assign( true );
     }
     //@}
     

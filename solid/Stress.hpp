@@ -74,7 +74,7 @@ namespace solid{
                             const typename PRESSELEMENT::FEFun::VecDim& xi )
     {
         // Evaluate the displacement gradient
-        const typename base::VectorType<PRESSELEMENT::DegreeOfFreedom::size,
+        const typename base::Vector<PRESSELEMENT::DegreeOfFreedom::size,
                                         double>::Type
             p = base::post::evaluateFieldHistory<HIST>( geomEp, pressEp, xi );
         

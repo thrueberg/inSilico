@@ -20,7 +20,7 @@ namespace fluid{
 
     //--------------------------------------------------------------------------
     template<unsigned HIST,typename GEOMELEMENT, typename FIELDELEMENT>
-    typename base::VectorType<FIELDELEMENT::DegreeOfFreedom::size,double>::Type
+    typename base::Vector<FIELDELEMENT::DegreeOfFreedom::size,double>::Type
     velocityHistory( const GEOMELEMENT*  geomEp,
                      const FIELDELEMENT* fieldEp,
                      const typename FIELDELEMENT::FEFun::VecDim& xi )
@@ -30,7 +30,7 @@ namespace fluid{
 
     //--------------------------------------------------------------------------
     template<typename GEOMELEMENT, typename FIELDELEMENT>
-    typename base::VectorType<FIELDELEMENT::DegreeOfFreedom::size,double>::Type
+    typename base::Vector<FIELDELEMENT::DegreeOfFreedom::size,double>::Type
     velocity( const GEOMELEMENT*  geomEp,
               const FIELDELEMENT* fieldEp,
               const typename FIELDELEMENT::FEFun::VecDim& xi )
@@ -40,7 +40,7 @@ namespace fluid{
 
     //--------------------------------------------------------------------------
     template<unsigned HIST, typename GEOMELEMENT, typename FIELDELEMENT>
-    typename base::MatrixType<GEOMELEMENT::Node::dim,
+    typename base::Matrix<GEOMELEMENT::Node::dim,
                               FIELDELEMENT::DegreeOfFreedom::size,
                               double>::Type
     velocityGradientHistory( const GEOMELEMENT*  geomEp,
@@ -68,7 +68,7 @@ namespace fluid{
                                       const typename FIELDELEMENT::FEFun::VecDim& xi )
     {
         // Evaluate the displacement gradient
-        const typename base::MatrixType<GEOMELEMENT::Node::dim,
+        const typename base::Matrix<GEOMELEMENT::Node::dim,
                                         FIELDELEMENT::DegreeOfFreedom::size,
                                         double>::Type
             gradU = base::post::evaluateFieldGradientHistory<HIST>( geomEp,

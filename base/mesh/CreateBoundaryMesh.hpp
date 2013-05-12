@@ -28,14 +28,22 @@
 //------------------------------------------------------------------------------
 namespace base{
     namespace mesh{
+        
         template<typename ELEMENT>
         class CreateBoundaryMesh;
+        
     }
 }
 
 //------------------------------------------------------------------------------
 /** Create the surface elements and their connectivity for a given boundary
  *  range.
+ *  Given a range of (element-number,face-number) pairs, this object creates
+ *  a surface element from each such pair and passes a pointer to the adjacent
+ *  domain element to it. For each surface element, the geometry of the
+ *  domain element is evaluated at the support points of a corresponding
+ *  Lagrange element. The resulting coordinates are used to create nodes
+ *  which are stored in the mesh container.
  */
 template<typename DOMELEM>
 class base::mesh::CreateBoundaryMesh
@@ -48,8 +56,7 @@ public:
     typedef base::mesh::SurfaceElement<DomainElement> SurfaceElement;
 
     //! Type of mesh container
-    static const bool sharedNodes = true;
-    typedef base::mesh::Unstructured<SurfaceElement,sharedNodes>  BoundaryMesh;
+    typedef base::mesh::Unstructured<SurfaceElement>  BoundaryMesh;
 
 
     //--------------------------------------------------------------------------
@@ -60,58 +67,58 @@ public:
                        const DOMAINMESH& domainMesh,
                        BoundaryMesh& boundaryMesh )
     {
-        //! Allocate space for node and element storage
-        const std::size_t numSurfElements = std::distance( first, last );
-        const std::size_t numNodes = std::distance( domainMesh.nodesBegin(),
-                                                    domainMesh.nodesEnd() );
-        boundaryMesh.allocate( numNodes, numSurfElements );
-
-        //! Copy nodes
-        std::copy( domainMesh.nodesBegin(), domainMesh.nodesEnd(),
-                   boundaryMesh.nodesBegin() );
-
-        //! Type of geometry function of the domain element
+        // Type of geometry function of the domain element
         typedef typename DomainElement::GeomFun  DomainGeomFun;
 
-        //! Geometry element is a LagrangeElement
+        // Geometry element is a LagrangeElement
         typedef base::fe::LagrangeElement<DomainElement::shape,
                                           DomainGeomFun::degree> GeomElement;
 
-        //! Type of face for extraction
-        static const base::NFace surface =
-            base::ShapeSurface<DomainElement::shape>::value;
+        // Use its geometry function
+        typedef typename GeomElement::ShapeFun GeomFun;
 
-        //! Face extraction object
+        // Type of face for extraction
+        static const base::NFace surface =
+            base::ShapeSurface<GeomElement::shape>::value;
+
+        // Face extraction object
         typedef base::fe::FaceExtraction<GeomElement,surface> FaceExtraction;
 
-        //! Local coordinate type
-        typedef typename DomainGeomFun::VecDim  VecDim;
+        // Local coordinate type
+        typedef typename GeomFun::VecDim  VecDim;
         
-        //! Support points of the geometry shape function
-        boost::array<VecDim,DomainGeomFun::numFun> supportPoints;
-        DomainGeomFun::supportPoints( supportPoints );
+        // Support points of the geometry shape function
+        boost::array<VecDim,GeomFun::numFun> supportPoints;
+        GeomFun::supportPoints( supportPoints );
 
-        //! Go through all boundary elements and new surface elements
+        // Allocate space for node and element storage
+        const std::size_t numSurfElements = std::distance( first, last );
+        const std::size_t numNodes = numSurfElements * SurfaceElement::numNodes;
+        boundaryMesh.allocate( numNodes, numSurfElements );
+
+        std::size_t nodeId = 0;
+
+        // Go through all boundary elements and new surface elements
         typename BoundaryMesh::ElementPtrIter surfElemIter =
             boundaryMesh.elementsBegin();
         for ( BITER bIter = first; bIter != last; ++bIter, ++surfElemIter ){ 
 
-            //! Get relevant data from iterator
-            const DomainElement* domainElement = domainMesh.elementPtr( bIter -> first );
+            // Get relevant data from iterator
+            DomainElement* domainElement = domainMesh.elementPtr( bIter -> first );
             const unsigned       faceNumber    = bIter -> second;
 
-            //! Pass pointer to domain element to surface element
+            // Pass pointer to domain element to surface element
             (*surfElemIter) -> setDomainElementPointer( domainElement );
 
-            //! Get indicdes from face extraction
+            // Get indicdes from face extraction
             std::vector<unsigned> faceIndices;
             FaceExtraction::apply( faceNumber, faceIndices );
 
-            //! Access to surface elements geometry nodes
+            // Access to surface elements geometry nodes
             typename SurfaceElement::NodePtrIter nodePtrIter =
                 (*surfElemIter) -> nodesBegin();
 
-            //! Go through the parameter points of the surface element
+            // Go through the parameter points of the surface element
             typename SurfaceElement::ParamIter paramIter =
                 (*surfElemIter) -> parametricBegin();
             typename SurfaceElement::ParamIter paramEnd  =
@@ -121,14 +128,22 @@ public:
                   paramIter != paramEnd;
                   ++paramIter, ++nodePtrIter, p++ ) {
 
-                //! Get local coordinate 
+                // Get local coordinate 
                 const VecDim xi = supportPoints[ faceIndices[p] ];
 
-                //! Assign to parameter of surface element
+                // Assign to parameter of surface element
                 *paramIter = xi;
 
+                const VecDim x = base::Geometry<DomainElement>()( domainElement, xi );
+
+                typename DOMAINMESH::Node* np = boundaryMesh.nodePtr( nodeId );
+                np -> setID( nodeId );
+                np -> setX( &(x[0]) );
+
+                *nodePtrIter = np;
+
                 // pass node pointer from old to new mesh
-                *nodePtrIter = domainElement -> nodePtr( faceIndices[p] );
+                nodeId++;
                                                 
             } // end loop over surface element's nodes
 

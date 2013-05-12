@@ -21,7 +21,6 @@
 #include <boost/function.hpp>
 // base includes
 #include <base/linearAlgebra.hpp>
-#include <base/aux/algorithms.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -38,20 +37,20 @@ namespace base{
          *  the latter to the range of elements in the given mesh and fields.
          *  \tparam QUADRATURE   Type of quadrature
          *  \tparam SOLVER       Type of solver
-         *  \tparam BOUNDFIELD   Type of field compound
+         *  \tparam FIELDBINDER  Type of field compound
          *  \tparam KERNEL       Type of object with kernel function implementation
          */
-        template<typename QUADRATURE, typename SOLVER, typename BOUNDFIELD,
+        template<typename QUADRATURE, typename SOLVER, typename FIELDBINDER,
                  typename KERNEL>
         void stiffnessMatrixComputation( const QUADRATURE& quadrature,
                                          SOLVER& solver,
-                                         const BOUNDFIELD& boundField,
-                                         const KERNEL&     kernelObj,
+                                         const FIELDBINDER& fieldBinder,
+                                         const KERNEL&      kernelObj,
                                          const bool zeroConstraints = false )
         {
             // type of stiffness matrix assembly object
             typedef StiffnessMatrix<QUADRATURE,SOLVER,
-                                    typename BOUNDFIELD::ElementPtrTuple> StiffMat;
+                                    typename FIELDBINDER::ElementPtrTuple> StiffMat;
 
             // create a kernel function
             typename StiffMat::Kernel kernel =
@@ -62,8 +61,8 @@ namespace base{
             StiffMat stiffness( kernel, quadrature, solver, zeroConstraints );
 
             // Apply to all elements
-            std::for_each( boundField.elementsBegin(),
-                           boundField.elementsEnd(), stiffness );
+            std::for_each( fieldBinder.elementsBegin(),
+                           fieldBinder.elementsEnd(), stiffness );
             
         }
 
@@ -106,25 +105,27 @@ namespace base{
                                  const bool zeroConstraints )
             {
                 // number of active dofs in the row space
-                const unsigned numActiveRowDoFs =
+                const std::size_t numActiveRowDoFs =
                     std::count_if( rowDoFActivity.begin(), rowDoFActivity.end(),
                                    boost::bind( std::equal_to<bool>(), _1, true ) );
             
                 // number of active dofs in the column space
-                const unsigned numActiveColDoFs =
-                    std::count_if( colDoFActivity.begin(), colDoFActivity.end(),
-                                   boost::bind( std::equal_to<bool>(), _1, true ) );
+                const std::size_t numActiveColDoFs =
+                    ( isBubnov ? numActiveRowDoFs :
+                      std::count_if( colDoFActivity.begin(), colDoFActivity.end(),
+                                     boost::bind( std::equal_to<bool>(), _1, true ) ) );
 
                 // Result container
-                MatrixD sysMatrix( numActiveRowDoFs, numActiveColDoFs );
-                VectorD sysVector = VectorD::Zero( numActiveRowDoFs );
+                MatrixD sysMatrix( static_cast<int>(numActiveRowDoFs),
+                                   static_cast<int>(numActiveColDoFs) );
+                VectorD sysVector = VectorD::Zero( static_cast<int>(numActiveRowDoFs) );
 
                 // Insert to result container
                 unsigned rowCtr = 0;
                 unsigned colCtr = 0;
 
                 // Go through all rows
-                for ( unsigned r = 0; r < rowDoFIDs.size(); r ++ ) {
+                for ( std::size_t r = 0; r < rowDoFIDs.size(); r ++ ) {
 
                     if ( rowDoFActivity[r] ) {
 

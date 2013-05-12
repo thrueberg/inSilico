@@ -288,8 +288,8 @@ private:
             const MIT nLowest =  eM;
 
             // Go through all nodes per element
-            const MIT nNodesPerDir         = MIT::Constant( degree + 1 );
-            const unsigned nNodePerElement = MI::length( nNodesPerDir );
+            const MIT nNodesPerDir            = MIT::Constant( degree + 1 );
+            const std::size_t nNodePerElement = MI::length( nNodesPerDir );
 
             typename Grid::Element::NodePtrIter eNode = (*elem) -> nodesBegin();
             for ( unsigned n = 0; n < nNodePerElement; n++, ++eNode ) {
@@ -319,7 +319,7 @@ private:
 template<unsigned DIM>
 struct base::io::sgf::detail_::PlainNodeCopy
 {
-    typedef typename base::VectorType<DIM>::Type VecDim;
+    typedef typename base::Vector<DIM>::Type VecDim;
     typedef typename base::MultiIndex<DIM>::Type MIT;
 
     static void apply( std::vector<VecDim> & in,
@@ -338,7 +338,7 @@ struct base::io::sgf::detail_::PlainNodeCopy
 template<unsigned DIM, unsigned DEGREE>
 struct base::io::sgf::detail_::CreateGridNodesFromBSplines
 {
-    typedef typename base::VectorType<DIM>::Type VecDim;
+    typedef typename base::Vector<DIM>::Type VecDim;
     typedef base::MultiIndex<DIM>                MI;
     typedef typename MI::Type                    MIT;
 
@@ -392,7 +392,7 @@ struct base::io::sgf::detail_::CreateGridNodesFromBSplines
                 const MIT nSurroundM = MIT::Constant( 2 );
 
                 // linearised
-                const unsigned nSurround = MI::length( nSurroundM );
+                const std::size_t nSurround = MI::length( nSurroundM );
 
                 // storage of new coordinate
                 VecDim midPoint = base::constantVector<DIM>( 0. );
@@ -516,7 +516,7 @@ private:
 template<unsigned DIM, unsigned DEGREE>
 struct base::io::sgf::detail_::CreateGridNodesFromLagrangian
 {
-    typedef typename base::VectorType<DIM>::Type VecDim;
+    typedef typename base::Vector<DIM>::Type VecDim;
     typedef typename base::MultiIndex<DIM>::Type MIT;
 
     static void apply( std::vector<VecDim> & in,

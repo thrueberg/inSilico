@@ -83,7 +83,7 @@ public:
     typedef base::mesh::Element<Node,GeomFun>       BasisElement;
 
     //! Local coordinates of the volume element
-    typedef typename base::VectorType<dim+1>::Type  DomainCoordinate;
+    typedef typename base::Vector<dim+1>::Type  DomainCoordinate;
 
     //! Storage of the parametric coordinates of the volume element
     typedef boost::array<DomainCoordinate,BasisElement::numNodes> ParamtricArray;
@@ -97,12 +97,12 @@ public:
 
     //! @name Set and get volume element pointer
     //@{
-    void setDomainElementPointer( const DomainElement* vep )
+    void setDomainElementPointer( DomainElement* vep )
     {
         domainElementPtr_ = vep;
     }
 
-    const DomainElement* getDomainElementPointer() const
+    DomainElement* getDomainElementPointer() const
     {
         return domainElementPtr_;
     }
@@ -154,7 +154,7 @@ public:
 
     
 private:
-    const DomainElement* domainElementPtr_; //! Pointer to connected volume element
+    DomainElement* domainElementPtr_; //! Pointer to connected volume element
     ParamtricArray       parametric_;       //! Storage of parametric coordinates
 };
 

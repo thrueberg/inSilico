@@ -103,8 +103,8 @@ public:
         (testEp -> fEFun()).evaluate( geomEp, xi, funValues );
 
         // Sizes and sanity checks
-        const unsigned numRows = funValues.size();
-        const unsigned numCols = funGradX.size();
+        const unsigned numRows = static_cast<unsigned>( funValues.size() );
+        const unsigned numCols = static_cast<unsigned>( funGradX.size()  );
         assert( static_cast<unsigned>( matrix.rows() ) == numRows );
         assert( static_cast<unsigned>( matrix.cols() ) == numCols );
 

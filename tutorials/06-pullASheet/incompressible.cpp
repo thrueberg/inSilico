@@ -49,7 +49,7 @@ template<unsigned DIM>
 class PulledSheetProblem
 {
 public:
-    typedef typename base::VectorType<DIM>::Type VecDim;
+    typedef typename base::Vector<DIM>::Type VecDim;
 
     // Fix x_0=0 and optionally pull at x_1=1
     template<typename DOF>
@@ -221,7 +221,7 @@ int main( int argc, char * argv[] )
 
     // material object
     typedef mat::hypel::NearlyIncompNeoHookean Material;
-    Material material( mat::bulk( E, nu), mat::mu( E, nu ), isIncompressible );
+    Material material( mat::Lame::bulk( E, nu), mat::Lame::mu( E, nu ), isIncompressible );
 
 #if 0
     typedef mat::hypel::Ogden<3> Material;
@@ -383,39 +383,19 @@ int main( int argc, char * argv[] )
         // Output to VTK
         {
             // find base name from mesh file
-            const std::string baseName =
-                meshFile.substr( 0, meshFile.find( ".smf" ) );
+            const std::string baseName = base::io::baseName( meshFile, ".smf" );
             // create file name with step number
             const std::string vtkFile =
                 baseName + "." + base::io::leadingZeros( step ) + ".vtk";
             std::ofstream vtk( vtkFile.c_str() );
             base::io::vtk::LegacyWriter vtkWriter( vtk );
             vtkWriter.writeUnstructuredGrid( mesh );
+            base::io::vtk::writePointData( vtkWriter, mesh, displacement, "disp" );
+            base::io::vtk::writePointData( vtkWriter, mesh, pressure,     "pressure" );
 
-            // Evaluate the solution field at every geometry node
-            {
-                std::vector<base::VectorType<doFSizeU>::Type> nodalValues;
-                base::post::evaluateAtNodes( mesh, displacement, nodalValues );
-                vtkWriter.writePointData( nodalValues.begin(), nodalValues.end(), "disp" );
-            }
-
-            // Evaluate the solution field at every geometry node
-            {
-                std::vector<base::VectorType<doFSizeP>::Type> nodalValues;
-                base::post::evaluateAtNodes( mesh, pressure, nodalValues );
-                vtkWriter.writePointData( nodalValues.begin(), nodalValues.end(), "pressure" );
-            }
-            
-            // compute Jacobian at midpoints
-            {
-                std::vector<double> jacobians;
-                std::transform( mesh.elementsBegin(), mesh.elementsEnd(),
-                                displacement.elementsBegin(), std::back_inserter( jacobians ),
-                                boost::bind( solid::jacobian<Element,FieldElementU>,
-                                             _1, _2 ) );
-                vtkWriter.writeCellData( jacobians.begin(), jacobians.end(), "J" );
-            }
-            
+            base::io::vtk::writeCellData( vtkWriter, mesh, displacement,
+                                          boost::bind( solid::jacobian<Element,FieldElementU>,
+                                                       _1, _2 ), "J " );
             vtk.close();
         }
     }

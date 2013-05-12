@@ -38,7 +38,7 @@ public:
     static const unsigned dim = DIM;
 
     //! Coordinate type definition
-    typedef typename base::VectorType<dim>::Type VecDim;
+    typedef typename base::Vector<dim>::Type VecDim;
 
     //--------------------------------------------------------------------------
     //! @name Constructors

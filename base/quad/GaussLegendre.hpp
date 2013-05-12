@@ -72,7 +72,7 @@ public:
     static const unsigned dim = 1;
     
     //! Type of coordinate-vector
-    typedef typename base::VectorType<dim>::Type VecDim;
+    typedef typename base::Vector<dim>::Type VecDim;
 
     //! Type of iterator for external access
     typedef typename boost::array< std::pair<double, VecDim>,

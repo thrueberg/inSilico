@@ -3,7 +3,7 @@
 // </preamble>
 //------------------------------------------------------------------------------
 
-//! @file   copyConnectivty.hpp
+//! @file   copyConnectivity.hpp
 //! @author Thomas Rueberg
 //! @date   2013
 

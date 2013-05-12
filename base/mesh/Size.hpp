@@ -76,7 +76,7 @@ struct base::mesh::Size
         // array of length metrics
         boost::array<double,localDim> lengths;
         for ( unsigned d = 0; d < localDim; d++ )
-            lengths[d] = (J.col(d)).norm();
+            lengths[d] = base::norm( J.col(d) );
 
         return *( std::max_element( lengths.begin(), lengths.end() ) );
     }

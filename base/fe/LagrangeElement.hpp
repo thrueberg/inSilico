@@ -113,6 +113,56 @@ namespace base{
             typedef base::LagrangeShapeFun<DEGREE,shape>    ShapeFun;
         };
 
+        //----------------------------------------------------------------------
+        //! Specialisation for a constant shape function: just one DoF
+        template<base::Shape SHAPE>
+        struct LagrangeElement<SHAPE,0>
+        {
+            static const base::Shape shape = SHAPE;
+            
+            static const unsigned dim   = base::ShapeDim<shape>::value;
+
+            static const unsigned numDoFsPerVertex = (dim==0 ? 1 : 0);
+            static const unsigned numDoFsPerEdge   = (dim==1 ? 1 : 0);
+            static const unsigned numDoFsPerFace   = (dim==2 ? 1 : 0);
+            static const unsigned numDoFsPerCell   = (dim==3 ? 1 : 0);
+
+            //------------------------------------------------------------------
+            //! @name Number of basic geometric entities
+            //@{
+            static const unsigned numVertices =
+                base::NumNFaces<shape,base::VERTEX>::value;
+            static const unsigned numEdges    =
+                base::NumNFaces<shape,base::EDGE>::value;
+            static const unsigned numFaces    =
+                base::NumNFaces<shape,base::FACE>::value;
+            static const unsigned numCells    = (dim == 3 ? 1 : 0);
+            //@}
+
+            //! @name Total number of DoFs on every sub-face category
+            //@{
+            static const unsigned numVertexDoFs =
+                numDoFsPerVertex * numVertices;
+            
+            static const unsigned numEdgeDoFs =
+                numDoFsPerEdge * numEdges;
+
+            static const unsigned numFaceDoFs =
+                numDoFsPerFace * numFaces;
+
+            static const unsigned numCellDoFs =
+                numDoFsPerCell * numCells;
+            //@}
+
+            //! Total number of DoFs
+            static const unsigned numTotalDoFs =
+                numVertexDoFs + numEdgeDoFs + numFaceDoFs + numCellDoFs;
+
+            //! Shape function associated with this element
+            typedef base::LagrangeShapeFun<0,shape>    ShapeFun;
+                                                      
+        };
+
     }
 }
 

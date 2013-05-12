@@ -31,7 +31,7 @@ namespace solid{
         F = mat::Tensor::Identity();
 
         // Evaluate the displacement gradient
-        const typename base::MatrixType<GEOMELEMENT::Node::dim,
+        const typename base::Matrix<GEOMELEMENT::Node::dim,
                                         FIELDELEMENT::DegreeOfFreedom::size,
                                         double>::Type
             GradU = base::post::evaluateFieldGradientHistory<HIST>( geomEp,

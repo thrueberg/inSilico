@@ -53,7 +53,7 @@
  *    -----------------------
  *
  *    A structured grid can have the following element types in the spatial
- *    dimension <DIM>
+ *    dimension DIM
  *
  *    \code{.txt}
  *

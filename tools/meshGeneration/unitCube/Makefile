@@ -44,7 +44,7 @@ endif
 # for cleanup
 RM = -rm -f
 
-TARGETS = unitCube
+TARGETS = unitCubeSMF unitCubeSGF
 
 #######################################
 # the rules

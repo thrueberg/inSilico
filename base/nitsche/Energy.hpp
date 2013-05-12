@@ -138,7 +138,7 @@ public:
     static const unsigned doFSize = TestElement::DegreeOfFreedom::size;
 
     //! Type of DoF value vector
-    typedef typename base::VectorType<doFSize,base::number>::Type VecDof;
+    typedef typename base::Vector<doFSize,base::number>::Type VecDof;
 
     //! Type of BC function
     typedef boost::function<VecDof( const GlobalVecDim& )> BCFun;

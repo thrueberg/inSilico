@@ -263,13 +263,13 @@ public:
                           ++paramIter, ++nodePtrIter, p++ ) {
 
                         //! ..
-                        typename base::VectorType<surfaceDim>::Type eta
+                        typename base::Vector<surfaceDim>::Type eta
                             = surfaceSupportPoints[ p ];
 
                         typename LinearSimplexFun::FunArray phi;
                         linearSimplexFun.evaluate( eta, phi );
 
-                        typename base::VectorType<volumeDim>::Type xi
+                        typename base::Vector<volumeDim>::Type xi
                             = base::constantVector<volumeDim>( 0. );
 
                         for ( unsigned s = 0; s < phi.size(); s ++ ) {

@@ -132,7 +132,7 @@ namespace mat{
                 // orthogonal vector
                 const Vector v  = b1.cross( b2 );
                 candidates[i] = v;
-                const double vNorm = v.norm();
+                const double vNorm = base::norm( v );
 
                 // check the norm of the orthongal vector
                 if ( vNorm > maxNorm ) {
@@ -145,7 +145,7 @@ namespace mat{
             Vector v = candidates[ index ];
 
             // normalise
-            return v / v.norm();    
+            return v / base::norm( v );
         }
         
     }
@@ -231,7 +231,7 @@ namespace mat{
                     Vector v;
                     v.noalias()= B * I.col( i );
                     candidates[i] = v;
-                    const double vNorm = v.norm();
+                    const double vNorm = base::norm( v );
 
                     // memorise the maximal norm
                     if ( vNorm > maxNorm ) {
@@ -242,7 +242,7 @@ namespace mat{
                 // image space is spanned by this vector
                 x = candidates[index];
                 // normalise
-                x /= x.norm();
+                x /= base::norm( x );
             }
                 
             // 3) construct second vector orthogonal to x
@@ -265,8 +265,8 @@ namespace mat{
             Vector v2 = x.cross( v1 );
 
             // normalise output
-            eVec.col(1) = v1 / v1.norm();
-            eVec.col(2) = v2 / v2.norm();
+            eVec.col(1) = v1 / base::norm( v1 );
+            eVec.col(2) = v2 / base::norm( v2 );
 
             return;
         }

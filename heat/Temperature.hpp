@@ -27,7 +27,7 @@ namespace heat{
                                const typename FIELDELEMENT::FEFun::VecDim& xi )
     {
         // Evaluate the displacement gradient
-        const typename base::VectorType<FIELDELEMENT::DegreeOfFreedom::size,
+        const typename base::Vector<FIELDELEMENT::DegreeOfFreedom::size,
                                         double>::Type
             u = base::post::evaluateFieldHistory<HIST>( geomEp, fieldEp, xi );
 
@@ -56,7 +56,7 @@ namespace heat{
         mat::Vector gradU = mat::Vector::Constant( 0. );
 
         // Evaluate the displacement gradient
-        const typename base::MatrixType<GEOMELEMENT::Node::dim,
+        const typename base::Matrix<GEOMELEMENT::Node::dim,
                                         FIELDELEMENT::DegreeOfFreedom::size,
                                         double>::Type
             aux = base::post::evaluateFieldGradientHistory<HIST>( geomEp,

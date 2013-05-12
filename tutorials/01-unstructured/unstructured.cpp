@@ -25,6 +25,8 @@
 #include <base/mesh/CreateBoundaryMesh.hpp>
 //[headerMesh]}
 //[headerIO]{
+// IO helper
+#include <base/io/Format.hpp>
 // SMF Reader
 #include <base/io/smf/Reader.hpp>
 // Write a VTK file
@@ -48,7 +50,7 @@ int main( int argc, char* argv[] )
     // convert input argument to a string object
     const std::string smfFileName = boost::lexical_cast<std::string>( argv[1] );
     // extract the basename of the file
-    const std::string baseName = smfFileName.substr( 0, smfFileName.find( ".smf" ) );
+    const std::string baseName = base::io::baseName( smfFileName, ".smf" );
     //[main]}
 
     //[attributes]{

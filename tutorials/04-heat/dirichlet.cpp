@@ -9,6 +9,7 @@
 #include <base/LagrangeShapeFun.hpp>
 #include <base/mesh/MeshBoundary.hpp>
 #include <base/Quadrature.hpp>
+#include <base/io/Format.hpp>
 #include <base/io/smf/Reader.hpp>
 
 #include <base/fe/Basis.hpp>
@@ -17,7 +18,6 @@
 #include <base/dof/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
-#include <base/aux/algorithms.hpp>
 
 #include <base/dof/Distribute.hpp>
 #include <base/dof/constrainBoundary.hpp>
@@ -31,50 +31,16 @@
 #include <base/asmb/StiffnessMatrix.hpp>
 #include <base/asmb/FieldBinder.hpp>
 
-//------------------------------------------------------------------------------
-// Fundamental solution of the Laplace operator.
-// This function is particularly useful, is it provides an exact solution for
-// Laplace's equation for any geometry.
-//[fSol]{
-template<unsigned DIM>
-class FundamentalSolution
-{
-public:
-    typedef typename base::VectorType<DIM>::Type VecDim;
-    typedef typename base::VectorType<1>::Type   VecDof;
-
-    static VecDof evaluate( const VecDim& x )
-    {
-        const double dist = (sourcePoint_ - x).norm();
-
-        const double aux =
-            ( DIM == 2 ? -std::log( dist ) : 1./dist );
-
-        VecDof result;
-        result[0] = (1. / ((DIM-1) * M_PI) ) * aux;
-        return result;
-    }
-
-private:
-    static const VecDim sourcePoint_;
-};
-
-// initialise the source point (better outside of the domain!!)
-template<unsigned DIM>
-const typename FundamentalSolution<DIM>::VecDim
-FundamentalSolution<DIM>::sourcePoint_ = base::constantVector<DIM>( -.5 );
-//[fSol]}
+#include <base/aux/FundamentalSolution.hpp>
 
 //------------------------------------------------------------------------------
 // Function for the point-wise constraint of the Boundary
 //[dirichlet]{
-template<unsigned DIM, typename DOF>
-void dirichletBC( const typename FundamentalSolution<DIM>::VecDim& x,
-                  DOF* doFPtr ) 
+template<typename FUN, typename DOF>
+void dirichletBC( const typename FUN::arg1_type x, DOF* doFPtr, FUN fun )
 {
-    const typename FundamentalSolution<DIM>::VecDof
-        value = ( FundamentalSolution<DIM>::evaluate( x ) );
-
+    const typename FUN::result_type value = fun( x );
+    
     if ( doFPtr -> isActive(0) ) {
         doFPtr -> constrainValue( 0, value[0] );
     }
@@ -102,7 +68,7 @@ int main( int argc, char * argv[] )
     }
         
     const std::string smfFile  = boost::lexical_cast<std::string>( argv[1] );
-    const std::string baseName = smfFile.substr( 0, smfFile.find( ".smf" ) );
+    const std::string baseName = base::io::baseName( smfFile, ".smf" );
 
     //--------------------------------------------------------------------------
     const unsigned    geomDeg  = 1;
@@ -146,12 +112,23 @@ int main( int argc, char * argv[] )
     // Creates a list of <Element,faceNo> pairs
     base::mesh::MeshBoundary meshBoundary;
     meshBoundary.create( mesh.elementsBegin(), mesh.elementsEnd() );
+
+    // Use a fundamental solution
+    const base::aux::FundSolLaplace<dim>::VecDim sourcePoint
+        = base::constantVector<dim>( -.5 );
+
+    typedef base::aux::FundSolLaplace<dim> FSol;
+    FSol fSol;
+
+    typedef boost::function< FSol::VecDoF( const FSol::VecDim& ) > FSolFun;
+    FSolFun fSolFun = boost::bind( &FSol::fun, &fSol, _1, sourcePoint );
     
     // Object to constrain the boundary 
     base::dof::constrainBoundary<FEBasis>( meshBoundary.boundaryBegin(),
                                            meshBoundary.boundaryEnd(),
                                            mesh, field, 
-                                           boost::bind( &dirichletBC<dim,DoF>, _1, _2 ) );
+                                           boost::bind( &dirichletBC<FSolFun,DoF>, _1, _2,
+                                                        fSolFun ) );
 
     // Number of DoFs after constraint application!
     const std::size_t numDofs =
@@ -195,20 +172,14 @@ int main( int argc, char * argv[] )
         std::ofstream vtk( vtkFile.c_str() );
         base::io::vtk::LegacyWriter vtkWriter( vtk );
         vtkWriter.writeUnstructuredGrid( mesh );
-        {
-            // Evaluate the solution field at every geometry node
-            std::vector<base::VectorType<doFSize>::Type> nodalValues;
-            base::post::evaluateAtNodes( mesh, field, nodalValues );
-            vtkWriter.writePointData( nodalValues.begin(), nodalValues.end(), "heat" );
-        }
+
+        base::io::vtk::writePointData( vtkWriter, mesh, field, "temperature" );
         vtk.close();
     }
 
     // compute L2-error and tell it to the user
     std::cout << "L2-error = "
-              << base::post::errorComputation<0>(
-                  quadrature, mesh, field,
-                  boost::bind( &FundamentalSolution<dim>::evaluate, _1 ) )
+              << base::post::errorComputation<0>( quadrature, mesh, field, fSolFun )
               << '\n';
 
     return 0;

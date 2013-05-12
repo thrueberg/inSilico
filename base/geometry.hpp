@@ -144,7 +144,7 @@ namespace base{
         typedef GeomTraits<ELEMENT> GT;
 
         //! Matrix type return value
-        typedef typename base::MatrixType<GT::globalDim,
+        typedef typename base::Matrix<GT::globalDim,
                                           GT::localDim>::Type result_type;
 
         /** Overloaded function call operator for the computation of J
@@ -191,7 +191,7 @@ namespace base{
         typedef double result_type;
 
         //! Type of third arguement which is the contra-variant basis
-        typedef typename base::MatrixType<GT::globalDim,
+        typedef typename base::Matrix<GT::globalDim,
                                           GT::localDim>::Type MatDimLDim;
 
         /** Overloaded function call operator producing the basis
@@ -205,7 +205,7 @@ namespace base{
                                 MatDimLDim& contraVariant ) const
         {
             // Get Jacobi matrix
-            typename base::MatrixType<GT::globalDim,
+            typename base::Matrix<GT::globalDim,
                                       GT::localDim>::Type J
                 = JacobiMatrix<ELEMENT>()( ep, xi );
 
@@ -238,7 +238,7 @@ namespace base{
                                 const typename GT::LocalVecDim& xi ) const
         {
             // Get Jacobi matrix
-            const typename base::MatrixType<GT::globalDim,
+            const typename base::Matrix<GT::globalDim,
                                             GT::localDim>::Type J
                 = JacobiMatrix<ELEMENT>()( ep, xi );
 
@@ -284,7 +284,7 @@ namespace base{
                                 typename GT::GlobalVecDim& normal ) const
         {
             // Get the Jacobi matrix
-            const typename base::MatrixType<GT::globalDim,
+            const typename base::Matrix<GT::globalDim,
                                             GT::localDim>::Type J
                 = JacobiMatrix<SELEMENT>()( sep, eta );
 
@@ -292,7 +292,7 @@ namespace base{
             normal = base::crossProduct( J );
 
             // Normalise the normal vector (sic)
-            const result_type length = normal.norm();
+            const result_type length = base::norm( normal );
             normal /= length;
 
             // Return the length as the surface metric
@@ -326,12 +326,12 @@ namespace base{
              *  \return     Jacobian
              */
             static double
-            compute( const typename base::MatrixType<DIM,LDIM>::Type& coVariant,
-                     typename base::MatrixType<DIM,LDIM>::Type& contraVariant )
+            compute( const typename base::Matrix<DIM,LDIM>::Type& coVariant,
+                     typename base::Matrix<DIM,LDIM>::Type& contraVariant )
             {
                 // - Co-variant metric coefficients:
                 //   \f$ G_{\alpha\beta} = <g_\alpha, g_\beta> \f$
-                typename MatrixType<LDIM,LDIM>::Type metricTens;
+                typename Matrix<LDIM,LDIM>::Type metricTens;
                 metricTens.noalias() = coVariant.transpose() * coVariant;
 
                 // - Inverse of the basis (inplace): 
@@ -339,7 +339,7 @@ namespace base{
                 //
                 // - Determinant (metric) is computed at the same time:
                 //   \f$ det J = \sqrt{ | (G_{\alpha\beta}) |} \f$
-                typename MatrixType<LDIM,LDIM>::Type metricTensInv;
+                typename Matrix<LDIM,LDIM>::Type metricTensInv;
                 double detJ;
                 bool dummy;
                 metricTens.computeInverseAndDetWithCheck( metricTensInv, detJ, dummy );
@@ -381,15 +381,15 @@ namespace base{
              *  \return     Jacobian
              */
             static double
-            compute( const typename base::MatrixType<DIM,DIM>::Type& coVariant,
-                     typename base::MatrixType<DIM,DIM>::Type& contraVariant )
+            compute( const typename base::Matrix<DIM,DIM>::Type& coVariant,
+                     typename base::Matrix<DIM,DIM>::Type& contraVariant )
             {
                 // - Co-variante basis gives a square matrix, simply transpose and invert:
                 //   \f$  (g^\alpha [i] ) = (g_\alpha [i])^{-T} \f$
                 //
                 // - the determinant is computed at the same time:
                 //   \f$ det J = | (g_\alpha [ i ]) | \f$
-                typename base::MatrixType<DIM,DIM>::Type aux
+                typename base::Matrix<DIM,DIM>::Type aux
                     = coVariant.transpose();
                 double detJ;
                 bool dummy;
@@ -412,10 +412,10 @@ namespace base{
         struct MetricComputation
         {
             static double
-            compute( const typename base::MatrixType<DIM,LDIM>::Type& coVariant )
+            compute( const typename base::Matrix<DIM,LDIM>::Type& coVariant )
             {
                 // Metric tensor
-                typename base::MatrixType<LDIM,LDIM>::Type metricTens;
+                typename base::Matrix<LDIM,LDIM>::Type metricTens;
                 metricTens.noalias() = coVariant.transpose() * coVariant;
 
                 // Square-root of metric tensor's determinant
@@ -435,7 +435,7 @@ namespace base{
         struct MetricComputation<DIM,DIM>
         {
             static double
-            compute( const typename base::MatrixType<DIM,DIM>::Type& coVariant )
+            compute( const typename base::Matrix<DIM,DIM>::Type& coVariant )
             {
                 return coVariant.determinant();
             }

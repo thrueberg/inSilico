@@ -50,7 +50,7 @@ template<unsigned DIM>
 class PulledSheetProblem
 {
 public:
-    typedef typename base::VectorType<DIM>::Type VecDim;
+    typedef typename base::Vector<DIM>::Type VecDim;
 
     // Fix x_0=0 and optionally pull at x_1=1
     template<typename DOF>
@@ -117,24 +117,12 @@ void writeVTKFile( const std::string& baseName,
     base::io::vtk::LegacyWriter vtkWriter( vtk );
     vtkWriter.writeUnstructuredGrid( mesh );
 
-    // Evaluate the solution field at every geometry node
-    {
-        std::vector<typename base::VectorType<DISP::DegreeOfFreedom::size>::Type> nodalValues;
-        base::post::evaluateAtNodes( mesh, disp, nodalValues );
-        vtkWriter.writePointData( nodalValues.begin(), nodalValues.end(), "disp" );
-    }
-
-    // compute Cauchy stress at element mid points
-    {
-        std::vector<mat::Tensor> cauchyStress;
-        std::transform( mesh.elementsBegin(), mesh.elementsEnd(),
-                        disp.elementsBegin(), std::back_inserter( cauchyStress ),
-                        boost::bind( solid::cauchy<typename MESH::Element,
-                                                   typename DISP::Element,
-                                                   MATERIAL>,
-                                     _1, _2, material ) );
-        vtkWriter.writeCellData( cauchyStress.begin(), cauchyStress.end(), "sigma" );
-    }
+    base::io::vtk::writePointData( vtkWriter, mesh, disp, "disp" );
+    base::io::vtk::writeCellData( vtkWriter, mesh, disp, 
+                                  boost::bind( solid::cauchy<typename MESH::Element,
+                                                             typename DISP::Element,
+                                                             MATERIAL>,
+                                               _1, _2, material ), "sigma" );
             
     vtk.close();
 }
@@ -192,9 +180,7 @@ int main( int argc, char * argv[] )
     }
 
     // find base name from mesh file
-    const std::string baseName =
-        meshFile.substr( 0, meshFile.find( ".smf" ) );
-
+    const std::string baseName = base::io::baseName( meshFile, ".smf" );
 
     //--------------------------------------------------------------------------
     // define a mesh
@@ -263,7 +249,7 @@ int main( int argc, char * argv[] )
 
 
     // material object
-    Material material( mat::lambda( E, nu), mat::mu( E, nu ) );
+    Material material( mat::Lame::lambda( E, nu), mat::Lame::mu( E, nu ) );
 
     // matrix kernel
     typedef solid::HyperElastic<Material,FieldTuple> HyperElastic;

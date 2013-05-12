@@ -18,10 +18,26 @@
 #include <sstream>
 // boost includes
 #include <boost/format.hpp>
+#include <boost/lexical_cast.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
     namespace io{
+
+        //----------------------------------------------------------------------
+        /** Return the basename of filename of type basename.suffix
+         *  Calling
+         *  \code{.cpp}
+         *  const std::string baseName = base::io::baseName("file.smf", ".smf");
+         *  \endcode
+         *  will assign \a file to the variable \a baseName
+         *
+         */
+        std::string baseName( const std::string& fileName,
+                              const std::string& suffix )
+        {
+            return fileName.substr( 0, fileName.find( suffix ) );
+        }
 
         //----------------------------------------------------------------------
         /** Create locale-formated string from value.
@@ -34,10 +50,10 @@ namespace base{
         template<class T>
         std::string formatWithLocale(T value)
         {
-            std::ostringstream ss;
-            ss.imbue(std::locale(""));
-            ss << std::fixed << value;
-            return ss.str();
+            std::ostringstream oss;
+            oss.imbue(std::locale(""));
+            oss << std::fixed << value;
+            return oss.str();
         }
 
         //----------------------------------------------------------------------

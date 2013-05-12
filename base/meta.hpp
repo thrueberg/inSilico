@@ -36,6 +36,27 @@ namespace base{
     //! \endcond
 
     //--------------------------------------------------------------------------
+    /** Compute the integral N-th power of floating point number, \f$ x^N \f$.
+     *  \tparam N exponent
+     */
+    template<unsigned N>
+    struct Power
+    {
+        static double apply( const double mantissa )
+        {
+            return mantissa * Power<N-1>::apply( mantissa );
+        }
+    };
+
+    //! \cond SKIPDOX Specialisation for N=0
+    template<>
+    struct Power<0>
+    {
+        static double apply( const double mantissa ) { return 1.0; }
+    };
+    //! \endcond
+
+    //--------------------------------------------------------------------------
     /** Compute the factorial of N,  \f$ N! \f$.
      *  A static assertion is triggered when \f$ N \leq 13 \f$ as this would
      *  result beyond the range of ordinary integers.

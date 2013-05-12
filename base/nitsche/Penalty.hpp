@@ -153,7 +153,7 @@ public:
     static const unsigned doFSize = TestElement::DegreeOfFreedom::size;
 
     //! Type of DoF value vector
-    typedef typename base::VectorType<doFSize,base::number>::Type VecDof;
+    typedef typename base::Vector<doFSize,base::number>::Type VecDof;
 
     //! Bubnov-Galerkin term
     static const bool bubnov = boost::is_same<TestElement,TrialElement>::value;

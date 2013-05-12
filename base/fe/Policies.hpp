@@ -165,7 +165,7 @@ namespace base{
                 for ( unsigned e = 0; e < FaceEdges::numFaceEdges; e ++ ){
                     const int edgeNumber = FaceEdges::index( e, faceNumber );
                     const int edgeOrient = FaceEdges::sign(  e, faceNumber );
-                    for ( unsigned d = 0; EdgeDAP::stride; d++ ) {
+                    for ( int d = 0; d < EdgeDAP::stride; d++ ) {
                         // take care of orientation of edge
                         const unsigned ctr =
                             (edgeOrient > 0 ? d : EdgeDAP::stride - d - 1);

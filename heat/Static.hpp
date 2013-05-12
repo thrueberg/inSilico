@@ -119,8 +119,8 @@ public:
         (trialEp -> fEFun()).evaluate( geomEp, xi, funValues );
 
         // Sizes and sanity checks
-        const unsigned numRows = testGradX.size();
-        const unsigned numCols = trialGradX.size();
+        const unsigned numRows = static_cast<unsigned>( testGradX.size()  );
+        const unsigned numCols = static_cast<unsigned>( trialGradX.size() );
         assert( static_cast<unsigned>( matrix.rows() ) == numRows );
         assert( static_cast<unsigned>( matrix.cols() ) == numCols );
 
@@ -196,7 +196,7 @@ public:
         const double detJ =
             (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
 
-        const unsigned numRows = testGradX.size();
+        const unsigned numRows = static_cast<unsigned>( testGradX.size() );
         assert( static_cast<unsigned>( vector.size() ) == numRows );
 
         // evaluate temperature and its gradient

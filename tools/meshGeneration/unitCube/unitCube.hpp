@@ -12,8 +12,11 @@
 
 // std includes
 #include <iostream>
+#include <vector>
 // boost includes
 #include <boost/lexical_cast.hpp>
+// tools includes
+#include <tools/meshGeneration/meshGeneration.hpp>
 
 //------------------------------------------------------------------------------
 namespace tools{
@@ -22,7 +25,7 @@ namespace tools{
 
             //------------------------------------------------------------------
             // Get dimensions from the user
-            void userInput( const int argc, char* argv[], unsigned& dim,
+            bool userInput( const int argc, char* argv[], unsigned& dim,
                             unsigned& n1, unsigned& n2, unsigned& n3,
                             unsigned& e1, unsigned& e2, unsigned& e3 )
             {
@@ -30,7 +33,7 @@ namespace tools{
                 if ( (argc < 2) or (argc > 4) ) {
                     std::cout << "Usage:  " << argv[0]
                               << " N1  [N2  [N3] ]\n";
-                    exit( -1 );
+                    return false;
                 }
 
                 // Induced spatial dimension
@@ -45,13 +48,15 @@ namespace tools{
                 n1 = e1+1;
                 n2 = (dim > 1 ? e2 + 1 : 1);
                 n3 = (dim > 2 ? e3 + 1 : 1);
+
+                return true;
             }
 
             //------------------------------------------------------------------
             // Write equi-distant node grid
-            void writeNodes( const unsigned n1, const unsigned n2, const unsigned n3,
-                             const unsigned e1, const unsigned e2, const unsigned e3,
-                             std::ostream & out )
+            void generatePoints( const unsigned n1, const unsigned n2, const unsigned n3,
+                                 const unsigned e1, const unsigned e2, const unsigned e3,
+                                 std::vector<tools::meshGeneration::Point> & points )
             {
                 // spacing
                 const double h1 = 1.0 / static_cast<double>( e1 );
@@ -67,13 +72,15 @@ namespace tools{
                             const double x = h1 * i1;
                             const double y = h2 * i2;
                             const double z = h3 * i3;
-
-                            out << x << " " << y << " " << z << "\n";
+                            
+                            tools::meshGeneration::Point point = {{ x, y, z }};
+                            points.push_back( point );
                         }
                     }
                 }
                 return;
             }
+
 
         } // namespace unitCube
     }

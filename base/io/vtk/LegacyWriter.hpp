@@ -19,6 +19,8 @@
 #include <base/io/raw/ascii.hpp>
 // base/io/vtk includes
 #include <base/io/vtk/CellTraits.hpp>
+// base/post includes
+#include <base/post/evaluateAtNodes.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -31,33 +33,42 @@ namespace base{
 
                 //--------------------------------------------------------------
                 template<typename DATUM>
-                struct IsScalar
+                struct ValueTypeString
                 {
-                    static const bool value = (DATUM::SizeAtCompileTime == 1);
+                    static std::string apply()
+                    {
+                        if (base::MatSize<DATUM>::value == 1) return "SCALARS";
+                        if (base::MatSize<DATUM>::value == 9) return "TENSORS";
+
+                        return "VECTORS";
+                    }
                 };
 
                 template<>
-                struct IsScalar<double>
+                struct ValueTypeString<double>
                 {
-                    static const bool value = true;
-                };
-
-                //--------------------------------------------------------------
-                template<typename DATUM>
-                struct IsTensor
-                {
-                    static const bool value = (DATUM::SizeAtCompileTime == 9);
+                    static std::string apply() { return "SCALARS"; }
                 };
 
                 template<>
-                struct IsTensor<double>
+                struct ValueTypeString<bool>
                 {
-                    static const bool value = false;
+                    static std::string apply() { return "SCALARS"; }
                 };
+                
+            } // namespace detail_
 
+            //------------------------------------------------------------------
+            template<typename MESH, typename FIELD>
+            void writePointData( base::io::vtk::LegacyWriter& writer,
+                                 const MESH&  mesh, const FIELD& field,
+                                 const std::string& name );
 
-            }
-            
+            template<typename MESH, typename FIELD, typename FUN>
+            void writeCellData( base::io::vtk::LegacyWriter& writer,
+                                const MESH& mesh, const FIELD& field,
+                                FUN fun, const std::string& name );
+                
         }
     }
 }
@@ -239,14 +250,10 @@ void base::io::vtk::LegacyWriter::writeData_( VALITER first,
                                               const bool isCellData )
 {
     // Deduce type of point datum
-    typedef typename VALITER::value_type DoFValue;
+    typedef typename std::iterator_traits<VALITER>::value_type DoFValue;
     
     // Compute the number of dofs
     const std::size_t numDoFs = std::distance( first, last );
-
-    // Check if datum is scalar field
-    const bool isScalar = detail_::IsScalar<DoFValue>::value;
-    const bool isTensor = detail_::IsTensor<DoFValue>::value;
 
     if ( isCellData ) {
     
@@ -264,17 +271,42 @@ void base::io::vtk::LegacyWriter::writeData_( VALITER first,
     }
 
     // Write data type identifier
-    vtk_ << ( isScalar ? "SCALARS" : (isTensor ? "TENSORS" : "VECTORS" ) )
-         << " " << name << " float " << "\n";
+    const std::string valueTypeString = detail_::ValueTypeString<DoFValue>::apply();
+    vtk_ << valueTypeString << " " << name << " float " << "\n";
 
     // Strange VTK policy
-    if ( isScalar ) vtk_ << "LOOKUP_TABLE default \n";
+    if ( valueTypeString == "SCALARS" ) vtk_ << "LOOKUP_TABLE default \n";
 
     // write the data
     std::copy( first, last, 
                base::io::OStreamIterator<DoFValue>(
                    vtk_, &base::io::raw::template writeDoFValues<DoFValue> ) );
 
+}
+
+//------------------------------------------------------------------------------
+template<typename MESH, typename FIELD>
+void base::io::vtk::writePointData( base::io::vtk::LegacyWriter& writer,
+                                    const MESH&  mesh, const FIELD& field,
+                                    const std::string& name )
+{
+    typedef typename base::Vector<FIELD::DegreeOfFreedom::size>::Type VecDof;
+    std::vector<VecDof> nodalValues;
+    base::post::evaluateAtNodes( mesh, field, nodalValues );
+    writer.writePointData( nodalValues.begin(), nodalValues.end(), name );
+}
+
+//------------------------------------------------------------------------------
+template<typename MESH, typename FIELD, typename FUN>
+void base::io::vtk::writeCellData( base::io::vtk::LegacyWriter& writer,
+                                   const MESH& mesh, const FIELD& field,
+                                   FUN fun, const std::string& name )
+{
+    std::vector<typename FUN::result_type> cellValues;
+    std::transform( mesh.elementsBegin(), mesh.elementsEnd(),
+                    field.elementsBegin(), std::back_inserter( cellValues ),
+                    fun );
+    writer.writeCellData( cellValues.begin(), cellValues.end(), name );
 }
 
 

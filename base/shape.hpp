@@ -227,7 +227,7 @@ namespace base{
         template<unsigned DIM>
         struct SimplexCentroid
         {
-            static typename base::VectorType<DIM,double>::Type apply()
+            static typename base::Vector<DIM,double>::Type apply()
             {
                 const double value =
                     1. / static_cast<double>( base::Factorial<DIM>::value );
@@ -241,7 +241,7 @@ namespace base{
         template<unsigned DIM>
         struct HyperCubeCentroid
         {
-            static typename base::VectorType<DIM,double>::Type apply()
+            static typename base::Vector<DIM,double>::Type apply()
             {
                 return base::constantVector<DIM>( 0.5 );
             }

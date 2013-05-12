@@ -24,55 +24,16 @@ namespace base{
     namespace time{
 
         //----------------------------------------------------------------------
-        template<typename KERNEL, unsigned N>
-        struct CallResidualForceHistory
-            : public boost::function< void( const typename KERNEL::FieldTuple&,
-                                            const typename KERNEL::LocalVecDim&,
-                                            const double,
-                                            base::VectorD&) >
-        {
-        public:
-            typedef KERNEL Kernel;
-        
-            CallResidualForceHistory( const KERNEL& staticHeat )
-            : staticHeat_( staticHeat ) { }
-
-            void operator()( const typename KERNEL::FieldTuple& fieldTuple,
-                             const typename Kernel::LocalVecDim&    xi,
-                             const double        weight,
-                             base::VectorD&      vector ) const
-            {
-                staticHeat_.template residualForceHistory<N>( fieldTuple,
-                                                              xi, weight,
-                                                              vector );
-            }
-        
-        private:
-            const Kernel& staticHeat_;
-        };
-
-        //----------------------------------------------------------------------
-        template<typename KERNEL,
-                 typename QUAD, typename SOLVER, typename TSMETHOD,
-                 template <typename, unsigned> class RESFORCEHIST>
+        template<typename KERNEL, typename QUAD, typename SOLVER, typename TSMETHOD>
         class ResidualForceHistory;
-        
-        //----------------------------------------------------------------------
-        namespace detail_{
 
-            template<typename KERNEL,
-                     template <typename, unsigned> class RESFORCEHIST,
-                     int CTR>
+        //----------------------------------------------------------------------
+        namespace detail_ {
+
+            template<typename KERNEL, int CTR>
             struct CollectResidualForces
             {
-                // instantiate a possible type for type introspection
-                typedef RESFORCEHIST<KERNEL,0> TypeInfo;
-
-                // third type shall reduce to an element of the trial space
-                typedef typename base::TypeReduction<
-                    typename TypeInfo::arg1_type>::Type
-                FieldTuple;
-
+                typedef typename KERNEL::FieldTuple       FieldTuple;
                 typedef typename FieldTuple::TrialElement TrialElement;
 
                 // number of abvailable history terms
@@ -84,22 +45,22 @@ namespace base{
                     TrialElement::DegreeOfFreedom::size;
 
 
-                static void apply( const KERNEL&                      kernel,
-                                   const typename TypeInfo::arg1_type fieldTuple,
-                                   const typename TypeInfo::arg2_type xi,
-                                   const double quadWeight, 
-                                   std::vector<double>& weights,
-                                   base::VectorD& result )
+                static void apply( const KERNEL&                       kernel,
+                                   const FieldTuple&                   fieldTuple,
+                                   const typename KERNEL::LocalVecDim& xi,
+                                   const double                        quadWeight, 
+                                   std::vector<double>&                weights,
+                                   base::VectorD&                      result )
                 {
                     // quit in case for no additional reaction terms
-                    const unsigned numWeights = weights.size();
+                    const unsigned numWeights = static_cast<unsigned>( weights.size() );
                     if ( numWeights == 0 ) return;
 
                     base::VectorD tmp = base::VectorD::Zero( result.size() );
 
                     // residual force caller
-                    RESFORCEHIST<KERNEL,past> rFH( kernel );
-                    rFH( fieldTuple, xi, quadWeight, tmp );
+                    kernel.template residualForceHistory<past>( fieldTuple, xi,
+                                                                quadWeight, tmp );
 
                     // weight by weights
                     result += weights[0] * tmp;
@@ -111,7 +72,7 @@ namespace base{
                         weights = std::vector<double>( first, weights.end() );
 
                         // recursive call
-                        CollectResidualForces<KERNEL,RESFORCEHIST,
+                        CollectResidualForces<KERNEL,
                                               CTR-1>::apply( kernel, fieldTuple,
                                                              xi, quadWeight,
                                                              weights, result );
@@ -119,19 +80,15 @@ namespace base{
                 }
             };
 
-            template<typename KERNEL,
-                     template <typename, unsigned> class RESFORCEHIST>
-            struct CollectResidualForces<KERNEL,RESFORCEHIST,-1>
+            template<typename KERNEL>
+            struct CollectResidualForces<KERNEL,-1>
             {
-                // instantiate a possible type for type introspection
-                typedef RESFORCEHIST<KERNEL,0> TypeInfo;
-
-                static void apply( const KERNEL&                      kernel,
-                                   const typename TypeInfo::arg1_type fieldTuple,
-                                   const typename TypeInfo::arg2_type xi,
-                                   const double quadWeight, 
-                                   std::vector<double>& weights,
-                                   base::VectorD& result )
+                static void apply( const KERNEL&                       kernel,
+                                   const typename KERNEL::FieldTuple&  fieldTuple,
+                                   const typename KERNEL::LocalVecDim& xi,
+                                   const double                        quadWeight, 
+                                   std::vector<double>&                weights,
+                                   base::VectorD&                      result )
                 {
                     // empty in order to stop recursion
                 }
@@ -158,9 +115,7 @@ namespace base{
  *  \f]
  *
  */
-template<typename KERNEL,
-         typename QUAD, typename SOLVER, typename TSMETHOD,
-         template <typename, unsigned> class RESFORCEHIST>
+template<typename KERNEL, typename QUAD, typename SOLVER, typename TSMETHOD>
 class base::time::ResidualForceHistory
 {
 public:
@@ -172,12 +127,8 @@ public:
     typedef TSMETHOD      TimeSteppingMethod;
     //@}
 
-    //! Instantiate possible type for introspection
-    typedef RESFORCEHIST<Kernel,0> TypeInfo;
-
     //! FieldTuple
-    typedef typename base::TypeReduction<typename TypeInfo::arg1_type>::Type
-    FieldTuple;
+    typedef typename Kernel::FieldTuple FieldTuple;
 
     typedef typename FieldTuple::TestElementPtr   TestElementPtr;
     typedef typename FieldTuple::TrialElement     TrialElement;
@@ -230,7 +181,6 @@ public:
             for ( ; qIter != qEnd; ++qIter ) {
                 
                 detail_::CollectResidualForces<Kernel,
-                                               RESFORCEHIST,
                                                nHist-1>::apply( kernel_,
                                                                 fieldTuple, 
                                                                 qIter -> second,

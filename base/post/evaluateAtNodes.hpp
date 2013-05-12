@@ -29,7 +29,7 @@ namespace base{
             struct ValueTypeBinder
             {
                 static const unsigned size = FIELD::DegreeOfFreedom::size;
-                typedef typename base::VectorType<size,number>::Type Type;
+                typedef typename base::Vector<size,number>::Type Type;
             };
 
         }

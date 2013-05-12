@@ -19,7 +19,6 @@
 #include <base/dof/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
-#include <base/aux/algorithms.hpp>
 
 #include <base/dof/Distribute.hpp>
 #include <base/dof/constrainBoundary.hpp>
@@ -27,6 +26,7 @@
 #include <base/asmb/FieldBinder.hpp>
 #include <base/asmb/StiffnessMatrix.hpp>
 
+#include <base/io/Format.hpp>
 #include <base/io/vtk/LegacyWriter.hpp>
 
 #include <fluid/Stokes.hpp>
@@ -38,7 +38,7 @@
 // Function for the point-wise constraint of the Boundary
 //[dirichlet]{
 template<unsigned DIM, typename DOF>
-void dirichletBC( const typename base::VectorType<DIM>::Type& x,
+void dirichletBC( const typename base::Vector<DIM>::Type& x,
                  DOF* doFPtr ) 
 {
     const double tol = 1.e-5;
@@ -101,7 +101,7 @@ int main( int argc, char * argv[] )
         }
     }
 
-    const std::string baseName = meshFile.substr( 0, meshFile.find( ".smf" ) );
+    const std::string baseName = base::io::baseName( meshFile, ".smf" );
 
     //--------------------------------------------------------------------------
     const unsigned    dim     = base::ShapeDim<shape>::value;
@@ -253,17 +253,8 @@ int main( int argc, char * argv[] )
         std::ofstream vtk( vtkFile.c_str() );
         base::io::vtk::LegacyWriter vtkWriter( vtk );
         vtkWriter.writeUnstructuredGrid( mesh );
-        {
-            // Evaluate the solution field at every geometry node
-            std::vector<base::VectorType<doFSizeU>::Type> nodalVelocities;
-            base::post::evaluateAtNodes( mesh, velocity, nodalVelocities );
-            vtkWriter.writePointData( nodalVelocities.begin(), nodalVelocities.end(), "U" );
-
-            // Evaluate the solution field at every geometry node
-            std::vector<base::VectorType<doFSizeP>::Type> nodalPressures;
-            base::post::evaluateAtNodes( mesh, pressure, nodalPressures );
-            vtkWriter.writePointData( nodalPressures.begin(), nodalPressures.end(), "P" );
-        }
+        base::io::vtk::writePointData( vtkWriter, mesh, velocity, "U" );
+        base::io::vtk::writePointData( vtkWriter, mesh, pressure, "P" );
         vtk.close();
     }
 

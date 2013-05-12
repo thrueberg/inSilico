@@ -16,7 +16,6 @@
 // base includes
 #include <base/geometry.hpp>
 #include <base/linearAlgebra.hpp>
-#include <base/aux/algorithms.hpp>
 // base/asmb includes
 #include <base/asmb/ForceIntegrator.hpp>
 
@@ -33,23 +32,23 @@ namespace base{
          *  Neumann boundary conditions.
          */
         template<typename SURFACEQUADRATURE, typename SOLVER,
-                 typename BOUNDFIELD>
+                 typename FIELDBINDER>
         void neumannForceComputation(
             const SURFACEQUADRATURE& surfaceQuadrature,
             SOLVER&                  solver, 
-            const BOUNDFIELD&        boundField,
+            const FIELDBINDER&       fieldBinder,
             const typename
-            NeumannForce<typename BOUNDFIELD::ElementPtrTuple>::ForceFun& ff )
+            NeumannForce<typename FIELDBINDER::ElementPtrTuple>::ForceFun& ff )
         {
 
             // object to compute the neumann force
-            typedef NeumannForce<typename BOUNDFIELD::ElementPtrTuple> NeumannForce;
+            typedef NeumannForce<typename FIELDBINDER::ElementPtrTuple> NeumannForce;
             typename NeumannForce::ForceFun forceFun = ff;
             NeumannForce neumannForce( forceFun );
 
             // integrator object
             typedef ForceIntegrator<SURFACEQUADRATURE,SOLVER,
-                                    typename BOUNDFIELD::ElementPtrTuple>
+                                    typename FIELDBINDER::ElementPtrTuple>
                 SurfaceForceInt;
             typename SurfaceForceInt::ForceKernel surfaceForceKernel =
                 boost::bind( neumannForce, _1, _2, _3, _4 );
@@ -57,8 +56,8 @@ namespace base{
                                              surfaceQuadrature, solver );
 
             // apply
-            std::for_each( boundField.elementsBegin(),
-                           boundField.elementsEnd(), surfaceForceInt );
+            std::for_each( fieldBinder.elementsBegin(),
+                           fieldBinder.elementsEnd(), surfaceForceInt );
             return;
         }
         
@@ -74,8 +73,7 @@ namespace base{
  *  Here, the integral kernel function \f$ f(x,n) \phi(x) \f$ is represented. The
  *  computation of the integral and the assembly is done outside in
  *  base::ForceIntegrator.
- *  \tparam SURFELEMENT  Type of Surface element
- *  \tparam TESTELEMENT  Type of element of the FE test space
+ *  \tparam SURFFIELDTUPLE Tuple of surface elements
  */
 template<typename SURFFIELDTUPLE>
 class base::asmb::NeumannForce
@@ -103,23 +101,17 @@ public:
     //! Type of domain element
     typedef typename SurfaceElement::DomainElement    DomainElement;
 
+    //! Size of a DoF
+    static const unsigned doFSize = TestElement::DegreeOfFreedom::size;
+
     //! Type of result vector
-    typedef typename
-    base::VectorType<TestElement::DegreeOfFreedom::size,number>::Type VecDof;
+    typedef typename base::Vector<doFSize,number>::Type VecDof;
 
     //! Type of force function
     typedef boost::function<VecDof( const GlobalVecDim&,
                                     const GlobalVecDim&)> ForceFun;
 
 
-    //! @name Sanity checks: force function is a function of x and n
-    //{
-    static base::TypeEquality<typename ForceFun::first_argument_type,
-                              GlobalVecDim> sanity1;
-    static base::TypeEquality<typename ForceFun::first_argument_type,
-                              GlobalVecDim> sanity2;
-    //@}
-    
     //--------------------------------------------------------------------------
     //! Constructor setting all references
     NeumannForce( const ForceFun& forceFun  )
@@ -165,8 +157,7 @@ public:
         (testEp -> fEFun()).evaluate( domainEp, xi, funValues );
 
         // deduce the size of every contribution
-        const unsigned numFun = funValues.size();
-        const unsigned doFSize = vector.size() / numFun;
+        const unsigned numFun = static_cast<unsigned>( funValues.size() );
 
         // Loop over shape functions
         for ( unsigned s = 0; s < numFun; s++ ) {

@@ -129,8 +129,8 @@ namespace base{
             {
                 static double fun( const double& t )
                 {
-                    return ( t <=  Knot<J,  K>::value ? 0. :
-                             t >   Knot<J+1,K>::value ? 0. : 1. );
+                    return ( t <   Knot<J,  K>::value ? 0. :
+                             t >=  Knot<J+1,K>::value ? 0. : 1. );
                 }
             };
 
@@ -318,22 +318,44 @@ public:
     //@}
 
     //--------------------------------------------------------------------------
-    //! Evaluation functions
+    //! @name Evaluation functions
+
     //@{
-    //! Plain function evaluation
+    /** Plain function evaluation
+     *  Note that the recursive spline defintion is based on the characteristic
+     *  function for \f$ 0 \leq t < 1 \f$ as the constant spline function.
+     *  This leads to numerical problems for the evaluation of the splines (or
+     *  their derivatices) at \f$ t = 1 \f$ which is to be understood as the
+     *  left limit \f$ \lim_{t \to 1^-} \f$. In order to avoid these problems,
+     *  the argument is manipulated in order to avoid the point \f$ t = 1 \f$.
+     *  In detail,
+     *  \f[
+     *        \eta = 1 - \varepsilon \quad if \quad \eta = 1
+     *  \f]
+     *  with the value of \f$ \varepsilon \f$ chosen from the c++ limits
+     *  libraray (http://www.cplusplus.com/reference/limits/numeric_limits/).
+     */
     void fun( const VecDim & xi, FunArray & values ) const
     {
-        detail_::RecursiveBSplineFunEval<degree,continuity>::apply( xi[0], values );
+        double eta = xi[0];
+        if ( eta >= 1. ) eta = 1. - std::numeric_limits<double>::epsilon();
+        detail_::RecursiveBSplineFunEval<degree,continuity>::apply( eta, values );
     }
+
     //! Evaluation of the functions' gradients
     void gradient( const VecDim & xi, GradArray & values ) const
     {
-        detail_::RecursiveBSplineGradEval<degree,continuity>::apply( xi[0], values );
+        double eta = xi[0];
+        if ( eta >= 1. ) eta = 1. - std::numeric_limits<double>::epsilon();
+        detail_::RecursiveBSplineGradEval<degree,continuity>::apply( eta, values );
     }
+
     //! Evaluation of the functions' Hessians
     void hessian(  const VecDim & xi, HessianArray & values ) const
     {
-        detail_::RecursiveBSplineHessianEval<degree,continuity>::apply( xi[0], values );
+        double eta = xi[0];
+        if ( eta >= 1. ) eta = 1. - std::numeric_limits<double>::epsilon();
+        detail_::RecursiveBSplineHessianEval<degree,continuity>::apply( eta, values );
     }
     //@}
 };

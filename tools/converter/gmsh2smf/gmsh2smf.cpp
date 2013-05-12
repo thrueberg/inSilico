@@ -60,7 +60,7 @@ int main( int argc, char* argv[] )
     physicalNames.push_back( "(unnamed)" );
     std::vector<gmsh2smf::Node> nodes;
     std::vector<unsigned> elementTypes, elementFirstTags;
-    std::vector<std::vector<unsigned> > connectivities;
+    std::vector<std::vector<std::size_t> > connectivities;
     //@}
 
     //! Create a tag reader to manage the input

@@ -42,7 +42,7 @@ namespace base{
  *  For the given range of elements, the faces of one dimension lower are
  *  detected which only appear once among the elements. Since faces which are
  *  interior to the mesh appear twice, these must form a boundary.
- *  \param EITER                 Type of element iterator
+ *  \tparam EITER                Type of element iterator
  *  \param[in]  first, last      Range of elements
  *  \param[out] boundaryElements Container of (elemNum,faceNum) pairs
  */

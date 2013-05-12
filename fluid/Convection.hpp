@@ -92,7 +92,7 @@ public:
         const VelocElement* velocEp = fieldTuple.auxField1ElementPtr();
 
         // Evaluate the velocity field
-        const typename base::VectorType<nDoFs,double>::Type uAdv =
+        const typename base::Vector<nDoFs,double>::Type uAdv =
             fluid::velocity( geomEp, velocEp, xi );
 
         // Evaluate its divergence
@@ -116,8 +116,8 @@ public:
         assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * nDoFs );
 
         // identity object
-        const typename base::MatrixType<nDoFs,nDoFs,double>::Type eye
-            = base::MatrixType<nDoFs,nDoFs,double>::Type::Identity();
+        const typename base::Matrix<nDoFs,nDoFs,double>::Type eye
+            = base::Matrix<nDoFs,nDoFs,double>::Type::Identity();
 
         // loop over the test and trial functions
         for ( unsigned M = 0; M < numRowBlocks; M++ ) { // test functions
@@ -173,13 +173,13 @@ public:
         const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );
         
         // Evalute velocity gradient
-        const typename base::MatrixType<GeomElement::Node::dim,
+        const typename base::Matrix<GeomElement::Node::dim,
                                         TrialElement::DegreeOfFreedom::size,
                                         double>::Type
             gradU = fluid::velocityGradientHistory<HIST>( geomEp, velocEp, xi );
 
         // Evalute velocity field
-        const typename base::VectorType<TrialElement::DegreeOfFreedom::size,
+        const typename base::Vector<TrialElement::DegreeOfFreedom::size,
                                         double>::Type
             U = fluid::velocityHistory<HIST>( geomEp, trialEp, xi );
 

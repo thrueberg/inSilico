@@ -65,8 +65,8 @@ int main( int argc, char * argv[] )
 
     
     // sparsity pattern (debug only)
-    unsigned nnz = 0;
-    unsigned nnzPerRow = 0;
+    std::size_t nnz = 0;
+    std::size_t nnzPerRow = 0;
     {
 
         base::dof::IndexMap<FEBasis> indexMap;

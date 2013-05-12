@@ -105,22 +105,21 @@ namespace base{
 
         //----------------------------------------------------------------------
         // Q=1
-        template<> const typename BDF<1>::LHSWeightsArray BDF<1>::a_ =
-        {{ 1.0, -1.0 }};
+        template<> const BDF<1>::LHSWeightsArray BDF<1>::a_ = {{ 1.0, -1.0 }};
 
         //----------------------------------------------------------------------
         // Q=2
-        template<> const typename BDF<2>::LHSWeightsArray BDF<2>::a_ =
+        template<> const BDF<2>::LHSWeightsArray BDF<2>::a_ =
         {{ 1.5, -2.0, 0.5 }};
         
         //----------------------------------------------------------------------
         // Q=3
-        template<> const typename BDF<3>::LHSWeightsArray BDF<3>::a_ =
+        template<> const BDF<3>::LHSWeightsArray BDF<3>::a_ =
         {{ 11./6., -3.0, 1.5, -1./3. }};
 
         //----------------------------------------------------------------------
         // Q=4
-        template<> const typename BDF<4>::LHSWeightsArray BDF<4>::a_ =
+        template<> const BDF<4>::LHSWeightsArray BDF<4>::a_ =
         {{ 25./12., -4.0, 3.0, 4./3., 1./4.}};
 
     }

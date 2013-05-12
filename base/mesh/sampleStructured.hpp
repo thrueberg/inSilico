@@ -25,66 +25,115 @@
 namespace base{
     namespace mesh{
 
-        template<typename FIELD, typename SAMPLEOP, typename OUTITER>
-        void sampleStructuredField( const FIELD&   field,
-                                    SAMPLEOP&      sampling,
-                                    OUTITER        outputIter,
-                                    const typename
-                                    base::MultiIndex<FIELD::Element::dim>::Type&
-                                    gridSizes, 
-                                    const unsigned resolution = 1,
-                                    const bool     discont = false );
+        template<unsigned DIM, typename SAMPLINGACTION>
+        void sampleStructured( const typename base::MultiIndex<DIM>::Type& gridSizes,
+                               SAMPLINGACTION& samplingAction,
+                               const unsigned resolution = 1,
+                               const bool     discont = false );
+
+        //----------------------------------------------------------------------
+        namespace detail_{
+
+            //! Define sampling function
+            template<typename ELEMENT>
+            struct GridSampler
+            {
+                typedef
+                boost::function<void( const std::size_t,
+                                      const typename
+                                      base::GeomTraits<ELEMENT>::LocalVecDim& )>
+                Type;
+            };
+
+            //! Sample the geometry of the grid
+            template<typename GRID, typename OUTITER>
+            struct GeometrySampling
+            {
+                typedef typename GRID::Element Element;
+                
+                static void apply( const std::size_t eIndex,
+                                   const typename base::GeomTraits<Element>::LocalVecDim& xi,
+                                   const GRID& grid, OUTITER outIter )
+                {
+                    const Element* const ep = grid.elementPtr( eIndex );
+
+                    *outIter++ = base::Geometry<Element>()( ep, xi );
+                }
+            };
+
+        }
 
         //! Special case: Field=Grid and sampling of geometry
         template<typename GRID, typename OUTITER>
         void sampleGridGeometry( const GRID& grid,
                                  OUTITER        outputIter,
-                                 const unsigned resolution = 1,
-                                 const bool     discont = false )
+                                 const unsigned resolution = 1 )
         {
-            typedef typename GRID::Element Element;
-            
-            // Function object for evaluating the element geometry
-            typedef typename base::GeomTraits<Element>::LocalVecDim LVD;
-            typedef boost::function< typename GRID::Node::VecDim(
-                const Element*, const LVD&) > GeomEval;
-        
-            GeomEval geometry = boost::bind( base::Geometry<Element>(), _1, _2 );
+            typename detail_::GridSampler<typename GRID::Element>::Type
+                sampler =
+                boost::bind( &detail_::GeometrySampling<GRID,OUTITER>::apply,
+                             _1, _2, boost::ref( grid ), outputIter );
 
-
-            return sampleStructuredField( grid, geometry, outputIter,
-                                          grid.gridSizes(), resolution, discont );
+            sampleStructured<GRID::dim>( grid.gridSizes(), sampler,
+                                         resolution, false );
         }
-        
 
     }
 }
 
 //------------------------------------------------------------------------------
-/** A story to be told.
+/** Sample a structured grid with a given operation.
+ *  Given the dimensions of a structured grid and a resolution, this function
+ *  generates a sampling grid by generating pairs of element numbers and local
+ *  evaluation coordinates. These pairs are passed onwards to a sampling
+ *  operation which is provided by the caller.
+ *  Consider for example a 2x2 grid in 2D with resolution equal to two. In this
+ *  case the sampling grid looks like
+ *  \code{.txt}
+ *
+ *        (*)---*---(*)---*---(*)
+ *         |         |         |
+ *         |         |         |
+ *         *    *    *    *    *           ( )  original grid point
+ *         |         |         |
+ *         |         |         |            *   sampling point
+ *        (*)---*---(*)---*---(*)
+ *         |         |         |
+ *         |         |         |
+ *         *    *    *    *    * <------ Example: 
+ *         |         |         |           Element number:    1
+ *         |         |         |           Local coordinate: (1,0.5)
+ *        (*)---*---(*)---*---(*)
+ *
+ *  \endcode
+ *  Furthermore, if the a discontinuity flag is set to true (default false),
+ *  sampling will take place for every element without considering continuity
+ *  across elements. This can be used to sample cell data.
+ *  Moreover, if the resolution is set to zero the convention is to only sample
+ *  at element mid points.
+ *
+ *  \tparam DIM               Dimension of the grid (manifold dimension)
+ *  \tparam SAMPLINGACTION    Type of sampling action (void( elemIndex, xi ) )
+ *  \param[in] gridSizes      Dimensions of the grid
+ *  \param[in] samplingAction Operation to apply to the pair element No and xi
+ *  \param[in] resolution     Sub-sampling resolution
+ *  \param[in] discont        Flag for discontinuous sampling
  */
-template<typename FIELD, typename SAMPLEOP, typename OUTITER>
-void base::mesh::sampleStructuredField( const FIELD&   field,
-                                        SAMPLEOP&      sampling,
-                                        OUTITER        outputIter,
-                                        const typename
-                                        base::MultiIndex<FIELD::Element::dim>::Type&
-                                        gridSizes, 
-                                        const unsigned resolution,
-                                        const bool     discont  )
+template<unsigned DIM, typename SAMPLINGACTION>
+void base::mesh::sampleStructured( const typename base::MultiIndex<DIM>::Type& gridSizes,
+                                   SAMPLINGACTION& samplingAction,
+                                   const unsigned resolution,
+                                   const bool     discont  )
 {
-    // Deduce element type
-    typedef typename FIELD::Element Element;
-
     // Local space dimension
-    static const unsigned dim = Element::dim;
+    static const unsigned dim = DIM; 
 
     // Multi-index structures
     typedef base::MultiIndex<dim>          MultiIndex;
     typedef typename MultiIndex::Type      MultiIndexType;
 
     // Vector of local coordinates
-    typedef typename base::GeomTraits<Element>::LocalVecDim  LocalVecDim;
+    typedef typename base::Vector<dim,double>::Type LocalVecDim;
 
     // number of sampling points per direction
     const unsigned numSamplesPerDir = ( resolution == 0 ? 1 : resolution );
@@ -96,7 +145,7 @@ void base::mesh::sampleStructuredField( const FIELD&   field,
     const LocalVecDim subSizes =  1. / samples.template cast<double>();
 
     // increase the local sampling to capture right boundary
-    samples += 1;
+    if ( resolution > 0 ) samples += 1;
 
     // For mid-point sampling, shift the values
     const LocalVecDim shift = ( resolution == 0 ?
@@ -133,6 +182,7 @@ void base::mesh::sampleStructuredField( const FIELD&   field,
         // of a right-most element
         if ( not sampleValue ) {
 
+
             // Flags for last element and sample points per direction
             std::bitset<dim> lastElement;
             std::bitset<dim> lastSample;
@@ -149,7 +199,18 @@ void base::mesh::sampleStructuredField( const FIELD&   field,
 
                 // If the flags are identical, evaluate
                 if ( lastElement == lastSample ) sampleValue = true;
+
+                // A serious hack for having the right sampling in 3D
+                if ( ( lastSample & lastElement ).count() ) {
+                    
+                    if ( ( lastElement.count() == 2 ) and
+                         ( lastSample.count() == 1 ) ) {
+                        sampleValue = true;
+                    }
+                }
+                
             }
+            
         }
 
         // Sample
@@ -164,11 +225,8 @@ void base::mesh::sampleStructuredField( const FIELD&   field,
             // linear index
             const std::size_t linearIndex = MultiIndex::unwrap( eM, gridSizes );
             
-            // Get access to an element
-            const Element* const ep = field.elementPtr( linearIndex );
-
             // sample operation
-            *outputIter++ = sampling( ep, xi );
+            samplingAction( linearIndex, xi );
         }
            
     }// end loop over sampling points

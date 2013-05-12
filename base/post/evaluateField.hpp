@@ -15,6 +15,8 @@
 #include <vector>
 // base includes
 #include <base/linearAlgebra.hpp>
+// base/mesh includes
+#include <base/mesh/sampleStructured.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -22,7 +24,7 @@ namespace base{
 
         // Evaluate the field at a given point
         template<unsigned HIST, typename GEOMELEMENT, typename FIELDELEMENT>
-        typename base::VectorType<FIELDELEMENT::DegreeOfFreedom::size,
+        typename base::Vector<FIELDELEMENT::DegreeOfFreedom::size,
                                   base::number>::Type
         evaluateFieldHistory( const GEOMELEMENT*  geomElemPtr,
                               const FIELDELEMENT* fieldElemPtr,
@@ -30,7 +32,7 @@ namespace base{
 
         // Evaluate the gradient of the field at a given point
         template<unsigned HIST, typename GEOMELEMENT,typename FIELDELEMENT>
-        static typename base::MatrixType<GEOMELEMENT::Node::dim,
+        static typename base::Matrix<GEOMELEMENT::Node::dim,
                                          FIELDELEMENT::DegreeOfFreedom::size,
                                          base::number>::Type
         evaluateFieldGradientHistory( const GEOMELEMENT*  geomElemPtr,
@@ -40,7 +42,7 @@ namespace base{
         
         // Evaluate the field at a given point
         template<typename GEOMELEMENT, typename FIELDELEMENT>
-        typename base::VectorType<FIELDELEMENT::DegreeOfFreedom::size,
+        typename base::Vector<FIELDELEMENT::DegreeOfFreedom::size,
                                   base::number>::Type
         evaluateField( const GEOMELEMENT*  geomElemPtr,
                        const FIELDELEMENT* fieldElemPtr,
@@ -51,7 +53,7 @@ namespace base{
 
         // Evaluate the gradient of the field at a given point
         template<typename GEOMELEMENT,typename FIELDELEMENT>
-        static typename base::MatrixType<GEOMELEMENT::Node::dim,
+        static typename base::Matrix<GEOMELEMENT::Node::dim,
                                          FIELDELEMENT::DegreeOfFreedom::size,
                                          base::number>::Type
         evaluateFieldGradient( const GEOMELEMENT*  geomElemPtr,
@@ -60,6 +62,83 @@ namespace base{
         {
             return evaluateFieldGradientHistory<0>( geomElemPtr, fieldElemPtr, xi );
         }
+
+        //----------------------------------------------------------------------
+        namespace detail_{
+
+            template<typename GRID, typename FIELD, typename OUTITER, unsigned ORDER>
+            struct FieldSampling;
+
+            template<typename GRID, typename FIELD, typename OUTITER>
+            struct FieldSampling<GRID,FIELD,OUTITER,0>
+            {
+                typedef typename GRID::Element Element;
+                
+                static void apply( const std::size_t eIndex,
+                                   const typename base::GeomTraits<Element>::LocalVecDim& xi,
+                                   const GRID& grid, const FIELD& field,
+                                   OUTITER outIter )
+                {
+                    const Element*                 const gep = grid.elementPtr( eIndex );
+                    const typename FIELD::Element* const fep = field.elementPtr( eIndex );
+                    *outIter++ = evaluateField( gep, fep, xi );
+                }
+            };
+
+            template<typename GRID, typename FIELD, typename OUTITER>
+            struct FieldSampling<GRID,FIELD,OUTITER,1>
+            {
+                typedef typename GRID::Element Element;
+
+                static void apply( const std::size_t eIndex,
+                                   const typename base::GeomTraits<Element>::LocalVecDim& xi,
+                                   const GRID& grid, const FIELD& field,
+                                   OUTITER outIter )
+                {
+                    const Element*                 const gep = grid.elementPtr( eIndex );
+                    const typename FIELD::Element* const fep = field.elementPtr( eIndex );
+                    *outIter++ = evaluateFieldGradient( gep, fep, xi );
+                }
+            };
+
+        } // namespace detail_
+
+        //----------------------------------------------------------------------
+        //! Special case: evaluate a field on the grid
+        template<typename GRID, typename FIELD, typename OUTITER>
+        void sampleField( const GRID&    grid, const FIELD&   field, 
+                          OUTITER        outputIter,
+                          const unsigned resolution = 1,
+                          const bool discont = false )
+        {
+            typename base::mesh::detail_::GridSampler<typename GRID::Element>::Type
+                sampler =
+                boost::bind( &detail_::FieldSampling<GRID,FIELD,OUTITER,0>::apply,
+                             _1, _2,
+                             boost::ref( grid ), boost::ref( field ), outputIter );
+
+            base::mesh::sampleStructured<GRID::dim>( grid.gridSizes(), sampler,
+                                                     resolution, discont );
+        }
+        
+        //! Special case: evaluate a field gradient on the grid
+        template<typename GRID, typename FIELD, typename OUTITER>
+        void sampleFieldGradient( const GRID&    grid, const FIELD&   field, 
+                                  OUTITER        outputIter,
+                                  const unsigned resolution = 1,
+                                  const bool discont = false )
+        {
+            typename base::mesh::detail_::GridSampler<typename GRID::Element>::Type
+                sampler =
+                boost::bind( &detail_::FieldSampling<GRID,FIELD,OUTITER,1>::apply,
+                             _1, _2,
+                             boost::ref( grid ), boost::ref( field ), outputIter );
+
+            base::mesh::sampleStructured<GRID::dim>( grid.gridSizes(), sampler,
+                                                     resolution, discont );
+        }
+
+        
     }
 }
 
@@ -81,7 +160,7 @@ namespace base{
  *  \returns          Value of the approximate field
  */
 template<unsigned HIST, typename GEOMELEMENT, typename FIELDELEMENT>
-typename base::VectorType<FIELDELEMENT::DegreeOfFreedom::size,base::number>::Type
+typename base::Vector<FIELDELEMENT::DegreeOfFreedom::size,base::number>::Type
 base::post::evaluateFieldHistory( const GEOMELEMENT*  geomElemPtr,
                                   const FIELDELEMENT* fieldElemPtr,
                                   const typename FIELDELEMENT::FEFun::VecDim& xi ) 
@@ -90,7 +169,7 @@ base::post::evaluateFieldHistory( const GEOMELEMENT*  geomElemPtr,
     typedef typename FIELDELEMENT::DegreeOfFreedom DegreeOfFreedom;
         
     // Return type of this object
-    typedef typename base::VectorType<DegreeOfFreedom::size,
+    typedef typename base::Vector<DegreeOfFreedom::size,
                                       base::number>::Type ReturnType;
 
     // get dof-objects for element
@@ -143,7 +222,7 @@ base::post::evaluateFieldHistory( const GEOMELEMENT*  geomElemPtr,
  *  \returns                 Value of the approximate field gradient
  */
 template<unsigned HIST,typename GEOMELEMENT,typename FIELDELEMENT>
-typename base::MatrixType<GEOMELEMENT::Node::dim,
+typename base::Matrix<GEOMELEMENT::Node::dim,
                           FIELDELEMENT::DegreeOfFreedom::size,base::number>::Type
 base::post::evaluateFieldGradientHistory( const GEOMELEMENT*  geomElemPtr,
                                           const FIELDELEMENT* fieldElemPtr,
@@ -153,7 +232,7 @@ base::post::evaluateFieldGradientHistory( const GEOMELEMENT*  geomElemPtr,
     typedef typename FIELDELEMENT::DegreeOfFreedom DegreeOfFreedom;
         
     //! Value and gradient types
-    typedef typename base::VectorType<DegreeOfFreedom::size,
+    typedef typename base::Vector<DegreeOfFreedom::size,
                                       base::number>::Type ValueType;
 
     // get dof-objects for element
@@ -180,7 +259,7 @@ base::post::evaluateFieldGradientHistory( const GEOMELEMENT*  geomElemPtr,
     assert( doFValues.size() == funGradValues.size() );
 
     // Linear combination yields the result
-    typename base::MatrixType<GEOMELEMENT::Node::dim,
+    typename base::Matrix<GEOMELEMENT::Node::dim,
                               DegreeOfFreedom::size,base::number>::Type
         result = base::constantMatrix<GEOMELEMENT::Node::dim,
                                       DegreeOfFreedom::size>( 0. );

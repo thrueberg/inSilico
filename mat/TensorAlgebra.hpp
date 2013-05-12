@@ -23,13 +23,13 @@ namespace mat{
     //! @name Types for 1st-, 2nd- and 4th-order tensors
     //@{
     //! A 3x1 matrix represents a 1st order tensor
-    typedef typename base::VectorType<3>::Type    Vector;
+    typedef base::Vector<3>::Type    Vector;
     
     //! A 3x3 matrix represents a 2nd order tensor
-    typedef typename base::MatrixType<3,3>::Type  Tensor;
+    typedef base::Matrix<3,3>::Type  Tensor;
 
     //! A 6x6 matrix represents the 4-th order elasticity tensor (symmetries!!)
-    typedef typename base::MatrixType<6,6>::Type  ElastTensor;
+    typedef base::Matrix<6,6>::Type  ElastTensor;
     //@}
 
     //--------------------------------------------------------------------------
@@ -121,19 +121,19 @@ namespace mat{
      *  Symmetric 2nd-order tensors can be reduced to a vector representation
      *  by ordering the 6 independent coefficients accordingly:
      *
-     *      pair i,j     | Voigt index V(i,j)
-     *     --------------|-------------------
-     *           1, 1    |      1
-     *           2, 2    |      2
-     *           3, 3    |      3
-     *        1,2 / 2,1  |      4
-     *        1,3 / 3,1  |      5
-     *        2,3 / 3,2  |      6
+     *      pair i,j     | Voigt index V(i,j)  | Lookup index d = i*j
+     *     --------------|---------------------|-------------------
+     *           1, 1    |      1              |  1
+     *           2, 2    |      2              |  4
+     *           3, 3    |      3              |  9
+     *        1,2 / 2,1  |      4              |  2
+     *        1,3 / 3,1  |      5              |  3
+     *        2,3 / 3,2  |      6              |  6
      *
      *  All indices in this table are 1-based and thus need to be converted
      *  to 0-based inidces in the implementation. In order to avoid costly
      *  if- or switch-statements, the index conversion is carried out by a
-     *  lookup table. Observation shows that the product of i and j gives
+     *  lookup table. Observation shows that the product of i and j gives a
      *  unique number (considering the ranges 1 <= i,j <= 3) between 1 and 9.
      *  Hence, this number d=i*j is used as the index to a an array storing
      *  the corresponding Voigt index V(i,j) at the d-th position.

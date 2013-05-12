@@ -19,7 +19,6 @@
 #include <base/dof/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
-#include <base/aux/algorithms.hpp>
 
 #include <base/dof/Distribute.hpp>
 #include <base/dof/constrainBoundary.hpp>
@@ -42,7 +41,7 @@
 
 //------------------------------------------------------------------------------
 template<unsigned DIM, typename DOF>
-void velocityFun( const typename base::VectorType<DIM,double>::Type& x,
+void velocityFun( const typename base::Vector<DIM,double>::Type& x,
                   DOF* doFPtr ) 
 {
     typename DOF::ValueArray v;
@@ -58,7 +57,7 @@ void velocityFun( const typename base::VectorType<DIM,double>::Type& x,
 
 //------------------------------------------------------------------------------
 template<unsigned DIM, typename DOF>
-void dirichletBC( const typename base::VectorType<DIM,double>::Type& x,
+void dirichletBC( const typename base::Vector<DIM,double>::Type& x,
                   DOF* doFPtr ) 
 {
     const double tol = 1.e-5;
@@ -91,13 +90,7 @@ void writeVTKFile( const std::string& baseName,
     std::ofstream vtk( vtkFile.c_str() );
     base::io::vtk::LegacyWriter vtkWriter( vtk );
     vtkWriter.writeUnstructuredGrid( mesh );
-    {
-        // Evaluate the solution field at every geometry node
-        std::vector<typename base::VectorType<TEMP::DegreeOfFreedom::size>::Type> nodalValues;
-        base::post::evaluateAtNodes( mesh, temperature, nodalValues );
-        vtkWriter.writePointData( nodalValues.begin(), nodalValues.end(), "heat" );
-    }
-        
+    base::io::vtk::writePointData( vtkWriter, mesh, temperature, "temperature" );
     vtk.close();
 }
 
@@ -137,7 +130,7 @@ int main( int argc, char * argv[] )
         }
     }
     
-    const std::string baseName = meshFile.substr( 0, meshFile.find( ".smf" ) );
+    const std::string baseName = base::io::baseName( meshFile, ".smf" );
     
     //--------------------------------------------------------------------------
     const unsigned    geomDeg  = 1;   // degree of geometry approximation
@@ -214,7 +207,9 @@ int main( int argc, char * argv[] )
     const std::size_t numDofs =
         base::dof::numberDoFsConsecutively( temperature.doFsBegin(),
                                             temperature.doFsEnd() );
-    std::cout << " Number of dofs " << numDofs << std::endl;
+    std::cout << " Number of dofs " << numDofs
+              << ", number of time steps " << numSteps
+              << std::endl;
 
     typedef base::asmb::FieldBinder<Mesh,Temperature,Temperature,Velocity> FieldBinder;
     FieldBinder fieldBinder( mesh, temperature, temperature, velocity );
@@ -264,8 +259,7 @@ int main( int argc, char * argv[] )
         std::for_each( fieldBinder.elementsBegin(), fieldBinder.elementsEnd(), rt );
 
         // Compute RHS terms from history of forces
-        base::time::ResidualForceHistory<StaticHeat,Quadrature,Solver,MSM,
-                                         base::time::CallResidualForceHistory>
+        base::time::ResidualForceHistory<StaticHeat,Quadrature,Solver,MSM>
             rfh( staticHeat, quadrature, solver, step );
 
         // iterate over the fields

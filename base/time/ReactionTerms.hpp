@@ -48,7 +48,7 @@ namespace base{
                                    base::VectorD& result )
                 {
                     // quit in case for no additional reaction terms
-                    const unsigned numWeights = weights.size();
+                    const unsigned numWeights = static_cast<unsigned>( weights.size() );
                     if ( numWeights == 0 ) return;
 
                     base::VectorD tmp = base::VectorD::Zero( result.size() );
@@ -265,7 +265,7 @@ public:
                 reactionWeights[s] /= -stepSize_;
 
             // container for weighted history of solutions
-            base::VectorD resultVec = base::VectorD::Zero( rowDoFIDs.size() );
+            base::VectorD resultVec = base::VectorD::Zero( colDoFIDs.size() );
 
             // call solution collector (recursive)
             if ( prevIterate_ ) {

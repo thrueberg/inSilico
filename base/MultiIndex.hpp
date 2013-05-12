@@ -127,7 +127,7 @@ struct base::MultiIndex
         typename MultiIndex<size>::Type result;
         std::size_t aux = unwrapped;
         for ( int s = size-1; s >=0; s-- ) {
-            result[s] = aux / strides[s];
+            result[s] = static_cast<int>( aux / strides[s] );
             aux -= (result[s] * strides[s]);
         }
 

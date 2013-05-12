@@ -111,7 +111,7 @@ public:
 
         // call generic laplace kernel
         base::kernel::Laplace<FieldTuple> laplace( conductivity );
-        laplace( fieldTuple, xi, weight, matrix );
+        laplace.tangentStiffness( fieldTuple, xi, weight, matrix );
 
     }
     
@@ -137,7 +137,7 @@ public:
      *  \param[in] weight       Quadrature weight
      *  \param[in] vector       Result container
      */
-    template<typename HIST>
+    template<unsigned HIST>
     void residualForceHistory( const FieldTuple&   fieldTuple,
                                const LocalVecDim&  xi,
                                const double        weight,
@@ -165,7 +165,7 @@ public:
 
         for ( unsigned i = 0; i < testGradX.size(); i++ ) {
 
-            const double dotProd = ( (flux.transpose() ) * testGradX[i] )[0];
+            const double dotProd = base::dotProduct( flux, testGradX[i] );
 
             vector[i] += dotProd * detJ * weight;
         }

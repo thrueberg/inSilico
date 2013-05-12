@@ -74,13 +74,13 @@ namespace base{
             template<unsigned DIM, unsigned SIZE>
             struct ValueBinder<DIM,SIZE,0>
             {
-                typedef typename base::VectorType<SIZE,number>::Type Type;
+                typedef typename base::Vector<SIZE,number>::Type Type;
             };
 
             template<unsigned DIM, unsigned SIZE>
             struct ValueBinder<DIM,SIZE,1>
             {
-                typedef typename base::MatrixType<DIM,SIZE,number>::Type Type;
+                typedef typename base::Matrix<DIM,SIZE,number>::Type Type;
             };
 
             //------------------------------------------------------------------
@@ -115,6 +115,7 @@ namespace base{
         } // namespace detail_
     } // namespace post
 } // namespace base
+
 //------------------------------------------------------------------------------
 /** Computation of the norm of the error on an element.
  *  Given the approximate (i.e. FE) solution and a reference solution, the
@@ -154,7 +155,7 @@ class base::post::ErrorNorm
     typedef typename detail_::ValueBinder<dim,doFSize,order>::Type ValueType;
 
     //! Arguemnt type of the reference solution
-    typedef typename base::VectorType<dim,double>::Type VecDim;
+    typedef typename base::Vector<dim,double>::Type VecDim;
 
     //! Type of reference function
     typedef boost::function< ValueType( const VecDim& ) >     Reference;
@@ -217,7 +218,7 @@ class base::post::ErrorNorm
             const ValueType error = ref - approx;
 
             // sum-up
-            error2 += ( error.squaredNorm() ) * detJ * (qIter -> first);
+            error2 += base::dotProduct( error, error ) * detJ * (qIter -> first);
             
         }
             

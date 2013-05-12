@@ -214,7 +214,7 @@ namespace base{
          *   </pre>
          */  
         template<>
-        const typename ElementFaces<base::LINE,base::EDGE>::FaceTable
+        const ElementFaces<base::LINE,base::EDGE>::FaceTable
         ElementFaces<base::LINE,base::EDGE>::faceTable_ = {{
                 {{ 0, 1 }}
             }};
@@ -236,7 +236,7 @@ namespace base{
          *   </pre>
          */
         template<>
-        const typename ElementFaces<base::TRI,base::EDGE>::FaceTable
+        const ElementFaces<base::TRI,base::EDGE>::FaceTable
         ElementFaces<base::TRI,base::EDGE>::faceTable_ = {{
                 {{ 0, 1 }}, {{ 1, 2 }}, {{ 2, 0 }}
             }};
@@ -260,7 +260,7 @@ namespace base{
          *  </pre>
          */
         template<>
-        const typename ElementFaces<base::QUAD,base::EDGE>::FaceTable
+        const ElementFaces<base::QUAD,base::EDGE>::FaceTable
         ElementFaces<base::QUAD,base::EDGE>::faceTable_ = {{
                 {{ 0, 1 }}, {{ 1, 2 }}, {{ 2, 3 }}, {{ 3, 0 }}
             }};
@@ -284,7 +284,7 @@ namespace base{
          *  </pre>
          */
         template<>
-        const typename ElementFaces<base::TET,base::EDGE>::FaceTable
+        const ElementFaces<base::TET,base::EDGE>::FaceTable
         ElementFaces<base::TET,base::EDGE>::faceTable_ = {{
                 {{ 0, 1 }}, {{ 1, 2 }}, {{ 2, 0 }},
                 {{ 3, 0 }}, {{ 3, 1 }}, {{ 3, 2 }}
@@ -309,7 +309,7 @@ namespace base{
          *  </pre>                [10]: (2) ---- (6)    [11]: (3) ---- (7)
          */
         template<>
-        const typename ElementFaces<base::HEX,base::EDGE>::FaceTable
+        const ElementFaces<base::HEX,base::EDGE>::FaceTable
         ElementFaces<base::HEX,base::EDGE>::faceTable_ = {{
                 {{ 0, 1 }}, {{ 1, 2 }}, {{ 2, 3 }}, {{ 3, 0 }},
                 {{ 4, 5 }}, {{ 5, 6 }}, {{ 6, 7 }}, {{ 7, 4 }},
@@ -322,11 +322,11 @@ namespace base{
 
         //! Dummies for TRI and QUAD
         template<>
-        const typename ElementFaces<base::TRI,base::FACE>::FaceTable
+        const ElementFaces<base::TRI,base::FACE>::FaceTable
         ElementFaces<base::TRI,base::FACE>::faceTable_ = {{ {{ 0, 1, 2 }} }};
 
         template<>
-        const typename ElementFaces<base::QUAD,base::FACE>::FaceTable
+        const ElementFaces<base::QUAD,base::FACE>::FaceTable
         ElementFaces<base::QUAD,base::FACE>::faceTable_ = {{ {{ 0, 1, 2, 3 }} }};
 
         //----------------------------------------------------------------------
@@ -348,7 +348,7 @@ namespace base{
          *  </pre>
          */
         template<>
-        const typename ElementFaces<base::TET,base::FACE>::FaceTable
+        const ElementFaces<base::TET,base::FACE>::FaceTable
         ElementFaces<base::TET,base::FACE>::faceTable_ = {{
                 {{ 0, 2, 1 }},
                 {{ 0, 1, 3 }},
@@ -375,7 +375,7 @@ namespace base{
          *  </pre>
          */
         template<>
-        const typename ElementFaces<base::HEX,base::FACE>::FaceTable
+        const ElementFaces<base::HEX,base::FACE>::FaceTable
         ElementFaces<base::HEX,base::FACE>::faceTable_ = {{
                 {{ 0, 3, 2, 1 }},
                 {{ 4, 5, 6, 7 }},
@@ -460,25 +460,25 @@ namespace base{
 
         // TRI
         template<>
-        const typename FaceEdges<base::TRI>::EdgeTable
+        const FaceEdges<base::TRI>::EdgeTable
         FaceEdges<base::TRI>::edgeTable_ = {{ {{ 0, 1, 2 }} }};
 
         template<>
-        const typename FaceEdges<base::TRI>::EdgeTable
+        const FaceEdges<base::TRI>::EdgeTable
         FaceEdges<base::TRI>::signTable_ = {{ {{ +1, +1, +1 }} }};
 
         // QUAD
         template<>
-        const typename FaceEdges<base::QUAD>::EdgeTable
+        const FaceEdges<base::QUAD>::EdgeTable
         FaceEdges<base::QUAD>::edgeTable_ = {{ {{ 0, 1, 2, 3 }} }};
 
         template<>
-        const typename FaceEdges<base::QUAD>::EdgeTable
+        const FaceEdges<base::QUAD>::EdgeTable
         FaceEdges<base::QUAD>::signTable_ = {{ {{ +1, +1, +1, +1 }} }};
 
         // TET
         template<>
-        const typename FaceEdges<base::TET>::EdgeTable
+        const FaceEdges<base::TET>::EdgeTable
         FaceEdges<base::TET>::edgeTable_ = {{
                 {{ 2, 1, 0 }},
                 {{ 0, 4, 3 }},
@@ -487,7 +487,7 @@ namespace base{
             }};
 
         template<>
-        const typename FaceEdges<base::TET>::EdgeTable
+        const FaceEdges<base::TET>::EdgeTable
         FaceEdges<base::TET>::signTable_ = {{
                 {{ -1, -1, -1 }},
                 {{ +1, +1, -1 }},
@@ -497,7 +497,7 @@ namespace base{
 
         // HEX
         template<>
-        const typename FaceEdges<base::HEX>::EdgeTable
+        const FaceEdges<base::HEX>::EdgeTable
         FaceEdges<base::HEX>::edgeTable_ = {{
                 {{  3,  2,  1,  0 }},
                 {{  4,  5,  6,  7 }},
@@ -508,7 +508,7 @@ namespace base{
             }};
 
         template<>
-        const typename FaceEdges<base::HEX>::EdgeTable
+        const FaceEdges<base::HEX>::EdgeTable
         FaceEdges<base::HEX>::signTable_ = {{
                 {{ -1, -1, -1, -1 }},
                 {{ +1, +1, +1, +1 }},

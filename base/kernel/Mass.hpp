@@ -108,8 +108,8 @@ public:
         const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );
         
         // Sizes and sanity checks
-        const unsigned numRowBlocks =  testFun.size();
-        const unsigned numColBlocks = trialFun.size();
+        const unsigned numRowBlocks = static_cast<unsigned>(  testFun.size() );
+        const unsigned numColBlocks = static_cast<unsigned>( trialFun.size() );
         assert( static_cast<unsigned>( matrix.rows() ) * doFSize == numRowBlocks );
         assert( static_cast<unsigned>( matrix.cols() ) * doFSize == numColBlocks );
 

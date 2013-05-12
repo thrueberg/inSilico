@@ -40,7 +40,7 @@ BIN = $(HOME)/bin
 # for cleanup
 RM = -rm -f
 
-TARGET = compressible incompressible
+TARGET = linearElastic compressible incompressible
 
 
 #######################################

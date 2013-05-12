@@ -192,7 +192,7 @@ public:
 
     //--------------------------------------------------------------------------
     //! Access total number of dofs
-    unsigned numDoFs() const { return numDoFs_; }
+    std::size_t numDoFs() const { return numDoFs_; }
 
     //--------------------------------------------------------------------------
     //! Degree of freedom lookup for a given element

@@ -32,14 +32,14 @@ namespace base{
         //--------------------------------------------------------------------------
         // Convenience function to compute the residual forces
         template<typename QUADRATURE, typename SOLVER,
-                 typename BOUNDFIELD, typename KERNEL>
+                 typename FIELDBINDER, typename KERNEL>
         void computeResidualForces( const QUADRATURE& quadrature,
                                     SOLVER&           solver,
-                                    const BOUNDFIELD& boundField,
+                                    const FIELDBINDER& fieldBinder,
                                     const KERNEL& kernelObj )
         {
             typedef ForceIntegrator<QUADRATURE,SOLVER,
-                                    typename BOUNDFIELD::ElementPtrTuple>
+                                    typename FIELDBINDER::ElementPtrTuple>
                 ForceIntegrator;
 
             typename ForceIntegrator::ForceKernel
@@ -51,7 +51,7 @@ namespace base{
             ForceIntegrator forceInt( residualForce, quadrature, solver, -1.0 );
 
             // apply to all elements
-            std::for_each( boundField.elementsBegin(), boundField.elementsEnd(),
+            std::for_each( fieldBinder.elementsBegin(), fieldBinder.elementsEnd(),
                            forceInt );
         
             return;
@@ -89,19 +89,19 @@ namespace base{
                                  const std::vector<std::size_t>& doFIDs,
                                  SOLVER& solver )
             {
-                const unsigned numActiveDoFs =
+                const std::size_t numActiveDoFs =
                     std::count_if( doFActivity.begin(), doFActivity.end(),
                                    boost::bind( std::equal_to<bool>(), _1, true ) );
 
                 // Result container
-                base::VectorD sysVector = VectorD::Zero( numActiveDoFs );
+                base::VectorD sysVector = VectorD::Zero( static_cast<int>(numActiveDoFs) );
 
                 // Active ID numbers
                 std::vector<std::size_t> activeDoFIDs( numActiveDoFs );
 
                 // Collect for active DoFs
                 unsigned ctr = 0;
-                for ( unsigned d = 0; d < doFIDs.size(); d ++ ) {
+                for ( std::size_t d = 0; d < doFIDs.size(); d ++ ) {
 
                     if ( doFActivity[d] ) {
 

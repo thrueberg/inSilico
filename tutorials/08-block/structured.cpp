@@ -19,9 +19,7 @@
 #include <base/io/vtk/LegacyWriter.hpp>
 
 #include <base/fe/Basis.hpp>
-#include <base/dof/DegreeOfFreedom.hpp>
-#include <base/dof/Element.hpp>
-#include <base/dof/Field.hpp>
+
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
 #include <base/dof/Distribute.hpp>
@@ -42,7 +40,11 @@
 
 #include <base/kernel/Laplace.hpp>
 
-#if 0
+//#define NEUMANN
+//#define SIMPLE
+
+#ifdef SIMPLE
+
 //------------------------------------------------------------------------------
 //  Academic example:
 //  The solution function
@@ -93,24 +95,13 @@ gradient( const typename base::Vector<DIM>::Type& x )
     return gradU;
 }
 
-template<unsigned DIM, typename DOF>
-void dirichletBC( const typename base::Vector<DIM>::Type& x,
-                  DOF* doFPtr ) 
-{
-    const typename base::Vector<1>::Type value = solution<DIM>( x );
-
-    if ( doFPtr -> isActive(0) ) {
-        doFPtr -> constrainValue( 0, value[0] );
-    }
-
-}
 
 template<unsigned DIM>
 base::Vector<1>::Type 
 neumannBC( const typename base::Vector<DIM>::Type& x,
            const typename base::Vector<DIM>::Type& normal )
 {
-    const typename base::Vector<DIM>::Type gradU = gradient( x );
+    const typename base::Vector<DIM>::Type gradU = gradient<DIM>( x );
     return (gradU.transpose() * normal );
 }
 
@@ -152,12 +143,12 @@ int main( int argc, char* argv[] )
     const std::string baseName = sgfFileName.substr( 0, sgfFileName.find( ".sgf" ) );
 
     //--------------------------------------------------------------------------
-    const double penaltyFactor = 100.;
-    const bool   nitsche = true;
+    const double penaltyFactor = 50.;
+    const bool   nitsche = true; 
 
     const unsigned dim      = 2;
     const unsigned geomDeg  = 1;
-    const unsigned fieldDeg = 1;
+    const unsigned fieldDeg = 2;
     const unsigned doFSize  = 1;
     
     typedef base::mesh::Node<dim>                        Node;
@@ -169,15 +160,14 @@ int main( int argc, char* argv[] )
     //--------------------------------------------------------------------------
     {
         std::ifstream sgf( sgfFileName.c_str() );
-        base::io::sgf::Reader<Mesh> sgfReader;
-        sgfReader( mesh, sgf );
+        base::io::sgf::readGrid( sgf, mesh );
         sgf.close();
     }
 
 
     //--------------------------------------------------------------------------
     // Quadrature 
-    const unsigned kernelDegEstimate = 3;
+    const unsigned kernelDegEstimate = 5;
     typedef base::Quadrature<kernelDegEstimate,Element::shape> Quadrature;
     Quadrature quadrature;
     typedef base::SurfaceQuadrature<kernelDegEstimate,Element::shape> SurfaceQuadrature;
@@ -187,14 +177,14 @@ int main( int argc, char* argv[] )
     typedef base::fe::Basis<Element::shape,fieldDeg,base::BSPLINE> FEBasis;
     
     // DOF handling
-    typedef base::dof::DegreeOfFreedom<doFSize>    DoF;
-    typedef base::dof::Element<DoF,FEBasis::FEFun> FieldElement;
-    typedef base::dof::Field<FieldElement>         Field;
+    typedef base::Field<FEBasis,doFSize>           Field;
     Field field;
     base::dof::generate<FEBasis>( mesh, field );
 
+#ifdef NEUMANN
     // fix a dof
     (*field.doFsBegin()) -> constrainValue( 0, 0. );
+#endif
 
     // Number of DoFs 
     const std::size_t numDofs =
@@ -206,13 +196,13 @@ int main( int argc, char* argv[] )
     Solver solver( numDofs );
 
     // Bind the fields together
-    typedef base::asmb::FieldBinder<Mesh,Field,Field> FieldBinder;
-    FieldBinder fieldBinder( mesh, field, field );
-    typedef FieldBinder::ElementPtrTuple FieldTuple;
+    typedef base::asmb::FieldBinder<Mesh,Field> FieldBinder;
+    FieldBinder fieldBinder( mesh, field );
+    typedef FieldBinder::TupleBinder<1,1>::Type FieldTupleBinder;
 
     // Body force
-    base::asmb::bodyForceComputation( quadrature, solver, fieldBinder,
-                                      boost::bind( &forceFun<dim>, _1 ) );
+    base::asmb::bodyForceComputation<FieldTupleBinder>( quadrature, solver, fieldBinder,
+                                                        boost::bind( &forceFun<dim>, _1 ) );
 
     //--------------------------------------------------------------------------
     // Creates a list of <Element,faceNo> pairs
@@ -229,39 +219,43 @@ int main( int argc, char* argv[] )
                                    mesh, boundaryMesh );
     }
 
-    typedef base::asmb::SurfaceFieldBinder<BoundaryMesh,Field,Field> SurfaceFieldBinder;
-    SurfaceFieldBinder surfaceFieldBinder( boundaryMesh, field, field );
+    typedef base::asmb::SurfaceFieldBinder<BoundaryMesh,Field> SurfaceFieldBinder;
+    SurfaceFieldBinder surfaceFieldBinder( boundaryMesh, field );
+    typedef SurfaceFieldBinder::TupleBinder<1,1>::Type STB;
 
-#if 0
+#ifdef NEUMANN
     // Neumann boundary condition
-    base::asmb::neumannForceComputation( surfaceQuadrature, solver, surfaceFieldBinder,
-                                         boost::bind( neumannBC<dim>, _1, _2 ) );
+    base::asmb::neumannForceComputation<STB>( surfaceQuadrature, solver,
+                                              surfaceFieldBinder,
+                                              boost::bind( neumannBC<dim>, _1, _2 ) );
 #endif
 
     //--------------------------------------------------------------------------
     // Stiffness matrix
-    typedef base::kernel::Laplace<FieldTuple> Laplace;
+    typedef base::kernel::Laplace<FieldTupleBinder::Tuple> Laplace;
     Laplace laplace( 1. );
-    base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                            fieldBinder, laplace );
+    base::asmb::stiffnessMatrixComputation<FieldTupleBinder>( quadrature, solver,
+                                                              fieldBinder, laplace );
 
-    
+
+#ifndef NEUMANN
     // Dirichlet BCs a la Nitsche
-    base::nitsche::penaltyLHS( surfaceQuadrature, solver, surfaceFieldBinder,
-                               penaltyFactor );
+    base::nitsche::penaltyLHS<STB>( surfaceQuadrature, solver, surfaceFieldBinder,
+                                    penaltyFactor );
     
-    base::nitsche::penaltyRHS( surfaceQuadrature, solver, surfaceFieldBinder,
-                               boost::bind( solution<dim>, _1 ), penaltyFactor );
+    base::nitsche::penaltyRHS<STB>( surfaceQuadrature, solver, surfaceFieldBinder,
+                                    boost::bind( solution<dim>, _1 ), penaltyFactor );
 
     if ( nitsche ) {
     
-        base::nitsche::energyLHS( laplace, surfaceQuadrature, solver,
-                                  surfaceFieldBinder );
-
-        base::nitsche::energyRHS( laplace, surfaceQuadrature, solver, surfaceFieldBinder,
-                                  boost::bind( solution<dim>, _1 ) );
+        base::nitsche::energyLHS<STB>( laplace, surfaceQuadrature, solver,
+                                       surfaceFieldBinder );
+    
+        base::nitsche::energyRHS<STB>( laplace, surfaceQuadrature, solver,
+                                       surfaceFieldBinder,
+                                       boost::bind( solution<dim>, _1 ) );
     }
-
+#endif
 
     // Finalise assembly
     solver.finishAssembly();
@@ -270,8 +264,7 @@ int main( int argc, char* argv[] )
     solver.choleskySolve();
 
     // distribute results back to dofs
-    base::dof::Distribute<DoF,Solver> distributeDoF( solver );
-    std::for_each( field.doFsBegin(), field.doFsEnd(), distributeDoF );
+    base::dof::setDoFsFromSolver( solver, field );
 
     //--------------------------------------------------------------------------
     // VTK file of the input mesh
@@ -309,24 +302,20 @@ int main( int argc, char* argv[] )
         const std::string smfBoundaryFileName = baseName + "_boundary.smf";
         // output stream
         std::ofstream smf( smfBoundaryFileName.c_str() );
-        // smf-writer object
-        base::io::smf::Writer<CreateBoundaryMesh::BoundaryMesh> smfWriter;
-        // write mesh to stream
-        smfWriter( boundaryMesh, smf );
+        base::io::smf::writeMesh( boundaryMesh, smf );
         // close stream
         smf.close();
     }
 
     // compute L2-error and tell it to the user
     std::cout //<< "L2-error = "
-              << base::post::errorComputation<0>(
-                  quadrature, mesh, field,
-                  boost::bind( &solution<dim>, _1 ) )
-              << "  " 
-              << base::post::errorComputation<1>(
-                  quadrature, mesh, field,
-                  boost::bind( &gradient<dim>, _1 ) )
-              << '\n';
+        << base::post::errorComputation<0>( quadrature, mesh, field,
+                                            boost::bind( &solution<dim>, _1 ) )
+        << "  " 
+        << base::post::errorComputation<1>( quadrature, mesh, field,
+                                            boost::bind( &gradient<dim>, _1 ) )
+        << '\n';
+
     
     return 0;
 }

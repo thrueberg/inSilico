@@ -56,12 +56,10 @@ namespace tools{
                     Grid grid;
 
                     // SGF input
-                    base::io::sgf::Reader<Grid> sgfReader;
-                    sgfReader( grid, sgfIn ); 
-            
+                    base::io::sgf::readGrid( sgfIn, grid );
+
                     // SGF refined output
-                    base::io::sgf::Writer<Grid> sgfWriter;
-                    sgfWriter( grid, sgfOut, refinement );
+                    base::io::sgf::writeGrid( grid, sgfOut, refinement );
                 }
 
             };

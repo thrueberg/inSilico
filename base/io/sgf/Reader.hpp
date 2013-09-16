@@ -29,6 +29,13 @@ namespace base{
             template<typename GRID>
             class Reader;
 
+            template<typename GRID>
+            void readGrid( std::istream& sgf, GRID& grid )
+            {
+                Reader<GRID> reader;
+                reader( grid, sgf );
+            }
+
             namespace detail_{
 
                 //! Copy in- to output

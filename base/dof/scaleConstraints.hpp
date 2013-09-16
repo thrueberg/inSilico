@@ -29,8 +29,7 @@ namespace base{
                 
                 for ( unsigned d = 0; d < size; d ++ ) {
                     if ( not (*dIter) -> isActive( d ) ) {
-                        const double oldValue = (*dIter) -> getConstraint( d );
-                        //(*dIter) -> setValue( d, factor*oldValue );
+                        const double oldValue = (*dIter) -> getPrescribedValue( d );
                         (*dIter) -> constrainValue( d, factor * oldValue );
                     }
                 }

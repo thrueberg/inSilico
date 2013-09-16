@@ -36,14 +36,14 @@ namespace base{
              *   But in that case the surface line needs to be reversed !!
              */
             void cutTriangle( const unsigned I,
-                              const Simplex<2,unsigned>::Type&           indexSimplex,
-                              const Simplex<2,double>::Type&             distances,
+                              const USimplex<2>::Type& indexSimplex,
+                              const DSimplex<2>::Type& distances,
                               std::vector<base::Vector<2,double>::Type>& nodes,
                               std::map<base::cut::Edge,unsigned>&        uniqueNodes,
-                              Simplex<2,unsigned>::Type&  inSimplex,
-                              Simplex<2,unsigned>::Type& outSimplex1,
-                              Simplex<2,unsigned>::Type& outSimplex2,
-                              Simplex<1,unsigned>::Type& surfSimplex )
+                              USimplex<2>::Type&  inSimplex,
+                              USimplex<2>::Type& outSimplex1,
+                              USimplex<2>::Type& outSimplex2,
+                              USimplex<1>::Type& surfSimplex )
             {
                 // indices of the two nodes outside
                 const unsigned O1 = (I + 1) % 3;
@@ -60,12 +60,16 @@ namespace base{
                                            nodes, uniqueNodes );
                 
                 // inside is only one triangle
-                inSimplex = {{ indexSimplex[I], C1, C2 }};
+                inSimplex = USimplex<2>::create( indexSimplex[I], C1, C2 );
+                //        = {{ indexSimplex[I], C1, C2 }};
+                
                 // outside are two triangles (choice seems arbitrary)
-                outSimplex1 = {{ C1,               indexSimplex[O1], C2 }};
-                outSimplex2 = {{ indexSimplex[O1], indexSimplex[O2], C2 }};
+                outSimplex1 = USimplex<2>::create( C1, indexSimplex[O1], C2 );
+                //          = {{ C1,               indexSimplex[O1], C2 }};
+                outSimplex2 = USimplex<2>::create( indexSimplex[O1], indexSimplex[O2], C2 );
+                //          = {{ indexSimplex[O1], indexSimplex[O2], C2 }};
                 // surface simplex
-                surfSimplex = {{ C1, C2 }};
+                surfSimplex = USimplex<1>::create( C1, C2 ); // = {{ C1, C2 }};
 
                 return;
             }
@@ -105,13 +109,13 @@ namespace base{
  *  \param[out]    volumeIn       Connectivity of the volume inside the domain
  *  \param[out]    volumeOut      Connectivity of the volume outside the domain
  */
-void base::cut::marchingTri( const base::cut::Simplex<2,unsigned>::Type& indexSimplex,
-                             const base::cut::Simplex<2,double>::Type&   distances,
+void base::cut::marchingTri( const base::cut::USimplex<2>::Type& indexSimplex,
+                             const base::cut::DSimplex<2>::Type&   distances,
                              std::vector<base::Vector<2,double>::Type>&  nodes,
                              std::map<base::cut::Edge,unsigned>&         uniqueNodes,
-                             std::vector<base::cut::Simplex<1,unsigned>::Type>& surface,
-                             std::vector<base::cut::Simplex<2,unsigned>::Type>& volumeIn, 
-                             std::vector<base::cut::Simplex<2,unsigned>::Type>& volumeOut )
+                             std::vector<base::cut::USimplex<1>::Type>& surface,
+                             std::vector<base::cut::USimplex<2>::Type>& volumeIn, 
+                             std::vector<base::cut::USimplex<2>::Type>& volumeOut )
 {
     // flags checking the values of the distances
     std::bitset<3> flags;
@@ -132,8 +136,8 @@ void base::cut::marchingTri( const base::cut::Simplex<2,unsigned>::Type& indexSi
         // index of the node which is inside
         const unsigned in = ( flags.test(0) ? 0 : (flags.test(1) ? 1 : 2 ) );
 
-        Simplex<2,unsigned>::Type inSimplex, outSimplex1, outSimplex2;
-        Simplex<1,unsigned>::Type surfSimplex;
+        USimplex<2>::Type inSimplex, outSimplex1, outSimplex2;
+        USimplex<1>::Type surfSimplex;
         detail_::cutTriangle( in, indexSimplex, distances, nodes, uniqueNodes,
                               inSimplex, outSimplex1, outSimplex2, surfSimplex );
         
@@ -149,8 +153,8 @@ void base::cut::marchingTri( const base::cut::Simplex<2,unsigned>::Type& indexSi
         const unsigned out = ( flags.test(0) == false ? 0 :
                               (flags.test(1) == false ? 1 : 2 ) );
 
-        Simplex<2,unsigned>::Type outSimplex, inSimplex1, inSimplex2;
-        Simplex<1,unsigned>::Type surfSimplex;
+        USimplex<2>::Type outSimplex, inSimplex1, inSimplex2;
+        USimplex<1>::Type surfSimplex;
         detail_::cutTriangle( out, indexSimplex, distances, nodes, uniqueNodes,
                               outSimplex, inSimplex1, inSimplex2, surfSimplex );
         

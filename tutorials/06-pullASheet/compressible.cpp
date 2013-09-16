@@ -3,22 +3,18 @@
 #include <string>
 #include <boost/lexical_cast.hpp>
 
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Unstructured.hpp>
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
 #include <base/mesh/MeshBoundary.hpp>
 #include <base/mesh/CreateBoundaryMesh.hpp>
 #include <base/Quadrature.hpp>
-#include <base/LagrangeShapeFun.hpp>
 #include <base/io/smf/Reader.hpp>
 #include <base/io/PropertiesParser.hpp>
 #include <base/io/vtk/LegacyWriter.hpp>
 #include <base/io/Format.hpp>
 #include <base/post/evaluateAtNodes.hpp>
 
-#include <base/dof/DegreeOfFreedom.hpp>
-#include <base/dof/Element.hpp>
-#include <base/dof/Field.hpp>
+#include <base/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/Distribute.hpp>
 #include <base/dof/constrainBoundary.hpp>
@@ -184,18 +180,14 @@ int main( int argc, char * argv[] )
 
     //--------------------------------------------------------------------------
     // define a mesh
-    const unsigned dim = base::ShapeDim<shape>::value;
-    typedef base::mesh::Node<dim>                 Node;
-    typedef base::LagrangeShapeFun<geomDeg,shape> SFun;
-    typedef base::mesh::Element<Node,SFun>        Element;
-    typedef base::mesh::Unstructured<Element>     Mesh;
+    typedef base::Unstructured<shape,geomDeg>    Mesh;
+    const unsigned dim = Mesh::Node::dim;
 
     // create a mesh and read from input
     Mesh mesh;
     {
         std::ifstream smf( meshFile.c_str() );
-        base::io::smf::Reader<Mesh> smfReader;
-        smfReader( mesh, smf ); 
+        base::io::smf::readMesh( smf, mesh );
         smf.close();
     }
 
@@ -209,9 +201,8 @@ int main( int argc, char * argv[] )
     // Create a field
     const unsigned    doFSize = dim;
     typedef base::fe::Basis<shape,fieldDeg>        FEBasis;
-    typedef base::dof::DegreeOfFreedom<doFSize>    DoF;
-    typedef base::dof::Element<DoF,FEBasis::FEFun> FieldElement;
-    typedef base::dof::Field<FieldElement>         Field;
+    typedef base::Field<FEBasis,doFSize>           Field;
+    typedef Field::DegreeOfFreedom                 DoF;
     Field field;
 
     // generate DoFs from mesh
@@ -222,7 +213,7 @@ int main( int argc, char * argv[] )
     meshBoundary.create( mesh.elementsBegin(), mesh.elementsEnd() );
 
     // Create a boundary mesh from this list
-    typedef base::mesh::CreateBoundaryMesh<Element> CreateBoundaryMesh;
+    typedef base::mesh::CreateBoundaryMesh<Mesh::Element> CreateBoundaryMesh;
     typedef CreateBoundaryMesh::BoundaryMesh BoundaryMesh;
     BoundaryMesh boundaryMesh;
     {
@@ -240,19 +231,19 @@ int main( int argc, char * argv[] )
                                                         _1, _2, dispControlled, firstPull ) );
 
     // Bind the fields together
-    typedef base::asmb::FieldBinder<Mesh,Field,Field> FieldBinder;
-    FieldBinder fieldBinder( mesh, field, field );
-    typedef FieldBinder::ElementPtrTuple FieldTuple;
+    typedef base::asmb::FieldBinder<Mesh,Field> FieldBinder;
+    FieldBinder fieldBinder( mesh, field );
+    typedef FieldBinder::TupleBinder<1,1>::Type FTB;
 
     typedef base::asmb::SurfaceFieldBinder<BoundaryMesh,Field> SurfaceFieldBinder;
     SurfaceFieldBinder surfaceFieldBinder( boundaryMesh, field );
-
+    typedef SurfaceFieldBinder::TupleBinder<1>::Type SFTB;
 
     // material object
     Material material( mat::Lame::lambda( E, nu), mat::Lame::mu( E, nu ) );
 
     // matrix kernel
-    typedef solid::HyperElastic<Material,FieldTuple> HyperElastic;
+    typedef solid::HyperElastic<Material,FTB::Tuple> HyperElastic;
     HyperElastic hyperElastic( material );
             
     // Number the degrees of freedom
@@ -292,22 +283,22 @@ int main( int argc, char * argv[] )
                 // value of applied traction
                 const double tracValue =
                     static_cast<double>(step+1) / static_cast<double>( loadSteps );
-                base::asmb::neumannForceComputation( surfaceQuadrature, solver,
-                                                     surfaceFieldBinder,
-                                                     boost::bind( &PulledSheetProblem<dim>::
-                                                                  neumannBC,
-                                                                  _1, _2, tracValue ) );
+                base::asmb::neumannForceComputation<SFTB>( surfaceQuadrature, solver,
+                                                           surfaceFieldBinder,
+                                                           boost::bind( &PulledSheetProblem<dim>::
+                                                                        neumannBC,
+                                                                        _1, _2, tracValue ) );
             }
             
-            base::asmb::computeResidualForces( quadrature, solver,
-                                               fieldBinder,
-                                               hyperElastic );
+            base::asmb::computeResidualForces<FTB>( quadrature, solver,
+                                                    fieldBinder,
+                                                    hyperElastic );
             
             // Compute element stiffness matrices and assemble them
-            base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                                    fieldBinder,
-                                                    hyperElastic,
-                                                    iter > 0 );
+            base::asmb::stiffnessMatrixComputation<FTB>( quadrature, solver,
+                                                         fieldBinder,
+                                                         hyperElastic,
+                                                         iter > 0 );
 
             // Finalise assembly
             solver.finishAssembly();
@@ -326,9 +317,7 @@ int main( int argc, char * argv[] )
             solver.choleskySolve();
             
             // distribute results back to dofs
-            base::dof::Distribute<DoF,Solver,base::dof::ADD>
-                distributeDoF( solver, iter > 0 );
-            std::for_each( field.doFsBegin(), field.doFsEnd(), distributeDoF );
+            base::dof::addToDoFsFromSolver( solver, field, iter > 0 );
 
             // norm of displacement increment
             const double conv2 = solver.norm();

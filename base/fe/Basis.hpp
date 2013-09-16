@@ -25,13 +25,6 @@
 namespace base{
     namespace fe{
         
-        template< base::Shape    SHAPE,
-                  unsigned       DEGREE,
-                  base::FunSpace FESPACE,
-                  int            CONTINUITY>
-        class Basis;
-
-
         //----------------------------------------------------------------------
         namespace detail_{
 
@@ -91,6 +84,34 @@ namespace base{
             //           - RaviartThomasElement
 
         }
+
+        //----------------------------------------------------------------------
+        template< base::Shape    SHAPE,
+                  unsigned       DEGREE     = 1,
+                  base::FunSpace FESPACE    = base::LAGRANGE,
+                  int            CONTINUITY =
+                  base::fe::detail_::DefaultContinuity<DEGREE,FESPACE>::value >
+        struct Basis;
+        
+        //----------------------------------------------------------------------
+        /** Finite element basis for isoparametric analysis.
+         *  The fashionable term isoparamtric implies that the basis functions
+         *  of the analysis are the same that are used for the geometry
+         *  representation. Here, a mesh type is introspected for its geomtry
+         *  representation and this types are used to define the analysis basis.
+         *  \tparam MESH Type of mesh which determines the analysis
+         */
+        template<typename MESH>
+        struct IsoparametricBasis
+            : public Basis<MESH::Element::shape,
+                           MESH::Element::GeomFun::degree,
+                           MESH::Element::GeomFun::funSpace>
+        {
+            // empty, all is inherited
+        };
+
+
+
         
     }
 }
@@ -123,14 +144,10 @@ namespace base{
  *          FESPACE   Descriptors of the local shape functions on \f$ K \f$
  *  \tparam CONTINUITY Inter-element continuity of the global interpolation
  */
-template< base::Shape    SHAPE,
-          unsigned       DEGREE     = 1,
-          base::FunSpace FESPACE    = base::LAGRANGE, 
-          int            CONTINUITY =
-          base::fe::detail_::DefaultContinuity<DEGREE,FESPACE>::value >
-class base::fe::Basis
+template< base::Shape SHAPE, unsigned DEGREE,
+          base::FunSpace FESPACE, int CONTINUITY>
+struct base::fe::Basis
 {
-public:
     //! @name Template parameters
     //@{
     static const base::Shape    shape      = SHAPE;      //!< Geometric shape

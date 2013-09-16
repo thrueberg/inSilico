@@ -99,6 +99,9 @@ public:
     }
 
     //! Access to shape function
+    ShapeFun & shapeFun() { return shapeFun_; }
+
+    //! const Access to shape function
     const ShapeFun & shapeFun() const { return shapeFun_; }
 
     //! @name ID handling
@@ -106,10 +109,43 @@ public:
     void   setID( const std::size_t id ) { id_ = id; }
     std::size_t getID( ) const { return id_; }
     //@}
+
+    //--------------------------------------------------------------------------
+    /** Make a deep copy of a given element.
+     *  Pass private data of given element to this one and set
+     *  the coefficient pointers of this element to the right location
+     *  provided by an iterator pointing to the begin of the new coefficients.
+     *  \tparam ELEMENT  Type of element to copy from
+     *  \tparam CITER    Type of iterator over coefficients
+     *  \param[in] other        Element to copy from
+     *  \param[in] coeffIter    Iterator pointing to the coefficients array
+     */
+    template<typename ELEMENT,typename CITER>
+    void deepCopy( const ELEMENT* other,
+                   const CITER coeffIter )
+    {
+        // copy the element ID
+        id_ = other -> getID();
+
+        // copy shape function ??
+
+        // pass pointers to coefficients (e.g. nodes)
+        CoeffPtrIter cIter = coefficients_.begin();
+        CoeffPtrIter cEnd  = coefficients_.end();
+        typename ELEMENT::CoeffPtrConstIter cOther = other -> coefficientsBegin();
+        for ( ; cIter != cEnd; ++cIter, ++cOther ) {
+
+            // get pointer to the right position in the coefficients container
+            CITER thisIter = coeffIter;
+            std::advance( thisIter, (*cOther) -> getID() );
+
+            *cIter = *thisIter;
+        }
+    }
     
 private:
-    const ShapeFun  shapeFun_;     //! Finite element shape function
-    CoeffPtrArray   coefficients_; //! Field representation coefficients
+    ShapeFun        shapeFun_;     //!< Finite element shape function
+    CoeffPtrArray   coefficients_; //!< Field representation coefficients
     std::size_t     id_;           //!< Global ID of this element
 };
 

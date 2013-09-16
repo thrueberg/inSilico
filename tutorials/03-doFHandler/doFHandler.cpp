@@ -3,18 +3,14 @@
 #include <fstream>
 #include <string>
 #include <boost/lexical_cast.hpp>
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Unstructured.hpp>
-#include <base/LagrangeShapeFun.hpp>
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
 #include <base/io/smf/Reader.hpp>
 //[prevTut]}
 
 
 #include <base/fe/Basis.hpp>
-#include <base/dof/DegreeOfFreedom.hpp>
-#include <base/dof/Element.hpp>
-#include <base/dof/Field.hpp>
+#include <base/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
 #include <base/io/Format.hpp>
@@ -28,7 +24,6 @@ int main( int argc, char * argv[] )
         return 0;
     }
     
-    
     const unsigned    geomDeg  = 1;
     const unsigned    fieldDeg = 2;
     const base::Shape shape    = base::QUAD;
@@ -37,19 +32,14 @@ int main( int argc, char * argv[] )
     const unsigned    doFSize = 1;
 
     //--------------------------------------------------------------------------
-    const unsigned    dim     = base::ShapeDim<shape>::value;
-    typedef base::mesh::Node<dim>                 Node;
-    typedef base::LagrangeShapeFun<geomDeg,shape> SFun;
-    typedef base::mesh::Element<Node,SFun>        Element;
-    typedef base::mesh::Unstructured<Element>     Mesh;
+    typedef base::Unstructured<shape,geomDeg>     Mesh;
 
     // Read mesh from file
     Mesh mesh;
     {
         const std::string smfFile = boost::lexical_cast<std::string>( argv[1] );
         std::ifstream smf( smfFile.c_str() );
-        base::io::smf::Reader<Mesh> smfReader;
-        smfReader( mesh, smf ); 
+        base::io::smf::readMesh( smf, mesh );
         smf.close();
     }
 
@@ -57,13 +47,9 @@ int main( int argc, char * argv[] )
     typedef base::fe::Basis<shape,fieldDeg> FEBasis;
 
     // Field interpolation
-    typedef base::dof::DegreeOfFreedom<doFSize>    DoF;
-    typedef base::dof::Element<DoF,FEBasis::FEFun> FieldElement;
-    typedef base::dof::Field<FieldElement>         Field;
+    typedef base::Field<FEBasis,doFSize>           Field;
     Field field;
 
-
-    
     // sparsity pattern (debug only)
     std::size_t nnz = 0;
     std::size_t nnzPerRow = 0;

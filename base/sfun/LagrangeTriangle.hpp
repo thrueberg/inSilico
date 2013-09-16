@@ -35,8 +35,9 @@ public:
     static const unsigned degree = DEGREE;
 
     //! For inspection
-    static const unsigned dim    = 2;
-
+    static const unsigned dim                  = 2;
+    static const base::sfun::Ordering ordering = base::sfun::HIERARCHIC;
+    
     //! Number of functions
     static const unsigned numFun   = (degree+1) * (degree+2) / 2;
 

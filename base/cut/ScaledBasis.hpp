@@ -1,0 +1,76 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   ScaledBasis.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_cut_scaledbasis_hpp
+#define base_cut_scaledbasis_hpp
+
+//------------------------------------------------------------------------------
+// std   includes
+#include <vector>
+#include <algorithm>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace cut{
+
+        template<typename SFUNBASIS> class ScaledBasis;
+    }
+}
+
+//------------------------------------------------------------------------------
+template<typename SFUNBASIS>
+class base::cut::ScaledBasis : public SFUNBASIS
+{
+public:
+    //! Template parameter: inherited shape function basis
+    typedef SFUNBASIS SFunBasis;
+
+    ScaledBasis()
+    {
+        scalars_.resize( SFunBasis::Base::numFun );
+        std::fill( scalars_.begin(), scalars_.end(), 1.0 );
+    }
+   
+    //! Set scalar of the basis
+    void setScalar( const unsigned which, const double value )
+    {
+        scalars_[ which ] = value;
+    }
+
+    //! Evaluate function in physical space
+    template<typename GEOMELEMENT>
+    void evaluate( const GEOMELEMENT* geomElemPtr,
+                   const typename SFunBasis::Base::VecDim& xi,
+                   typename SFunBasis::Base::FunArray &result ) const
+    {
+        SFunBasis::evaluate( geomElemPtr, xi, result );
+        for ( unsigned s = 0; s < result.size(); s++ )
+            result[s] *= scalars_[s];
+    }
+
+    //! Evaluate gradient in physical space
+    template<typename GEOMELEM>
+    double evaluateGradient( const GEOMELEM* geomElemPtr,
+                             const typename SFunBasis::Base::VecDim& xi,
+                             std::vector<typename GEOMELEM::Node::VecDim>& result ) const
+    {
+        const double detJ = SFunBasis::evaluateGradient( geomElemPtr, xi, result );
+
+        for ( unsigned s = 0; s < result.size(); s++ )
+            result[s]  *= scalars_[s];
+
+        // return det J
+        return detJ;
+    }
+
+private:
+    std::vector<double> scalars_;
+};
+
+#endif

@@ -14,11 +14,11 @@
 // std   includes
 #include <vector>
 // base  includes
+#include <base/geometry.hpp>
+#include <base/funSpace.hpp>
+// base/sfun includes
 #include <base/sfun/BSpline.hpp>
 #include <base/sfun/TensorProduct.hpp>
-#include <base/geometry.hpp>
-
-#include <base/LagrangeShapeFun.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -34,7 +34,7 @@ namespace base{
 template<unsigned DIM, unsigned DEGREE, int CONTINUITY>
 class base::BSplineShapeFun
     : public base::sfun::TensorProduct<base::sfun::BSpline<DEGREE,CONTINUITY>,
-                                       DIM>
+                                       DIM, base::sfun::LEXICOGRAPHIC>
 {
 public:
     //! @name Template parameter: dim, degree and continuity
@@ -44,8 +44,12 @@ public:
     static const int         continuity = CONTINUITY;
     //@}
 
+    //! Identifier for introspection
+    static const base::FunSpace funSpace = base::BSPLINE;
+
+    
     typedef base::sfun::TensorProduct<base::sfun::BSpline<degree,continuity>,
-                                      dim>  Base;
+                                      dim,base::sfun::LEXICOGRAPHIC>  Base;
 
     //! Evaluate function in physical space
     template<typename GEOMELEMENT>

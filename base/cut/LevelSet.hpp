@@ -26,6 +26,18 @@ namespace base{
 
 //------------------------------------------------------------------------------
 /** Representation of the level set datum at a given point.
+ *  The level set method gives an implicit surface representation as the zero
+ *  contour level of a function, most commonly a (signed) distance function.
+ *  Moreover, boundary data on the original surface needs to be accessed.
+ *  Therefore, the surface point \f$ x_i^* \f$ closest to the mesh (or grid)
+ *  point \f$ x_i \f$ is needed and the index \f$ \tau_i^* \f$ of the surface
+ *  element it lies on. Denoting by \f$ d_i = d(x_i) \f$ the (signed) distance
+ *  of the point \f$ x_i \f$ of question, i.e. \f$ d_i = | x_i - x_i^* | \f$,
+ *  this object holds all data of the map
+ *  \f[
+ *        x_i  \to \{  sign(d_i), x_i^*, \tau_i^* \}
+ *  \f]
+ *  \tparam DIM Spatial dimension of the problem
  */
 template<unsigned DIM>
 class base::cut::LevelSet
@@ -36,7 +48,7 @@ public:
 
     //--------------------------------------------------------------------------
     //! Constructor with coordinate, invalidates other member data
-    LevelSet( const VecDim& x )
+    LevelSet( const VecDim& x = base::invalidVector<DIM>() )
     : x_( x ),
       isInterior_( false ),
       closestPoint_( base::invalidVector<DIM>() ),
@@ -49,7 +61,7 @@ public:
     void setInterior() { isInterior_ = true; }
     void setExterior() { isInterior_ = false; }
 
-    void setClosestPoint(   const VecDim&     y ) { closestPoint_ = y; }
+    void setClosestPoint(   const VecDim&     y ) { closestPoint_   = y; }
     void setClosestElement( const std::size_t e ) { closestElement_ = e; }
     //@}
 
@@ -61,7 +73,7 @@ public:
     VecDim getClosestPoint()     const { return closestPoint_; }
     double getUnsignedDistance() const { return base::norm(closestPoint_ - x_); }
     
-    double getSignedDistances()  const
+    double getSignedDistance()  const
     {
         const double sign = ( isInterior_ ? +1.0 : -1.0 );
         return sign * (this -> getUnsignedDistance() );
@@ -73,13 +85,13 @@ public:
     
 private:
     //! Location of this datum
-    const VecDim x_;
+    VecDim x_;
 
     //! @name Variable distance data
     //@{
-    bool        isInterior_;
-    VecDim      closestPoint_;
-    std::size_t closestElement_;
+    bool        isInterior_;     //!< Flag, if the point x_ is interior
+    VecDim      closestPoint_;   //!< Coordinates of the closest surface point 
+    std::size_t closestElement_; //!< Index of the closest surface element
     //@}
 };
 

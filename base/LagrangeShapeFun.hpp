@@ -14,12 +14,15 @@
 // std   includes
 #include <vector>
 // base  includes
+#include <base/shape.hpp>
+#include <base/geometry.hpp>
+#include <base/funSpace.hpp>
+// basse/sfun includes
+#include <base/sfun/ZeroDimensionalDummy.hpp>
 #include <base/sfun/Lagrange1D.hpp>
 #include <base/sfun/LagrangeTriangle.hpp>
 #include <base/sfun/LagrangeTetrahedron.hpp>
 #include <base/sfun/TensorProduct.hpp>
-#include <base/shape.hpp>
-#include <base/geometry.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -27,49 +30,66 @@ namespace base{
     namespace detail_{
 
         template<unsigned DEGREE, base::Shape SHAPE>
-        class LagrangeShapeFunImpl;
-
+        struct LagrangeShapeFunImpl;
         
         //----------------------------------------------------------------------
         //! Lagrangian shape function on a line
         template<unsigned DEGREE>
-        class LagrangeShapeFunImpl<DEGREE,base::LINE>
-            : public base::sfun::Lagrange1D<DEGREE>
-        { };
+        struct LagrangeShapeFunImpl<DEGREE,base::POINT>
+        {
+            typedef base::sfun::ZeroDimensionalDummy<DEGREE> Type;
+        };
+
+        //----------------------------------------------------------------------
+        //! Lagrangian shape function on a line
+        template<unsigned DEGREE>
+        struct LagrangeShapeFunImpl<DEGREE,base::LINE>
+        {
+            typedef base::sfun::TensorProduct<base::sfun::Lagrange1D<DEGREE>,
+                                              1, base::sfun::HIERARCHIC>
+            Type;
+        };
 
         //----------------------------------------------------------------------
         //! Lagrangian shape function on a triangle
         template<unsigned DEGREE>
-        class LagrangeShapeFunImpl<DEGREE,base::TRI>
-            : public base::sfun::LagrangeTriangle<DEGREE>
-        { };
+        struct LagrangeShapeFunImpl<DEGREE,base::TRI>
+        {
+            typedef base::sfun::LagrangeTriangle<DEGREE> Type;
+        };
 
         //----------------------------------------------------------------------
         //! Tensor-product Lagrangian shape function on a quadrilateral
         template<unsigned DEGREE>
-        class LagrangeShapeFunImpl<DEGREE,base::QUAD>
-            : public base::sfun::TensorProduct< base::sfun::Lagrange1D<DEGREE>, 2>
-        { };
+        struct LagrangeShapeFunImpl<DEGREE,base::QUAD>
+        {
+            typedef base::sfun::TensorProduct< base::sfun::Lagrange1D<DEGREE>,
+                                               2, base::sfun::HIERARCHIC>
+            Type;
+        };
 
         //----------------------------------------------------------------------
         //! Lagrangian shape function on a tetrahedron
         template<unsigned DEGREE>
-        class LagrangeShapeFunImpl<DEGREE,base::TET>
-            : public base::sfun::LagrangeTetrahedron<DEGREE>
-        { };
-
+        struct LagrangeShapeFunImpl<DEGREE,base::TET>
+        {
+            typedef base::sfun::LagrangeTetrahedron<DEGREE> Type;
+        };
+        
         //----------------------------------------------------------------------
         //! Tensor-product Lagrangian shape function on a hexahedron
         template<unsigned DEGREE>
-        class LagrangeShapeFunImpl<DEGREE,base::HEX>
-            : public base::sfun::TensorProduct< base::sfun::Lagrange1D<DEGREE>, 3>
-        { };
+        struct LagrangeShapeFunImpl<DEGREE,base::HEX>
+        {
+            typedef base::sfun::TensorProduct< base::sfun::Lagrange1D<DEGREE>,
+                                               3, base::sfun::HIERARCHIC>
+            Type;
+        };
     }
 
     template<unsigned DEGREE, base::Shape SHAPE>
     class LagrangeShapeFun;
 }
-
 
 //------------------------------------------------------------------------------
 /** Shape function of the Lagrangian type.
@@ -84,7 +104,7 @@ namespace base{
  */
 template<unsigned DEGREE, base::Shape SHAPE>
 class base::LagrangeShapeFun
-    : public base::detail_::LagrangeShapeFunImpl<DEGREE,SHAPE>
+    : public base::detail_::LagrangeShapeFunImpl<DEGREE,SHAPE>::Type
 {
 public:
     //! @name Template parameter: degree and shape
@@ -93,7 +113,11 @@ public:
     static const base::Shape shape  = SHAPE;
     //@}
 
-    typedef detail_::LagrangeShapeFunImpl<DEGREE,SHAPE> Base;
+    //! Identifier for introspection
+    static const base::FunSpace funSpace = base::LAGRANGE;
+
+    //! Base class contains the parametric shape function implementation
+    typedef typename detail_::LagrangeShapeFunImpl<DEGREE,SHAPE>::Type Base;
 
     //! Evaluate function in physical space
     template<typename GEOMELEMENT>

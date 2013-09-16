@@ -31,33 +31,37 @@ namespace base{
         /** Convenicen function for the computation of the terms due to applied
          *  Neumann boundary conditions.
          */
-        template<typename SURFACEQUADRATURE, typename SOLVER,
-                 typename FIELDBINDER>
+        template<typename FIELDTUPLEBINDER,
+                 typename SURFACEQUADRATURE, typename SOLVER, typename FIELDBINDER>
         void neumannForceComputation(
             const SURFACEQUADRATURE& surfaceQuadrature,
             SOLVER&                  solver, 
             const FIELDBINDER&       fieldBinder,
             const typename
-            NeumannForce<typename FIELDBINDER::ElementPtrTuple>::ForceFun& ff )
+            NeumannForce<typename FIELDTUPLEBINDER::Tuple>::ForceFun& ff )
         {
 
             // object to compute the neumann force
-            typedef NeumannForce<typename FIELDBINDER::ElementPtrTuple> NeumannForce;
+            typedef NeumannForce<typename FIELDTUPLEBINDER::Tuple> NeumannForce;
             typename NeumannForce::ForceFun forceFun = ff;
             NeumannForce neumannForce( forceFun );
 
             // integrator object
             typedef ForceIntegrator<SURFACEQUADRATURE,SOLVER,
-                                    typename FIELDBINDER::ElementPtrTuple>
+                                    typename FIELDTUPLEBINDER::Tuple>
                 SurfaceForceInt;
             typename SurfaceForceInt::ForceKernel surfaceForceKernel =
                 boost::bind( neumannForce, _1, _2, _3, _4 );
             SurfaceForceInt surfaceForceInt( surfaceForceKernel,
                                              surfaceQuadrature, solver );
 
-            // apply
-            std::for_each( fieldBinder.elementsBegin(),
-                           fieldBinder.elementsEnd(), surfaceForceInt );
+            // Apply to all elements
+            typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+            typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+                surfaceForceInt( FIELDTUPLEBINDER::makeTuple( *iter ) );
+            }
+            
             return;
         }
         

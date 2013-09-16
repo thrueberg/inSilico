@@ -28,6 +28,14 @@ namespace base{
             
             template<typename GRID> class Writer;
 
+            template<typename GRID>
+            void writeGrid( const GRID& grid, std::ostream& sgf,
+                            const unsigned resolution = 1)
+            {
+                Writer<GRID> writer;
+                writer( grid, sgf, resolution );
+            }
+
             namespace detail_{
 
                 //! Helper to write the vectors as 3D

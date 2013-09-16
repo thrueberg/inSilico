@@ -248,7 +248,6 @@ namespace base{
         };
     }
 
-    //--------------------------------------------------------------------------
     /** Centroid of a shape. \tparam SHAPE  The shape
      */
     template<base::Shape SHAPE>
@@ -258,6 +257,38 @@ namespace base{
                        detail_::HyperCubeCentroid< ShapeDim<SHAPE>::value> >::Type
     {};
 
+    //--------------------------------------------------------------------------
+    namespace detail_{
+
+        /** Size of the DIM-simplex reference element is \f$ 1/ d! \f$.
+         *  That is 1, 1/2, 1/6 in the dimensions 1, 2, and 3.
+         *  \tparam DIM Spatial dimension of the element
+         */
+        template<unsigned DIM>
+        struct SimplexRefSize
+        {
+            static double apply()
+            {
+                return 1. /static_cast<double>( base::Factorial<DIM>::value );
+            }
+        };
+
+        /** Size of the DIM-hypercube reference element is always 1.
+         *  \tparam DIM Spatial dimension of the element
+         */
+        template<unsigned DIM>
+        struct HyperCubeRefSize { static double apply() { return 1.0; } };
+    }
+
+    /** Return the size of the reference element of the given shape.
+     *  \tparam SHAPE Shape to consider
+     */
+    template<base::Shape SHAPE>
+    struct RefSize
+        : base::IfElse< SHAPE == SimplexShape<ShapeDim<SHAPE>::value>::value,
+                        detail_::SimplexRefSize<  ShapeDim<SHAPE>::value>,
+                        detail_::HyperCubeRefSize<ShapeDim<SHAPE>::value> >::Type
+    {};
 
 }
 

@@ -22,6 +22,7 @@
 namespace base{
     namespace post{
 
+        //----------------------------------------------------------------------
         // Evaluate the field at a given point
         template<unsigned HIST, typename GEOMELEMENT, typename FIELDELEMENT>
         typename base::Vector<FIELDELEMENT::DegreeOfFreedom::size,
@@ -30,16 +31,6 @@ namespace base{
                               const FIELDELEMENT* fieldElemPtr,
                               const typename FIELDELEMENT::FEFun::VecDim& xi );
 
-        // Evaluate the gradient of the field at a given point
-        template<unsigned HIST, typename GEOMELEMENT,typename FIELDELEMENT>
-        static typename base::Matrix<GEOMELEMENT::Node::dim,
-                                         FIELDELEMENT::DegreeOfFreedom::size,
-                                         base::number>::Type
-        evaluateFieldGradientHistory( const GEOMELEMENT*  geomElemPtr,
-                                      const FIELDELEMENT* fieldElemPtr,
-                                      const typename FIELDELEMENT::FEFun::VecDim& xi );
-
-        
         // Evaluate the field at a given point
         template<typename GEOMELEMENT, typename FIELDELEMENT>
         typename base::Vector<FIELDELEMENT::DegreeOfFreedom::size,
@@ -51,6 +42,17 @@ namespace base{
             return evaluateFieldHistory<0>( geomElemPtr, fieldElemPtr, xi );
         }
 
+        //----------------------------------------------------------------------
+        // Evaluate the gradient of the field at a given point
+        template<unsigned HIST, typename GEOMELEMENT,typename FIELDELEMENT>
+        static typename base::Matrix<GEOMELEMENT::Node::dim,
+                                         FIELDELEMENT::DegreeOfFreedom::size,
+                                         base::number>::Type
+        evaluateFieldGradientHistory( const GEOMELEMENT*  geomElemPtr,
+                                      const FIELDELEMENT* fieldElemPtr,
+                                      const typename FIELDELEMENT::FEFun::VecDim& xi );
+
+        
         // Evaluate the gradient of the field at a given point
         template<typename GEOMELEMENT,typename FIELDELEMENT>
         static typename base::Matrix<GEOMELEMENT::Node::dim,
@@ -207,13 +209,15 @@ base::post::evaluateFieldHistory( const GEOMELEMENT*  geomElemPtr,
 //------------------------------------------------------------------------------
 /** Evaluate the gradient of solution field in a given element at a
  *  local coordinate.
- *  The gradient of the FE solution field has the interpolation representation
+ *  The gradient of the FE solution field at time point \f$ t_{n-s}\f$
+ *  has the interpolation representation
  *  \f[
- *       \nabla_x u^h (x) = \sum u^i \nabla_x \phi^i (x(\xi))
+ *       \nabla_x u_{n-1}^h (x) = \sum u_{n-s}^i \nabla_x \phi^i (x(\xi))
  *  \f]
  *  which is evaluated by this object. Other than providing a global coordinate
  *  \f$ x \f$, the pair of a geometry element and its local evaluation point
- *  \f$ \xi \f$ are provided. 
+ *  \f$ \xi \f$ are provided.
+ *  \tparam     HIST         Number of history term
  *  \tparam     GEOMELEMENT  Geometry element
  *  \tparam     FIELDELEMENT Field element
  *  \param[in]  geomElemPtr  Pointer to geometry element

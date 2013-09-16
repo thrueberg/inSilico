@@ -95,7 +95,7 @@ void base::mesh::createBoundaryFromStructuredFace(
     unsigned ctr = 0;
     for ( unsigned d = 0; d < DIM; d++ )
         if ( d != direction ) numFacesM[ctr++] = gridSizes[d];
-    const unsigned numFaces = FaceMI::length( numFacesM );
+    const unsigned numFaces = static_cast<unsigned>( FaceMI::length( numFacesM ) );
 
     // face number
     const unsigned faceNum =

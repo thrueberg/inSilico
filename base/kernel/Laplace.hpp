@@ -16,8 +16,6 @@
 // base includes
 #include <base/geometry.hpp>
 #include <base/linearAlgebra.hpp>
-// base/aux includes
-#include <base/aux/functions.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -188,7 +186,7 @@ private:
         std::vector<GlobalVecDim> fieldGradX;
         (fieldEp -> fEFun()).evaluateGradient( geomEp, xi, fieldGradX );
 
-        const unsigned numColBlocks = fieldGradX.size();
+        const unsigned numColBlocks = static_cast<unsigned>( fieldGradX.size() );
 
         result = base::MatrixD::Zero( +doFSize, numColBlocks * doFSize );
 

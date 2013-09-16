@@ -6,7 +6,7 @@ include $(INSILICOROOT)/definitions.mk
 
 # determine modus of compilation
 DEBUG=YES
-SOLVER = 
+SIMPLEX=YES
 
 # compile/link executables and flags
 SHELL = /bin/bash
@@ -22,7 +22,7 @@ INCLUDES += -isystem$(EIGEN3_DIR)  #note the -isystem for surpression of warning
 LDLIBS  = 
 
 # common flags
-CPPFLAGS = $(INCLUDES) #-DINSILICO_COMPLEX
+CPPFLAGS = $(INCLUDES) 
 
 # set flags depending on mode
 ifeq ($(strip $(DEBUG)),YES) 
@@ -38,6 +38,11 @@ ifneq (,$(wildcard $(HOME)/bin))
 	BIN = $(HOME)/bin
 else
 	BIN = /dev/null
+endif
+
+# set flag in order to generate simplex meshes
+ifeq ($(strip $(SIMPLEX)),YES)
+	CPPFLAGS += -DSIMPLEX
 endif
 
 

@@ -29,48 +29,56 @@ namespace base{
 
         //----------------------------------------------------------------------
         /** Convenience function for the LHS term of the penalty method */
-        template<typename KERNEL, typename SURFACEQUADRATURE,
+        template<typename SURFACETUPLEBINDER,
+                 typename KERNEL, typename SURFACEQUADRATURE,
                  typename SOLVER, typename BOUNDFIELD>
         void energyLHS( const KERNEL&            kernel, 
                         const SURFACEQUADRATURE& surfaceQuadrature,
                         SOLVER&                  solver, 
-                        const BOUNDFIELD&        boundField )
+                        const BOUNDFIELD&        boundField,
+                        const double kappa = 1.0 )
         {
             // object to compute the LHS penalty term
             typedef Energy<KERNEL,
-                           typename BOUNDFIELD::ElementPtrTuple> Energy;
-            Energy energy( kernel );
+                           typename SURFACETUPLEBINDER::Tuple> Energy;
+            Energy energy( kernel, kappa );
 
-            // integrator and assembler object
+            // integrator and assembler objects
             typedef base::asmb::StiffnessMatrix<SURFACEQUADRATURE,SOLVER,
-                                                typename BOUNDFIELD::ElementPtrTuple> SysMat;
+                                                typename SURFACETUPLEBINDER::Tuple> SysMat;
+
+            typedef base::asmb::StiffnessMatrix<SURFACEQUADRATURE,SOLVER,
+                                                typename SURFACETUPLEBINDER::TransposedTuple>
+                SysMatT;
 
             // primal 
-            typename SysMat::Kernel kernelFun =
+            typename SysMat::Kernel kernelFunP =
                 boost::bind( &Energy::primal, &energy, _1, _2, _3, _4 );
 
-            SysMat primal( kernelFun, surfaceQuadrature, solver );
-
-            // apply
-            std::for_each( boundField.elementsBegin(),
-                           boundField.elementsEnd(), primal );
+            SysMat primal( kernelFunP, surfaceQuadrature, solver );
 
             // dual
-            kernelFun = 
+            typename SysMatT::Kernel kernelFunD =
                 boost::bind( &Energy::dual, &energy, _1, _2, _3, _4 );
             
-            SysMat dual( kernelFun, surfaceQuadrature, solver );
+            SysMatT dual( kernelFunD, surfaceQuadrature, solver );
 
             // apply
-            std::for_each( boundField.elementsBegin(),
-                           boundField.elementsEnd(), dual );
+            typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
+            typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+                primal( SURFACETUPLEBINDER::makeTuple(           *iter ) );
+                dual(   SURFACETUPLEBINDER::makeTransposedTuple( *iter ) );
+            }
+
             
             return;
         }
 
         //----------------------------------------------------------------------
         /** Convenience function for the RHS term of the penalty method */
-        template<typename KERNEL, typename SURFACEQUADRATURE, typename SOLVER,
+        template<typename SURFACETUPLEBINDER,
+                 typename KERNEL, typename SURFACEQUADRATURE, typename SOLVER,
                  typename BOUNDFIELD, typename BCFUN>
         void energyRHS( const KERNEL&            kernel,
                         const SURFACEQUADRATURE& surfaceQuadrature,
@@ -80,12 +88,12 @@ namespace base{
         {
             // object to compute the LHS penalty term
             typedef Energy<KERNEL,
-                           typename BOUNDFIELD::ElementPtrTuple> Energy;
+                           typename SURFACETUPLEBINDER::Tuple> Energy;
             Energy energy( kernel );
 
             // integrator and assembler object
             typedef base::asmb::ForceIntegrator<SURFACEQUADRATURE,SOLVER,
-                                                typename BOUNDFIELD::ElementPtrTuple>
+                                                typename SURFACETUPLEBINDER::Tuple>
                 SurfaceForceInt;
             typename SurfaceForceInt::ForceKernel surfaceForceKernel =
                 boost::bind( &Energy::template rhs<BCFUN>, &energy,
@@ -95,8 +103,12 @@ namespace base{
                                              surfaceQuadrature, solver );
             
             // apply
-            std::for_each( boundField.elementsBegin(),
-                           boundField.elementsEnd(), surfaceForceInt );
+            typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
+            typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+                surfaceForceInt( SURFACETUPLEBINDER::makeTuple( *iter ) );
+            }
+
             return;
         }
 
@@ -104,6 +116,38 @@ namespace base{
 }
 
 //------------------------------------------------------------------------------
+/** Computation of the variationally consistent terms of the Nitsche Method.
+ *  Consider, as an example, the problem
+ *  \f[
+ *       -\nabla^2 u = 0, x \in \Omega
+ *  \f]
+ *  with Dirichlet boundary condition
+ *  \f[
+ *        u = g, x \in \Gamma
+ *  \f]
+ *  Taking the residual of the PDE, multiplied by a suitable test function
+ *  \f$ v \f$ and integrated by parts gives
+ *  \f[
+ *      0 = \int_\Omega -\nabla^2 u v d x
+ *        = \int_\Omega \nabla u \nabla v d x - \int_\Gamma v(\nabla u) n d s
+ *  \f]
+ *  Now, zero is added in the form of \f$ 0 = u - g \f$ and multiplied by
+ *  the normal-derivative of \f$ v \f$,
+ *  \f[
+ *      \int_\Omega \nabla u \nabla v d x
+ *     -\int_\Gamma v (\nabla u) n + u (\nabla v ) n =
+ *     -\int_\Gamma g (\nabla v) n
+ *  \f]
+ *  This gives rise to a (yet unstable) method to compute the Dirichlet
+ *  problem without essential boundary conditions. A penalty term is used
+ *  to stablised this formulation.
+ *  This object provides the additional terms on the left- and right-hand
+ *  sides of the above expression.
+ *  \tparam KERNEL  Type of kernel giving the bilinear form and normal
+ *                  derivatives
+ *  \tparam SURFFIELDTUPLE Tuple with surface element
+ * 
+ */
 template<typename KERNEL, typename SURFFIELDTUPLE>
 class base::nitsche::Energy
 {
@@ -143,12 +187,11 @@ public:
     //! Type of BC function
     typedef boost::function<VecDof( const GlobalVecDim& )> BCFun;
 
-    //! Bubnov-Galerkin term
-    static const bool bubnov = boost::is_same<TestElement,TrialElement>::value;
+    //! Constructor with kernel object and multiplier
+    Energy( const Kernel& kernel, const double kappa = 1.0 )
+        : kernel_( kernel ), kappa_( kappa ) { }
 
-
-    Energy( const Kernel& kernel )
-    : kernel_( kernel ) { }
+    void setKappa( const double kappa ) { kappa_ = kappa; }
 
     //--------------------------------------------------------------------------
     /** 
@@ -222,16 +265,16 @@ private:
         (fieldEp -> fEFun()).evaluate( domainEp, xi, fieldFunValues );
 
         // compute matrix entries
-        const unsigned numFieldBlocks = fieldFunValues.size();
-        const unsigned otherSize       = coNormal.cols();
+        const unsigned numFieldBlocks = static_cast<unsigned>(fieldFunValues.size() );
+        const unsigned otherSize      = static_cast<unsigned>(coNormal.cols() );
 
-        const double scalar = -1. * detG * weight;
+        const double scalar = -1. * detG * weight * kappa_;
 
         for ( unsigned i = 0; i < numFieldBlocks; i++ ) {
             for ( unsigned d = 0; d < doFSize; d++ ) {
                 for ( unsigned c = 0; c < otherSize; c++ ) {
 
-                    if (dual ) 
+                    if ( dual ) 
                         result( c, i*doFSize+d ) +=
                             fieldFunValues[i] * coNormal(d,c) * scalar;
                     else 
@@ -241,6 +284,7 @@ private:
                 }
             }
         }
+
         return;
     }
 
@@ -290,16 +334,25 @@ public:
         const VecDof bc = bcFun( x );
 
         //
-        const double scalar = -1. * detG * weight;
+        const double scalar = -1. * detG * weight * kappa_;
 
-        result += scalar * coNormal.transpose() * bc.transpose(); 
+        const unsigned otherSize = static_cast<unsigned>(coNormal.cols() );
+        
+        for ( unsigned i = 0; i < otherSize; i++ ) {
+            number sum = 0.;
+            for ( unsigned d = 0; d < doFSize; d++ ) {
+                sum += scalar * coNormal( d, i ) * bc[d];
+            }
+            result[i] += sum;
+        }
 
         return;
     }
 
     
 private:
-    const Kernel&  kernel_;
+    const Kernel&  kernel_; //!< Delivers conormal and dual conormal derivative
+    double         kappa_;  //!< Factor for interface binding
 };
 
 #endif

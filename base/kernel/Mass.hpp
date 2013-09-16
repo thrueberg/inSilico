@@ -16,14 +16,16 @@
 // base includes
 #include <base/geometry.hpp>
 #include <base/linearAlgebra.hpp>
-// base/aux includes
-#include <base/aux/functions.hpp>
+// base/kernel includes
+#include <base/kernel/KernelFun.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
     namespace kernel{
 
-        template<typename FIELDTUPLE>
+        template<typename FIELDTUPLE,
+                 unsigned DOFSIZE =
+                 FIELDTUPLE::TrialElement::DegreeOfFreedom::size>
         class Mass;
     }
 }
@@ -40,12 +42,14 @@ namespace base{
  *
  *  \tparam FIELDTUPLE  Tuple of field elements
  */
-template<typename FIELDTUPLE>
+template<typename FIELDTUPLE,unsigned DOFSIZE>
 class base::kernel::Mass
+    : public base::kernel::KernelFun<FIELDTUPLE,base::MatrixD>::Type
 {
 public:
     //! Template parameter
     typedef FIELDTUPLE FieldTuple;
+    static const unsigned doFSize   = DOFSIZE;
 
     //! @name Extract element types from pointers
     //@{
@@ -63,8 +67,6 @@ public:
     //! Local coordinate
     typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
 
-    //! Size of DOFs
-    static const unsigned doFSize   = TrialElement::DegreeOfFreedom::size;
 
     //! Constructor with form and test functions 
     Mass( const double factor )
@@ -100,10 +102,12 @@ public:
 
         // Evaluate test functions
         typename TestElement::FEFun::FunArray  testFun;
-        if ( bubnov ) testFun = trialFun;
+        if ( bubnov )
+            // Note: assignment would not work because of a compile-time error
+            std::copy( trialFun.begin(), trialFun.end(), testFun.begin() );
         else
             (testEp -> fEFun()).evaluate( geomEp, xi, testFun );
-        
+
         // element jacobian
         const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );
         
@@ -129,6 +133,15 @@ public:
         }
         
     }
+
+    void tangentStiffness( const FieldTuple&  fieldTuple,
+                           const LocalVecDim& xi,
+                           const double       weight,
+                           base::MatrixD&     matrix ) const
+    {
+        return this -> operator()( fieldTuple, xi, weight, matrix );
+    }
+
 
 private:
     const double factor_; //!< Scalar multiplier (e.g. density over step size)

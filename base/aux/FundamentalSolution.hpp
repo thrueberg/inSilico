@@ -103,11 +103,13 @@ public:
     {
         const double dist = base::norm(y - x);
         const double factor =
-            -1./(2.*(dim-1)*M_PI) / (base::Power<dim>::apply( dist ) );
+            1./(2.*(dim-1)*M_PI) / (base::Power<dim>::apply( dist ) );
 
         Grad result;
         for ( unsigned d = 0; d < dim; d++ )
-            Grad(d,0) = factor * (y[d] - x[d]);
+            result(d,0) = factor * (y[d] - x[d]);
+
+        return result;
     }
 
     //! Evaluate the co-normal derivative for given x, y and normal vector

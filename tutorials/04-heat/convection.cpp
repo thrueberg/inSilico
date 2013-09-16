@@ -4,19 +4,18 @@
 #include <string>
 #include <boost/lexical_cast.hpp>
 
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Unstructured.hpp>
-#include <base/LagrangeShapeFun.hpp>
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
 #include <base/mesh/MeshBoundary.hpp>
 #include <base/Quadrature.hpp>
+
 #include <base/io/smf/Reader.hpp>
 #include <base/io/PropertiesParser.hpp>
+#include <base/io/vtk/LegacyWriter.hpp>
+#include <base/io/Format.hpp>
 
 #include <base/fe/Basis.hpp>
-#include <base/dof/DegreeOfFreedom.hpp>
-#include <base/dof/Element.hpp>
-#include <base/dof/Field.hpp>
+#include <base/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
 
@@ -25,10 +24,10 @@
 #include <base/dof/setField.hpp>
 #include <base/asmb/StiffnessMatrix.hpp>
 #include <base/asmb/FieldBinder.hpp>
+
 #include <base/solver/Eigen3.hpp>
 #include <base/post/evaluateAtNodes.hpp>
-#include <base/io/vtk/LegacyWriter.hpp>
-#include <base/io/Format.hpp>
+#include <base/post/Monitor.hpp>
 
 #include <mat/thermal/IsotropicConstant.hpp>
 #include <heat/Static.hpp>
@@ -51,8 +50,6 @@ void velocityFun( const typename base::Vector<DIM,double>::Type& x,
     v[1] = 1.;
 
     for ( unsigned d = 0; d < DOF::size; d++ ) doFPtr -> setValue( d, v[d] );
-
-    for ( unsigned d = 0; d < DOF::nHist; d++ ) doFPtr -> pushHistory();
 }
 
 //------------------------------------------------------------------------------
@@ -134,7 +131,6 @@ int main( int argc, char * argv[] )
     
     //--------------------------------------------------------------------------
     const unsigned    geomDeg  = 1;   // degree of geometry approximation
-    const unsigned    fieldDeg = 1;   // degree of field approximation
     const unsigned    tiOrder  = 2;   // order of time integrator
     const base::Shape shape    = base::QUAD; // shape of the element
 
@@ -146,20 +142,15 @@ int main( int argc, char * argv[] )
     const unsigned nHist = MSM::numSteps;
     
     //--------------------------------------------------------------------------
-    // shape implies spatial dimension (not necessarily)
-    const unsigned    dim     = base::ShapeDim<shape>::value;
-    typedef base::mesh::Node<dim>                 Node;     // geometry node
-    typedef base::LagrangeShapeFun<geomDeg,shape> SFun;     // geometry shape fun
-    typedef base::mesh::Element<Node,SFun>        Element;  // geometry element
-    typedef base::mesh::Unstructured<Element>     Mesh;     // mesh
+    typedef base::Unstructured<shape,geomDeg>     Mesh;
+    const unsigned dim = Mesh::Node::dim;
 
     // create a mesh from file
     Mesh mesh;
     {
         std::ifstream smf( meshFile.c_str() );
         VERIFY_MSG( smf.is_open(), "Cannot open mesh file" );
-        base::io::smf::Reader<Mesh> smfReader;
-        smfReader( mesh, smf ); 
+        base::io::smf::readMesh( smf, mesh );
         smf.close();
     }
 
@@ -169,28 +160,24 @@ int main( int argc, char * argv[] )
     Quadrature quadrature;
 
     // Finite element basis
+    typedef base::fe::IsoparametricBasis<Mesh> FEBasis;
     const unsigned    doFSizeT = 1; // temperature
     const unsigned    doFSizeV = dim; // velocity
-    typedef base::fe::Basis<shape,fieldDeg> FEBasis;
 
     // DOF handling temperature
-    typedef base::LagrangeShapeFun<fieldDeg,shape>     FieldFun;
-    typedef base::dof::DegreeOfFreedom<doFSizeT,nHist> DoFT;
-    typedef base::dof::Element<DoFT,FEBasis::FEFun>    FieldElementT;
-    typedef base::dof::Field<FieldElementT>            Temperature;
+    typedef base::Field<FEBasis,doFSizeT,nHist>        Temperature;
     Temperature temperature;
     base::dof::generate<FEBasis>( mesh, temperature );
 
     // Field for velocity variable
-    typedef base::dof::DegreeOfFreedom<doFSizeV,nHist> DoFV;
-    typedef base::dof::Element<DoFV,FEBasis::FEFun>    FieldElementV;
-    typedef base::dof::Field<FieldElementV>            Velocity;
+    typedef base::Field<FEBasis,doFSizeV>              Velocity;
     Velocity velocity;
     base::dof::generate<FEBasis>( mesh, velocity );
 
     // set field according to a function
     base::dof::setField( mesh, velocity,
-                         boost::bind( &velocityFun<dim,DoFV>, _1, _2 ) );
+                         boost::bind( &velocityFun<dim,
+                                                   Velocity::DegreeOfFreedom>, _1, _2 ) );
 
 
     // Creates a list of <Element,faceNo> pairs
@@ -201,70 +188,83 @@ int main( int argc, char * argv[] )
     base::dof::constrainBoundary<FEBasis>( meshBoundary.boundaryBegin(),
                                            meshBoundary.boundaryEnd(),
                                            mesh, temperature,
-                                           boost::bind( &dirichletBC<dim,DoFT>, _1, _2 ) );
+                                           boost::bind( &dirichletBC<dim,
+                                                                     Temperature::DegreeOfFreedom>,
+                                                        _1, _2 ) );
 
     // Number of DoFs after constraint application!
     const std::size_t numDofs =
         base::dof::numberDoFsConsecutively( temperature.doFsBegin(),
                                             temperature.doFsEnd() );
-    std::cout << " Number of dofs " << numDofs
+    std::cout << "# Number of dofs " << numDofs
               << ", number of time steps " << numSteps
               << std::endl;
 
-    typedef base::asmb::FieldBinder<Mesh,Temperature,Temperature,Velocity> FieldBinder;
-    FieldBinder fieldBinder( mesh, temperature, temperature, velocity );
-    typedef FieldBinder::ElementPtrTuple FieldTuple;
+    typedef base::asmb::FieldBinder<Mesh,Temperature,Velocity> FieldBinder;
+    FieldBinder fieldBinder( mesh, temperature, velocity );
+    typedef FieldBinder::TupleBinder<1,1,2>::Type FieldTupleBinder;
 
     // choose a material behaviour
     typedef mat::thermal::IsotropicConstant Material;
     Material material( kappa );
 
     // Object for static heat transfer
-    typedef heat::Static<Material,FieldTuple> StaticHeat;
+    typedef heat::Static<Material,FieldTupleBinder::Tuple> StaticHeat;
     StaticHeat staticHeat( material );
 
     // Convection term
-    typedef heat::Convection<FieldTuple> Convection;
+    typedef heat::Convection<FieldTupleBinder::Tuple> Convection;
     Convection convection( density );
 
     // write initial state
     writeVTKFile( baseName, 0, mesh, temperature );
 
+    // Monitor of solution
+    const std::size_t numElements = std::distance( mesh.elementsBegin(),
+                                                   mesh.elementsEnd() );
+    const std::size_t N = static_cast<std::size_t>( std::sqrt( numElements ) );
+    const std::size_t midElement = (N * N + N) / 2;
+    base::post::Monitor<Mesh::Element,Temperature::Element>
+        monitorSol( mesh.elementPtr(        midElement ),
+                    temperature.elementPtr( midElement ),
+                    base::constantVector<dim>( 0. ) );
+
+    std::cout << "# " << ( monitorSol.location() ).transpose() << std::endl;
+
     //--------------------------------------------------------------------------
     // Time loop
     for ( unsigned step = 0; step < numSteps; step ++ ) {
 
-        std::cout << "Time step " << step << std::endl;
+        //std::cout << "Time step " << step << std::endl;
+        const double time = step * stepSize;
+        std::cout << time << " ";
+        monitorSol.solution( std::cout );
+        monitorSol.gradient( std::cout );
+        std::cout << std::endl;
     
         // Create a solver object
         typedef base::solver::Eigen3           Solver;
         Solver solver( numDofs );
 
-
         // Compute system matrix from Laplacian
-        base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                                fieldBinder,
-                                                staticHeat );
+        base::asmb::stiffnessMatrixComputation<FieldTupleBinder>( quadrature, solver,
+                                                                  fieldBinder,
+                                                                  staticHeat );
 
         // Compute system matrix from Convection
-        base::asmb::stiffnessMatrixComputation( quadrature, solver, 
-                                                fieldBinder,
-                                                convection );
+        base::asmb::stiffnessMatrixComputation<FieldTupleBinder>( quadrature, solver, 
+                                                                  fieldBinder,
+                                                                  convection );
 
-        // Compute system matrix and RHS from time stepping
-        typedef base::time::ReactionTerms<Quadrature,Solver,MSM,FieldTuple> RT;
-        RT rt( density, quadrature, solver, stepSize, step, 0 );
+        // compute inertia terms, d/dt, due to time integration
+        base::time::computeInertiaTerms<FieldTupleBinder,MSM>( quadrature, solver,
+                                                               fieldBinder, stepSize, step,
+                                                               density );
 
-        // iterate over the fields
-        std::for_each( fieldBinder.elementsBegin(), fieldBinder.elementsEnd(), rt );
-
-        // Compute RHS terms from history of forces
-        base::time::ResidualForceHistory<StaticHeat,Quadrature,Solver,MSM>
-            rfh( staticHeat, quadrature, solver, step );
-
-        // iterate over the fields
-        std::for_each( fieldBinder.elementsBegin(), fieldBinder.elementsEnd(),
-                       rfh );
+        // compute history of residual forces due to time integration
+        base::time::computeResidualForceHistory<FieldTupleBinder,MSM>( staticHeat,
+                                                                       quadrature, solver,
+                                                                       fieldBinder, step );
 
         // Finalise assembly
         solver.finishAssembly();
@@ -274,13 +274,11 @@ int main( int argc, char * argv[] )
 
         // distribute results back to dofs
         {
-            base::dof::Distribute<DoFT,Solver,base::dof::SET> distributeDoF( solver );
-            std::for_each( temperature.doFsBegin(),
-                           temperature.doFsEnd(), distributeDoF );
+            base::dof::setDoFsFromSolver( solver, temperature );
 
             // push history
             std::for_each( temperature.doFsBegin(), temperature.doFsEnd(),
-                           boost::bind( &DoFT::pushHistory, _1 ) );
+                           boost::bind( &Temperature::DegreeOfFreedom::pushHistory, _1 ) );
         }
 
         writeVTKFile( baseName, step+1, mesh, temperature );

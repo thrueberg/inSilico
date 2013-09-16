@@ -3,10 +3,9 @@
 #include <string>
 #include <boost/lexical_cast.hpp>
 
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Unstructured.hpp>
-#include <base/LagrangeShapeFun.hpp>
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
+
 #include <base/mesh/MeshBoundary.hpp>
 #include <base/Quadrature.hpp>
 #include <base/io/smf/Reader.hpp>
@@ -14,9 +13,7 @@
 #include <base/io/PropertiesParser.hpp>
 
 #include <base/fe/Basis.hpp>
-#include <base/dof/DegreeOfFreedom.hpp>
-#include <base/dof/Element.hpp>
-#include <base/dof/Field.hpp>
+#include <base/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
 
@@ -104,18 +101,14 @@ int main( int argc, char * argv[] )
     const std::string baseName = base::io::baseName( meshFile, ".smf" );
 
     //--------------------------------------------------------------------------
-    const unsigned    dim     = base::ShapeDim<shape>::value;
-    typedef base::mesh::Node<dim>                 Node;
-    typedef base::LagrangeShapeFun<geomDeg,shape> SFun;
-    typedef base::mesh::Element<Node,SFun>        Element;
-    typedef base::mesh::Unstructured<Element>     Mesh;
+    typedef base::Unstructured<shape,geomDeg>     Mesh;
+    const unsigned dim = Mesh::Node::dim;
 
     Mesh mesh;
     {
         std::ifstream smf( meshFile.c_str() );
         VERIFY_MSG( smf.is_open(), "Cannot open mesh file" );
-        base::io::smf::Reader<Mesh> smfReader;
-        smfReader( mesh, smf ); 
+        base::io::smf::readMesh( smf, mesh );
         smf.close();
     }
 
@@ -127,17 +120,14 @@ int main( int argc, char * argv[] )
     // Finite element basis
     const unsigned    doFSizeU = dim;
     typedef base::fe::Basis<shape,fieldDegU>         FEBasisU;
-    typedef base::dof::DegreeOfFreedom<doFSizeU>     DoFU;
-    typedef base::dof::Element<DoFU,FEBasisU::FEFun> FieldElementU;
-    typedef base::dof::Field<FieldElementU>          Velocity;
+    typedef base::Field<FEBasisU,doFSizeU>           Velocity;
+    typedef Velocity::DegreeOfFreedom                DoFU;
     Velocity velocity;
     base::dof::generate<FEBasisU>( mesh, velocity );
     
     const unsigned    doFSizeP = 1;
     typedef base::fe::Basis<shape,fieldDegP>         FEBasisP;
-    typedef base::dof::DegreeOfFreedom<doFSizeP>     DoFP;
-    typedef base::dof::Element<DoFP,FEBasisP::FEFun> FieldElementP;
-    typedef base::dof::Field<FieldElementP>          Pressure;
+    typedef base::Field<FEBasisP,doFSizeP>           Pressure;
     Pressure pressure;
     base::dof::generate<FEBasisP>( mesh, pressure );
 
@@ -166,31 +156,22 @@ int main( int argc, char * argv[] )
             numDoFsU );
     std::cout << " Number of pressure dofs " << numDoFsP << std::endl;
 
-
-    // Field combinations
-    typedef base::asmb::FieldBinder<Mesh,Velocity,Velocity,Velocity> FieldUU;
-    typedef FieldUU::ElementPtrTuple FieldUUTuple;
-    FieldUU fieldUU( mesh, velocity, velocity, velocity );
+    typedef base::asmb::FieldBinder<Mesh,Velocity,Pressure> Field;
+    Field field( mesh, velocity, pressure );
     
-    typedef base::asmb::FieldBinder<Mesh,Velocity,Pressure> FieldUP;
-    typedef FieldUP::ElementPtrTuple FieldUPTuple;
-    FieldUP fieldUP( mesh, velocity, pressure );
+    typedef Field::TupleBinder<1,1,1>::Type TopLeft;
+    typedef Field::TupleBinder<1,2>::Type   TopRight;
+    typedef Field::TupleBinder<2,1>::Type   BottomLeft;
     
-    typedef base::asmb::FieldBinder<Mesh,Pressure,Velocity> FieldPU;
-    typedef FieldPU::ElementPtrTuple FieldPUTuple;
-    FieldPU fieldPU( mesh, pressure, velocity );
-    
-    // Object providing the element stiffness matrix
-    typedef fluid::VectorLaplace<     FieldUUTuple> VecLaplace;
-    typedef fluid::Convection<        FieldUUTuple> Convection;
-    typedef fluid::PressureGradient<  FieldUPTuple> GradP;
-    typedef fluid::VelocityDivergence<FieldPUTuple> DivU;
+    typedef fluid::VectorLaplace<        TopLeft::Tuple> VecLaplace;
+    typedef fluid::Convection<           TopLeft::Tuple> Convection;
+    typedef fluid::PressureGradient<    TopRight::Tuple> GradP;
+    typedef fluid::VelocityDivergence<BottomLeft::Tuple> DivU;
 
     VecLaplace vecLaplace( viscosity );
     Convection convection( density );
     GradP      gradP;
     DivU       divU;
-
 
     //--------------------------------------------------------------------------
     // Nonlinear Picard iterations
@@ -205,17 +186,17 @@ int main( int argc, char * argv[] )
         std::cout << "Iteration " << iter << std::flush;
     
         // Compute system matrix
-        base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                                fieldUU, vecLaplace );
+        base::asmb::stiffnessMatrixComputation<TopLeft>( quadrature, solver,
+                                                         field, vecLaplace );
 
-        base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                                fieldUP, gradP );
+        base::asmb::stiffnessMatrixComputation<TopLeft>( quadrature, solver,
+                                                         field, convection );
 
-        base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                                fieldPU, divU );
+        base::asmb::stiffnessMatrixComputation<TopRight>( quadrature, solver,
+                                                          field, gradP );
 
-        base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                                fieldUU, convection );
+        base::asmb::stiffnessMatrixComputation<BottomLeft>( quadrature, solver,
+                                                            field, divU );
 
         // Finalise assembly
         solver.finishAssembly();
@@ -224,14 +205,8 @@ int main( int argc, char * argv[] )
         solver.superLUSolve();
 
         // distribute results back to dofs
-        {
-            base::dof::Distribute<DoFU,Solver> distributeDoFU( solver );
-            std::for_each( velocity.doFsBegin(), velocity.doFsEnd(), distributeDoFU );
-            
-            base::dof::Distribute<DoFP,Solver> distributeDoFP( solver );
-            std::for_each( pressure.doFsBegin(), pressure.doFsEnd(), distributeDoFP );
-
-        }
+        base::dof::setDoFsFromSolver( solver, velocity );
+        base::dof::setDoFsFromSolver( solver, pressure );
     
         // check convergence via solver norms
         const double newNorm = solver.norm();

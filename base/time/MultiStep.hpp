@@ -240,6 +240,13 @@ public:
         return;
     }
 
+    //! Weights for the derivative computation
+    static void derivativeWeights( const unsigned step,
+                                   std::vector<double>& weights )
+    {
+        weights = detail_::LHSWeights<order,METHOD>::apply( step );
+    }
+
 };
 
 #endif

@@ -149,6 +149,23 @@ namespace base{
     template<typename MAT>
     struct MatCols { static const int value = MAT::ColsAtCompileTime; };
     //@}
+
+    //--------------------------------------------------------------------------
+    //! Convert matrix into one row; useful for output
+    template<typename MAT>
+    typename base::Matrix<1,MAT::SizeAtCompileTime, typename MAT::Scalar>::Type
+    makeRow( const MAT& mat )
+    {
+        typename base::Vector<MAT::SizeAtCompileTime, typename MAT::Scalar>::Type
+            result;
+        for ( unsigned r = 0; r < MAT::RowsAtCompileTime; r++ ) {
+            for ( unsigned c = 0; c < MAT::ColsAtCompileTime; c++ ) {
+                result[ r * MAT::ColsAtCompileTime + c ] = mat( r, c );
+            }
+        }
+
+        return result;
+    }
     
 }
 

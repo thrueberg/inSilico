@@ -31,6 +31,16 @@ namespace base{
 
             template<typename MESH> class Reader;
 
+            //------------------------------------------------------------------
+            //! Convenenience function
+            template<typename MESH>
+            void readMesh( std::istream& smf, MESH& mesh )
+            {
+                Reader<MESH> reader;
+                reader( mesh, smf );
+            }
+
+            //------------------------------------------------------------------
             namespace detail_{
                 
                 //! Check if string contains expected value

@@ -3,18 +3,14 @@
 #include <string>
 #include <boost/lexical_cast.hpp>
 
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Unstructured.hpp>
-#include <base/LagrangeShapeFun.hpp>
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
 #include <base/mesh/MeshBoundary.hpp>
 #include <base/Quadrature.hpp>
 #include <base/io/smf/Reader.hpp>
 
 #include <base/fe/Basis.hpp>
-#include <base/dof/DegreeOfFreedom.hpp>
-#include <base/dof/Element.hpp>
-#include <base/dof/Field.hpp>
+#include <base/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
 
@@ -87,18 +83,14 @@ int main( int argc, char * argv[] )
     const unsigned    doFSize = 1; // temperature
 
     //--------------------------------------------------------------------------
-    const unsigned    dim     = base::ShapeDim<shape>::value;
-    typedef base::mesh::Node<dim>                 Node;
-    typedef base::LagrangeShapeFun<geomDeg,shape> SFun;
-    typedef base::mesh::Element<Node,SFun>        Element;
-    typedef base::mesh::Unstructured<Element>     Mesh;
+    typedef base::Unstructured<shape,geomDeg>     Mesh;
+    const unsigned    dim     = Mesh::Node::dim;
 
     Mesh mesh;
     {
         std::ifstream smf( smfFile.c_str() );
         VERIFY_MSG( smf.is_open(), "Cannot open mesh file" );
-        base::io::smf::Reader<Mesh> smfReader;
-        smfReader( mesh, smf ); 
+        base::io::smf::readMesh( smf, mesh );
         smf.close();
     }
 
@@ -111,9 +103,7 @@ int main( int argc, char * argv[] )
     typedef base::fe::Basis<shape,fieldDeg> FEBasis;
 
     // DOF handling
-    typedef base::dof::DegreeOfFreedom<doFSize>    DoF;
-    typedef base::dof::Element<DoF,FEBasis::FEFun> FieldElement;
-    typedef base::dof::Field<FieldElement>         Field;
+    typedef base::Field<FEBasis,doFSize>           Field;
     Field field;
 
     base::dof::generate<FEBasis>( mesh, field );
@@ -126,7 +116,9 @@ int main( int argc, char * argv[] )
     base::dof::constrainBoundary<FEBasis>( meshBoundary.boundaryBegin(),
                                            meshBoundary.boundaryEnd(),
                                            mesh, field, 
-                                           boost::bind( &dirichletBC<dim,DoF>, _1, _2 ) );
+                                           boost::bind( &dirichletBC<dim,
+                                                                     Field::DegreeOfFreedom>,
+                                                            _1, _2 ) );
 
     // Number of DoFs after constraint application!
     const std::size_t numDofs =
@@ -137,12 +129,12 @@ int main( int argc, char * argv[] )
     typedef mat::thermal::FenicsTest Material;
     Material material( solM );
 
-    typedef base::asmb::FieldBinder<Mesh,Field,Field> FieldBinder;
-    FieldBinder fieldBinder( mesh, field, field );
-    typedef FieldBinder::ElementPtrTuple FieldTuple;
+    typedef base::asmb::FieldBinder<Mesh,Field> FieldBinder;
+    FieldBinder fieldBinder( mesh, field );
+    typedef FieldBinder::TupleBinder<1,1>::Type FieldTupleBinder;
 
     
-    typedef heat::Static<Material,FieldTuple> StaticHeat;
+    typedef heat::Static<Material,FieldTupleBinder::Tuple> StaticHeat;
     StaticHeat staticHeat( material );
 
     unsigned iter = 0;
@@ -155,15 +147,15 @@ int main( int argc, char * argv[] )
         Solver solver( numDofs );
 
         // Compute system matrix
-        base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                                fieldBinder,
-                                                staticHeat,
-                                                iter > 0 );
+        base::asmb::stiffnessMatrixComputation<FieldTupleBinder>( quadrature, solver,
+                                                                  fieldBinder,
+                                                                  staticHeat,
+                                                                  iter > 0 );
 
         // compute residual forces
-        base::asmb::computeResidualForces( quadrature, solver,
-                                           fieldBinder,
-                                           staticHeat);
+        base::asmb::computeResidualForces<FieldTupleBinder>( quadrature, solver,
+                                                             fieldBinder,
+                                                             staticHeat);
 
         const double residualNorm = solver.norm();
         std::cout << "|R| = " << residualNorm << std::flush;
@@ -183,12 +175,7 @@ int main( int argc, char * argv[] )
         std::cout << ",  |x| = " << incrementNorm << std::endl;
 
         // distribute results back to dofs
-        {
-            base::dof::Distribute<DoF,Solver,base::dof::ADD>
-                distributeDoF( solver, iter > 0 );
-            std::for_each( field.doFsBegin(),
-                           field.doFsEnd(), distributeDoF );
-        }
+        base::dof::addToDoFsFromSolver( solver, field, iter > 0 );
 
         iter++;
     }

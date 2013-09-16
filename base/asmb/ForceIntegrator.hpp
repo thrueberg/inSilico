@@ -21,6 +21,9 @@
 #include <boost/function.hpp>
 // base includes
 #include <base/linearAlgebra.hpp>
+// base/asmb includes
+#include <base/asmb/collectFromDoFs.hpp>
+#include <base/asmb/assembleForces.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -31,7 +34,8 @@ namespace base{
 
         //--------------------------------------------------------------------------
         // Convenience function to compute the residual forces
-        template<typename QUADRATURE, typename SOLVER,
+        template<typename FIELDTUPLEBINDER,
+                 typename QUADRATURE, typename SOLVER,
                  typename FIELDBINDER, typename KERNEL>
         void computeResidualForces( const QUADRATURE& quadrature,
                                     SOLVER&           solver,
@@ -39,7 +43,7 @@ namespace base{
                                     const KERNEL& kernelObj )
         {
             typedef ForceIntegrator<QUADRATURE,SOLVER,
-                                    typename FIELDBINDER::ElementPtrTuple>
+                                    typename FIELDTUPLEBINDER::Tuple>
                 ForceIntegrator;
 
             typename ForceIntegrator::ForceKernel
@@ -51,72 +55,16 @@ namespace base{
             ForceIntegrator forceInt( residualForce, quadrature, solver, -1.0 );
 
             // apply to all elements
-            std::for_each( fieldBinder.elementsBegin(), fieldBinder.elementsEnd(),
-                           forceInt );
+            typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+            typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+                forceInt( FIELDTUPLEBINDER::makeTuple( *iter ) );
+            }
         
             return;
         }
 
         
-        //----------------------------------------------------------------------
-        namespace detail_{
-
-            //------------------------------------------------------------------
-            // Helper function in order to reduce redundancies below
-            template<typename TESTELEMENT>
-            void collectFromDoFs( const TESTELEMENT*        testEp,
-                                  std::vector<bool>&        doFActivity,
-                                  std::vector<std::size_t>& doFIDs )
-            {
-                // Get the element's DoF objects
-                std::vector<typename TESTELEMENT::DegreeOfFreedom*> doFs;
-                std::copy( testEp -> doFsBegin(), testEp -> doFsEnd(),
-                           std::back_inserter( doFs ) );
-
-                // ask for activity and ID
-                for ( unsigned d = 0; d < doFs.size(); d ++ ) {
-                    doFs[d] -> getActivity( std::back_inserter( doFActivity ) ); 
-                    doFs[d] -> getIndices(  std::back_inserter( doFIDs ) );
-                }
-        
-            }
-
-            //------------------------------------------------------------------
-            // Helper function in order to reduce redundancies below
-            template<typename SOLVER>
-            void assembleForces( const base::VectorD&            forceVec,
-                                 const std::vector<bool>&        doFActivity,
-                                 const std::vector<std::size_t>& doFIDs,
-                                 SOLVER& solver )
-            {
-                const std::size_t numActiveDoFs =
-                    std::count_if( doFActivity.begin(), doFActivity.end(),
-                                   boost::bind( std::equal_to<bool>(), _1, true ) );
-
-                // Result container
-                base::VectorD sysVector = VectorD::Zero( static_cast<int>(numActiveDoFs) );
-
-                // Active ID numbers
-                std::vector<std::size_t> activeDoFIDs( numActiveDoFs );
-
-                // Collect for active DoFs
-                unsigned ctr = 0;
-                for ( std::size_t d = 0; d < doFIDs.size(); d ++ ) {
-
-                    if ( doFActivity[d] ) {
-
-                        sysVector[    ctr ] = forceVec[ d ];
-                        activeDoFIDs[ ctr ] = doFIDs[   d ];
-                        ctr++;
-                    }
-                }
-
-                // Pass on to system solver
-                solver.insertToRHS( sysVector, activeDoFIDs );
-            }
-
-
-        } // namespace detail_
     } // namespace asmb    
 } // namespace base
 
@@ -175,34 +123,27 @@ public:
         TestElementPtr  testEp  = fieldTuple.testElementPtr();
         
         // dof activities and IDs
-        std::vector<bool> doFActivity;
+        std::vector<base::dof::DoFStatus> doFStatus;
         std::vector<std::size_t> doFIDs;
-        detail_::collectFromDoFs( testEp, doFActivity, doFIDs );
+        std::vector<base::number> prescribedValues;
+        std::vector<
+            std::pair<unsigned,std::vector<std::pair<base::number,std::size_t> > >
+            > constraints;
+    
+        base::asmb::collectFromDoFs( testEp, doFStatus, doFIDs,
+                                     prescribedValues, constraints );
         
         // Compute the element contribution to all its dofs
         base::VectorD forceVec = base::VectorD::Zero( doFIDs.size() );
-        {
-            typename Quadrature::Iter qIter = quadrature_.begin();
-            typename Quadrature::Iter qEnd  = quadrature_.end();
-            for ( ; qIter != qEnd; ++qIter ) {
 
-                // Quadrature weight
-                const double weight = qIter -> first;
-
-                // Quadrature point
-                const typename Quadrature::VecDim xi = qIter -> second;
-
-                // add to force vector
-                forceKernel_( fieldTuple, xi, weight, forceVec );
-                
-            } // end of quadrature
-        }
-
+        // apply quadrature
+        quadrature_.apply( forceKernel_, fieldTuple, forceVec );
+        
         // apply factor
         forceVec *= factor_;
         
         // Assemble to solver
-        detail_::assembleForces( forceVec, doFActivity, doFIDs, solver_ );
+        base::asmb::assembleForces( forceVec, doFStatus, doFIDs, constraints,  solver_ );
         
         return;
     }

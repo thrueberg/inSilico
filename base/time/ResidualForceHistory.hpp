@@ -17,7 +17,8 @@
 #include <base/linearAlgebra.hpp>
 #include <base/types.hpp>
 // base/asmb includes
-#include <base/asmb/ForceIntegrator.hpp>
+#include <base/asmb/collectFromDoFs.hpp>
+#include <base/asmb/assembleForces.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -28,11 +29,40 @@ namespace base{
         class ResidualForceHistory;
 
         //----------------------------------------------------------------------
+        template<typename FIELDTUPLEBINDER, typename MSM, typename KERNEL,
+                 typename QUADRATURE, typename SOLVER, typename FIELDBINDER>
+        void computeResidualForceHistory( const KERNEL&     kernel,
+                                          const QUADRATURE& quadrature,
+                                          SOLVER&           solver,
+                                          FIELDBINDER&      fieldBinder, 
+                                          const unsigned step )
+        {
+            typedef typename FIELDTUPLEBINDER::Tuple ElementPtrTuple;
+            base::time::ResidualForceHistory<KERNEL,QUADRATURE,SOLVER,MSM>
+                rfh( kernel, quadrature, solver,  step );
+            
+            // Apply to all elements
+            typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+            typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+                rfh( FIELDTUPLEBINDER::makeTuple( *iter ) );
+            }
+
+            return;
+        }
+
+
+        //----------------------------------------------------------------------
         namespace detail_ {
 
             template<typename KERNEL, int CTR>
-            struct CollectResidualForces
+            class CollectResidualForces
+                : public boost::function<void( const typename KERNEL::FieldTuple&,
+                                               const typename KERNEL::LocalVecDim&,
+                                               const double, base::VectorD& ) >
             {
+            public:
+                
                 typedef typename KERNEL::FieldTuple       FieldTuple;
                 typedef typename FieldTuple::TrialElement TrialElement;
 
@@ -44,51 +74,62 @@ namespace base{
                 static const unsigned doFSize =
                     TrialElement::DegreeOfFreedom::size;
 
+                // Constructor with kernel object and integration weights
+                CollectResidualForces( const KERNEL&              kernel,
+                                       const std::vector<double>& weights )
+                    : kernel_( kernel ), weights_( weights )
+                { }
 
-                static void apply( const KERNEL&                       kernel,
-                                   const FieldTuple&                   fieldTuple,
-                                   const typename KERNEL::LocalVecDim& xi,
-                                   const double                        quadWeight, 
-                                   std::vector<double>&                weights,
-                                   base::VectorD&                      result )
+                // Function call operator with recursive call
+                void operator()( const FieldTuple&                   fieldTuple,
+                                 const typename KERNEL::LocalVecDim& xi,
+                                 const double                        quadWeight,
+                                 base::VectorD&                      result ) 
                 {
                     // quit in case for no additional reaction terms
-                    const unsigned numWeights = static_cast<unsigned>( weights.size() );
+                    const unsigned numWeights = static_cast<unsigned>( weights_.size() );
                     if ( numWeights == 0 ) return;
 
                     base::VectorD tmp = base::VectorD::Zero( result.size() );
 
                     // residual force caller
-                    kernel.template residualForceHistory<past>( fieldTuple, xi,
-                                                                quadWeight, tmp );
+                    kernel_.template residualForceHistory<past>( fieldTuple, xi,
+                                                                 quadWeight, tmp );
 
                     // weight by weights
-                    result += weights[0] * tmp;
+                    result += weights_[0] * tmp;
 
                     if ( numWeights > 1 ) {
                         // truncate weights
-                        std::vector<double>::iterator first = weights.begin();
+                        std::vector<double>::const_iterator first = weights_.begin();
                         ++first;
-                        weights = std::vector<double>( first, weights.end() );
+                        std::vector<double> remainingWeights
+                            = std::vector<double>( first, weights_.end() );
 
                         // recursive call
-                        CollectResidualForces<KERNEL,
-                                              CTR-1>::apply( kernel, fieldTuple,
-                                                             xi, quadWeight,
-                                                             weights, result );
+                        CollectResidualForces<KERNEL,CTR-1> crf( kernel_, remainingWeights );
+                        crf( fieldTuple, xi, quadWeight, result );
                     }
+                    return;
                 }
+
+            private:
+                const KERNEL&              kernel_;
+                const std::vector<double>& weights_;
             };
 
+            // End-of-recursion object
             template<typename KERNEL>
             struct CollectResidualForces<KERNEL,-1>
             {
-                static void apply( const KERNEL&                       kernel,
-                                   const typename KERNEL::FieldTuple&  fieldTuple,
-                                   const typename KERNEL::LocalVecDim& xi,
-                                   const double                        quadWeight, 
-                                   std::vector<double>&                weights,
-                                   base::VectorD&                      result )
+                CollectResidualForces( const KERNEL&              kernel,
+                                       const std::vector<double>& weights )
+                { }
+
+                void operator()( const typename KERNEL::FieldTuple&  fieldTuple,
+                                 const typename KERNEL::LocalVecDim& xi,
+                                 const double                        quadWeight,
+                                 base::VectorD&                      result )
                 {
                     // empty in order to stop recursion
                 }
@@ -160,8 +201,17 @@ public:
         // dof IDs
         std::vector<std::size_t> doFIDs;
 
-        // Collect dof entities from element
-        base::asmb::detail_::collectFromDoFs( testEp, doFActivity, doFIDs );
+        // values prescribed to dofs, here unused
+        std::vector<base::number> prescribedValues;
+
+        // linear constraints on the dofs
+        std::vector<
+            std::pair<unsigned,std::vector<std::pair<base::number,std::size_t> > >
+            > constraints;
+
+        // collect from element's dofs
+        base::asmb::collectFromDoFs( testEp, doFActivity, doFIDs,
+                                     prescribedValues, constraints );
 
         // RHS weights for reaction terms
         std::vector<double> forceWeights;
@@ -175,23 +225,15 @@ public:
         {
             base::VectorD elemForce = base::VectorD::Zero( doFIDs.size() );
 
-            // do the quadrature loop
-            typename Quadrature::Iter qIter = quadrature_.begin();
-            typename Quadrature::Iter qEnd  = quadrature_.end();
-            for ( ; qIter != qEnd; ++qIter ) {
-                
-                detail_::CollectResidualForces<Kernel,
-                                               nHist-1>::apply( kernel_,
-                                                                fieldTuple, 
-                                                                qIter -> second,
-                                                                qIter -> first,
-                                                                forceWeights,
-                                                                elemForce );
-            }
-            
+            // Object for recursive call to residual force histories
+            detail_::CollectResidualForces<Kernel,
+                                           nHist-1> crf( kernel_, forceWeights );
+
+            quadrature_.apply( crf, fieldTuple, elemForce );
+
             // Assemble to solver
-            base::asmb::detail_::assembleForces( elemForce, doFActivity,
-                                                 doFIDs, solver_ );
+            base::asmb::assembleForces( elemForce, doFActivity,
+                                        doFIDs, constraints, solver_ );
         }
         
         return;

@@ -21,6 +21,9 @@
 #include <boost/function.hpp>
 // base includes
 #include <base/linearAlgebra.hpp>
+// base/asmb includes
+#include <base/asmb/collectFromDoFs.hpp>
+#include <base/asmb/assembleMatrix.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -35,12 +38,14 @@ namespace base{
          *  This function combines the steps of (i) creating a kernel function
          *  object, (ii) creating an object of StiffnessMatrix and (iii) applying
          *  the latter to the range of elements in the given mesh and fields.
+         *  \tparam FIELDTUPLEBINDER Binding of the right field tuple
          *  \tparam QUADRATURE   Type of quadrature
          *  \tparam SOLVER       Type of solver
          *  \tparam FIELDBINDER  Type of field compound
          *  \tparam KERNEL       Type of object with kernel function implementation
          */
-        template<typename QUADRATURE, typename SOLVER, typename FIELDBINDER,
+        template<typename FIELDTUPLEBINDER,
+                 typename QUADRATURE, typename SOLVER, typename FIELDBINDER,
                  typename KERNEL>
         void stiffnessMatrixComputation( const QUADRATURE& quadrature,
                                          SOLVER& solver,
@@ -48,9 +53,10 @@ namespace base{
                                          const KERNEL&      kernelObj,
                                          const bool zeroConstraints = false )
         {
+            typedef typename FIELDTUPLEBINDER::Tuple ElementPtrTuple;
+            
             // type of stiffness matrix assembly object
-            typedef StiffnessMatrix<QUADRATURE,SOLVER,
-                                    typename FIELDBINDER::ElementPtrTuple> StiffMat;
+            typedef StiffnessMatrix<QUADRATURE,SOLVER,ElementPtrTuple> StiffMat;
 
             // create a kernel function
             typename StiffMat::Kernel kernel =
@@ -61,117 +67,15 @@ namespace base{
             StiffMat stiffness( kernel, quadrature, solver, zeroConstraints );
 
             // Apply to all elements
-            std::for_each( fieldBinder.elementsBegin(),
-                           fieldBinder.elementsEnd(), stiffness );
+            typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+            typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+                stiffness( FIELDTUPLEBINDER::makeTuple( *iter ) );
+            }
             
         }
 
 
-        //----------------------------------------------------------------------
-        namespace detail_{
-
-            //------------------------------------------------------------------
-            //! Helper to collect relevant data from the dof objects
-            template<typename FELEMENT>
-            void collectFromDoFs( const FELEMENT*           fElement, 
-                                  std::vector<bool>&        activity,
-                                  std::vector<std::size_t>& ids,
-                                  std::vector<number>&      values ) 
-            {
-                // Get the element's DoF objects
-                std::vector<typename FELEMENT::DegreeOfFreedom*> doFs;
-                std::copy( fElement -> doFsBegin(),
-                           fElement -> doFsEnd(),
-                           std::back_inserter( doFs ) );
-
-                for ( unsigned d = 0; d < doFs.size(); d ++ ) {
-                    doFs[d] -> getActivity(    std::back_inserter( activity ) ); 
-                    doFs[d] -> getIndices(     std::back_inserter( ids ) );
-                    doFs[d] -> getConstraints( std::back_inserter( values ) );
-                }
-            }
-
-            //------------------------------------------------------------------
-            // Helper function for assembling the system matrix
-            template<typename SOLVER>
-            void assembleMatrix( const base::MatrixD&            elemMatrix,
-                                 const std::vector<bool>&        rowDoFActivity,
-                                 const std::vector<bool>&        colDoFActivity,
-                                 const std::vector<std::size_t>& rowDoFIDs,
-                                 const std::vector<std::size_t>& colDoFIDs,
-                                 const std::vector<number>&      colDoFValues,
-                                 SOLVER& solver,
-                                 const bool isBubnov, 
-                                 const bool zeroConstraints )
-            {
-                // number of active dofs in the row space
-                const std::size_t numActiveRowDoFs =
-                    std::count_if( rowDoFActivity.begin(), rowDoFActivity.end(),
-                                   boost::bind( std::equal_to<bool>(), _1, true ) );
-            
-                // number of active dofs in the column space
-                const std::size_t numActiveColDoFs =
-                    ( isBubnov ? numActiveRowDoFs :
-                      std::count_if( colDoFActivity.begin(), colDoFActivity.end(),
-                                     boost::bind( std::equal_to<bool>(), _1, true ) ) );
-
-                // Result container
-                MatrixD sysMatrix( static_cast<int>(numActiveRowDoFs),
-                                   static_cast<int>(numActiveColDoFs) );
-                VectorD sysVector = VectorD::Zero( static_cast<int>(numActiveRowDoFs) );
-
-                // Insert to result container
-                unsigned rowCtr = 0;
-                unsigned colCtr = 0;
-
-                // Go through all rows
-                for ( std::size_t r = 0; r < rowDoFIDs.size(); r ++ ) {
-
-                    if ( rowDoFActivity[r] ) {
-
-                        colCtr = 0;
-                        // Go through all columns
-                        for ( unsigned c = 0; c < colDoFIDs.size(); c ++ ) {
-
-                            if ( colDoFActivity[c] ) { // If active insert to matrix container
-
-                                sysMatrix( rowCtr, colCtr ) = elemMatrix( r, c );
-                                colCtr++;
-                            }
-                            else { // If constrained, pass on to RHS
-
-                                sysVector[ rowCtr ] -= colDoFValues[ c ] * elemMatrix( r, c );
-
-                            }
-                        }
-                        rowCtr++;
-                    }
-                }
-
-                // Collect active ID numbers
-                std::vector<std::size_t> activeRowDoFIDs( numActiveRowDoFs );
-                rowCtr = 0;
-                for ( unsigned r = 0; r < rowDoFIDs.size(); r ++ ) {
-                    if ( rowDoFActivity[r] ) activeRowDoFIDs[ rowCtr++ ] = rowDoFIDs[r];
-                }
-
-                std::vector<std::size_t> activeColDoFIDs( numActiveColDoFs );
-                if ( isBubnov ) activeColDoFIDs = activeRowDoFIDs;
-                else {
-                    colCtr = 0;
-                    for ( unsigned c = 0; c < colDoFIDs.size(); c ++ )
-                        if ( colDoFActivity[c] ) activeColDoFIDs[ colCtr++ ] = colDoFIDs[c];
-                }
-
-                // Pass on to system matrix
-                solver.insertToLHS( sysMatrix, activeRowDoFIDs, activeColDoFIDs );
-                if ( not zeroConstraints )
-                    solver.insertToRHS( sysVector, activeRowDoFIDs );
-            
-                return;
-            }
-
-        } // namespace detail_
     } // namespace asmb
 } // namespace base
 
@@ -219,13 +123,9 @@ public:
 
     //! @name Access types of the tuple
     //@{
-    typedef typename FieldTuple::TestElementPtr   TestElementPtr;
-    typedef typename FieldTuple::TrialElementPtr  TrialElementPtr;
+    typedef typename FieldTuple::TestElement   TestElement;
+    typedef typename FieldTuple::TrialElement  TrialElement;
     //@}
-
-    //! Bubnov-Galerkin method
-    static const bool isBubnov =
-        boost::is_same<TestElementPtr,TrialElementPtr>::value;
 
     //! Kernel function
     typedef boost::function< void( const FieldTuple&, 
@@ -248,54 +148,55 @@ public:
     void operator()( const FieldTuple& fieldTuple )
     {
         // extract test and trial elements from tuple
-        TestElementPtr  testEp  = fieldTuple.testElementPtr();
-        TrialElementPtr trialEp = fieldTuple.trialElementPtr();
+        TestElement*  testEp  = fieldTuple.testElementPtr();
+        TrialElement* trialEp = fieldTuple.trialElementPtr();
+
+        // if pointers are identical, Galerkin-Bubnov scheme
+        const bool isBubnov = (testEp == trialEp);
         
         // dof activities
-        std::vector<bool> rowDoFActivity, colDoFActivity;
+        std::vector<base::dof::DoFStatus> rowDoFStatus, colDoFStatus;
 
         // dof IDs
         std::vector<std::size_t> rowDoFIDs, colDoFIDs;
 
         // dof values (for constraints)
-        std::vector<number> rowDoFValues, colDoFValues;
+        std::vector<base::number> rowDoFValues, colDoFValues;
+
+        // dof constraints
+        typedef std::pair<unsigned, std::vector< std::pair<base::number,std::size_t> > >
+            WeightedDoFIDs;
+        std::vector<WeightedDoFIDs> rowConstraints, colConstraints;
 
         // Collect dof entities from element
-        detail_::collectFromDoFs( testEp, rowDoFActivity,
-                                  rowDoFIDs, rowDoFValues );
+        base::asmb::collectFromDoFs( testEp, rowDoFStatus,
+                                     rowDoFIDs, rowDoFValues,
+                                     rowConstraints );
 
+        // In case of identical test and trial spaces, just copy
         if ( isBubnov ) {
-            colDoFActivity = rowDoFActivity;
+            colDoFStatus   = rowDoFStatus;
             colDoFIDs      = rowDoFIDs;
             colDoFValues   = rowDoFValues;
+            colConstraints = rowConstraints;
         }
-        else
-            detail_::collectFromDoFs( trialEp, colDoFActivity,
-                                      colDoFIDs, colDoFValues );
+        else // otherwise, collect for trial space
+            base::asmb::collectFromDoFs( trialEp, colDoFStatus,
+                                         colDoFIDs, colDoFValues,
+                                         colConstraints );
 
         // Compute the element matrix contribution
         base::MatrixD elemMatrix = base::MatrixD::Zero( rowDoFIDs.size(),
                                                         colDoFIDs.size() );
-        {
-            // do the quadrature loop
-            typename Quadrature::Iter qIter = quadrature_.begin();
-            typename Quadrature::Iter qEnd  = quadrature_.end();
-            for ( ; qIter != qEnd; ++qIter ) {
-
-                // Call kernel function for quadrature point
-                kernel_( fieldTuple,
-                         qIter -> second, qIter -> first,
-                         elemMatrix );
-                
-            }
-        }
+        quadrature_.apply( kernel_, fieldTuple, elemMatrix );
 
         // assemble element matrix to global system
-        detail_::assembleMatrix( elemMatrix,
-                                 rowDoFActivity, colDoFActivity,
-                                 rowDoFIDs, colDoFIDs,
-                                 colDoFValues, solver_, isBubnov,
-                                 zeroConstraints_ );
+        base::asmb::assembleMatrix( elemMatrix,
+                                    rowDoFStatus, colDoFStatus,
+                                    rowDoFIDs, colDoFIDs,
+                                    colDoFValues,
+                                    rowConstraints, colConstraints,
+                                    solver_, isBubnov, zeroConstraints_ );
         return;
     }
     

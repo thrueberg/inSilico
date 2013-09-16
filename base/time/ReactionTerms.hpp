@@ -16,8 +16,10 @@
 // base includes
 #include <base/linearAlgebra.hpp>
 // base/asmb includes
-#include <base/asmb/StiffnessMatrix.hpp>
-#include <base/asmb/ForceIntegrator.hpp>
+#include <base/asmb/collectFromDoFs.hpp>
+#include <base/asmb/assembleMatrix.hpp>
+#include <base/asmb/assembleForces.hpp>
+
 // base/kernel includes
 #include <base/kernel/Mass.hpp>
 
@@ -28,6 +30,63 @@ namespace base{
         template<typename QUAD, typename SOLVER, typename TSMETHOD,
                  typename FIELDTUPLE>
         class ReactionTerms;
+
+        //----------------------------------------------------------------------
+        template<typename FIELDTUPLEBINDER, typename MSM, typename KERNEL,
+                 typename QUADRATURE, typename SOLVER, typename FIELDBINDER>
+        void computeReactionTerms( const KERNEL& kernel, 
+                                   const QUADRATURE& quadrature,
+                                   SOLVER&           solver,
+                                   const FIELDBINDER& fieldBinder,
+                                   const double stepSize,
+                                   const unsigned step, 
+                                   const bool zeroConstraints = false )
+        {
+            typedef typename FIELDTUPLEBINDER::Tuple ElementPtrTuple;
+            typedef base::time::ReactionTerms<QUADRATURE,SOLVER,MSM,ElementPtrTuple> RT;
+            typename RT::Kernel kernelFun = boost::bind( &KERNEL::tangentStiffness,
+                                                         &kernel, _1, _2, _3, _4 );
+
+            RT rt( kernelFun, quadrature, solver, stepSize, step, zeroConstraints );
+
+            // Apply to all elements
+            typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+            typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+                rt( FIELDTUPLEBINDER::makeTuple( *iter ) );
+            }
+
+        }
+
+        //----------------------------------------------------------------------
+        template<typename FIELDTUPLEBINDER, typename MSM,
+                 typename QUADRATURE, typename SOLVER, typename FIELDBINDER>
+        void computeInertiaTerms( const QUADRATURE& quadrature,
+                                  SOLVER&           solver,
+                                  const FIELDBINDER& fieldBinder,
+                                  const double stepSize,
+                                  const unsigned step, 
+                                  const double density,
+                                  const bool zeroConstraints = false )
+        {
+            typedef typename FIELDTUPLEBINDER::Tuple ElementPtrTuple;
+            
+            base::kernel::Mass<ElementPtrTuple> mass( density );
+            typedef base::time::ReactionTerms<QUADRATURE,SOLVER,MSM,ElementPtrTuple> RT;
+            typename RT::Kernel kernelFun = boost::bind( mass, _1, _2, _3, _4 );
+
+            RT rt( kernelFun, quadrature, solver, stepSize, step, zeroConstraints );
+
+            // Apply to all elements
+            typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+            typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+                rt( FIELDTUPLEBINDER::makeTuple( *iter ) );
+            }
+
+        }
+
+                                   
 
         //----------------------------------------------------------------------
         namespace detail_{
@@ -47,6 +106,7 @@ namespace base{
                                    std::vector<double>& weights,
                                    base::VectorD& result )
                 {
+                    
                     // quit in case for no additional reaction terms
                     const unsigned numWeights = static_cast<unsigned>( weights.size() );
                     if ( numWeights == 0 ) return;
@@ -157,25 +217,6 @@ public:
     //! Class for mass matrix computation
     typedef base::kernel::Mass<FieldTuple> Mass;
     
-    //! @name Constructors
-    //@{
-    //! Constructor with density, creates mass-kernel
-    ReactionTerms( const double         density, 
-                   const Quadrature&    quadrature,
-                   Solver&              solver,
-                   const double         stepSize, 
-                   const unsigned       step,
-                   const bool           prevIterate = false )
-        : mass_(            density ),
-          kernel_( boost::bind( mass_, _1, _2, _3, _4 ) ),
-          quadrature_(      quadrature ),
-          solver_(          solver ),
-          stepSize_(        stepSize ),
-          step_(            step ),
-          prevIterate_(     prevIterate )
-    { }
-
-    
     //! Constructor with use-provided kernel function
     ReactionTerms( const Kernel&        kernel, 
                    const Quadrature&    quadrature,
@@ -191,7 +232,6 @@ public:
           step_(            step ),
           prevIterate_(     prevIterate )
     { }
-    //@}
 
     //--------------------------------------------------------------------------
     //! General case: possibly different test and trial spaces
@@ -210,35 +250,33 @@ public:
         // dof values (for constraints)
         std::vector<number> rowDoFValues, colDoFValues;
 
-        // Collect dof entities from element
-        base::asmb::detail_::collectFromDoFs( testEp, rowDoFActivity,
-                                              rowDoFIDs, rowDoFValues );
+        // dof constraints
+        typedef std::pair<unsigned, std::vector< std::pair<base::number,std::size_t> > >
+            WeightedDoFIDs;
+        std::vector<WeightedDoFIDs> rowConstraints, colConstraints;
+
+                // Collect dof entities from element
+        base::asmb::collectFromDoFs( testEp, rowDoFActivity,
+                                     rowDoFIDs, rowDoFValues,
+                                     rowConstraints );
 
         if ( isBubnov ) {
             colDoFActivity = rowDoFActivity;
             colDoFIDs      = rowDoFIDs;
             colDoFValues   = rowDoFValues;
+            colConstraints = rowConstraints;
         }
         else
-            base::asmb::detail_::collectFromDoFs( trialEp, colDoFActivity,
-                                                  colDoFIDs, colDoFValues );
+            base::asmb::collectFromDoFs( trialEp, colDoFActivity,
+                                         colDoFIDs, colDoFValues,
+                                         colConstraints );
 
         // Compute the element matrix contribution
         base::MatrixD elemMat = base::MatrixD::Zero( rowDoFIDs.size(),
-                                                      colDoFIDs.size() );
-        {
-            // do the quadrature loop
-            typename Quadrature::Iter qIter = quadrature_.begin();
-            typename Quadrature::Iter qEnd  = quadrature_.end();
-            for ( ; qIter != qEnd; ++qIter ) {
+                                                     colDoFIDs.size() );
 
-                // Call kernel function for quadrature point
-                kernel_( fieldTuple,
-                         qIter -> second, qIter -> first,
-                         elemMat );
-                
-            }
-        }
+        // apply quadrature
+        quadrature_.apply( kernel_, fieldTuple, elemMat );
 
         // LHS
         {
@@ -248,11 +286,13 @@ public:
             const base::MatrixD lhsMatrix = (alpha/stepSize_) * elemMat;
         
             // assemble element matrix to global system
-            base::asmb::detail_::assembleMatrix( lhsMatrix,
-                                                 rowDoFActivity, colDoFActivity,
-                                                 rowDoFIDs, colDoFIDs,
-                                                 colDoFValues, solver_, isBubnov,
-                                                 prevIterate_ );
+            base::asmb::assembleMatrix( lhsMatrix,
+                                        rowDoFActivity, colDoFActivity,
+                                        rowDoFIDs, colDoFIDs,
+                                        colDoFValues,
+                                        rowConstraints, colConstraints, 
+                                        solver_, isBubnov,
+                                        prevIterate_ );
         }
 
         // RHS
@@ -260,6 +300,7 @@ public:
             // RHS weights for reaction terms
             std::vector<double> reactionWeights;
             TimeSteppingMethod::reactionWeights( step_, reactionWeights );
+
             // divide weights by step size
             for ( unsigned s = 0; s < reactionWeights.size(); s++ )
                 reactionWeights[s] /= -stepSize_;
@@ -300,8 +341,8 @@ public:
             forceVec.noalias() = elemMat * resultVec;
 
             // Assemble to solver
-            base::asmb::detail_::assembleForces( forceVec, rowDoFActivity,
-                                                 rowDoFIDs, solver_ );
+            base::asmb::assembleForces( forceVec, rowDoFActivity,
+                                        rowDoFIDs, rowConstraints, solver_ );
         }
         
         return;

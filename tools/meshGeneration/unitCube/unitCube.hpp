@@ -53,7 +53,7 @@ namespace tools{
             }
 
             //------------------------------------------------------------------
-            // Write equi-distant node grid
+            // Generate equi-distant node grid
             void generatePoints( const unsigned n1, const unsigned n2, const unsigned n3,
                                  const unsigned e1, const unsigned e2, const unsigned e3,
                                  std::vector<tools::meshGeneration::Point> & points )

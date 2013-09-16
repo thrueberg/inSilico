@@ -44,13 +44,13 @@ namespace base{
              *  \param[out] surfSimplex  Connectivity of the surface triangle
              */
             void cutTet1( const unsigned I,
-                          const Simplex<3,unsigned>::Type&           iS,
-                          const Simplex<3,double>::Type&             distances,
+                          const USimplex<3>::Type& iS,
+                          const DSimplex<3>::Type& distances,
                           std::vector<base::Vector<3,double>::Type>& nodes,
                           std::map<base::cut::Edge,unsigned>&        uniqueNodes,
-                          Simplex<3,unsigned>::Type&                 inSimplex,
-                          boost::array<Simplex<3,unsigned>::Type,3>& outSimplices,
-                          Simplex<2,unsigned>::Type& surfSimplex )
+                          USimplex<3>::Type&                 inSimplex,
+                          boost::array<USimplex<3>::Type,3>& outSimplices,
+                          USimplex<2>::Type&                 surfSimplex )
             {
 
                 // indices of the three nodes outside
@@ -66,15 +66,23 @@ namespace base{
                                                nodes, uniqueNodes );
                 
                 // inside is only one triangle
-                inSimplex = {{ iS[I], cut[0], cut[1], cut[2] }};
+                inSimplex = USimplex<3>::create( iS[I], cut[0], cut[1], cut[2] );
+                //        = {{ iS[I], cut[0], cut[1], cut[2] }};
                 
                 // outside are two triangles (choice seems arbitrary)
-                outSimplices[0] = {{ iS[ out[0] ], iS[ out[2] ], iS[ out[1] ], cut[0] }};
-                outSimplices[1] = {{ iS[ out[1] ], iS[ out[2] ], cut[2],       cut[0] }};
-                outSimplices[2] = {{ cut[1],       iS[ out[1] ], cut[2],       cut[0] }};
+                outSimplices[0] =
+                    USimplex<3>::create( iS[ out[0] ], iS[ out[2] ], iS[ out[1] ], cut[0] );
+                outSimplices[1] =
+                    USimplex<3>::create( iS[ out[1] ], iS[ out[2] ], cut[2],       cut[0] );
+                outSimplices[2] =
+                    USimplex<3>::create( cut[1],       iS[ out[1] ], cut[2],       cut[0] );
+                //outSimplices[0] = {{ iS[ out[0] ], iS[ out[2] ], iS[ out[1] ], cut[0] }};
+                //outSimplices[1] = {{ iS[ out[1] ], iS[ out[2] ], cut[2],       cut[0] }};
+                //outSimplices[2] = {{ cut[1],       iS[ out[1] ], cut[2],       cut[0] }};
                 
                 // surface simplex
-                surfSimplex = {{ cut[0], cut[1], cut[2] }};
+                surfSimplex = USimplex<2>::create( cut[0], cut[1], cut[2] );
+                //surfSimplex = {{ cut[0], cut[1], cut[2] }};
 
                 return;
 
@@ -94,14 +102,14 @@ namespace base{
              *                           Connectivity of the surface triangles
              */
             void cutTet2( const unsigned I1, const unsigned I2,
-                          const Simplex<3,unsigned>::Type&           iS,
-                          const Simplex<3,double>::Type&             distances,
+                          const USimplex<3>::Type&          iS,
+                          const DSimplex<3>::Type&          distances,
                           std::vector<base::Vector<3,double>::Type>& nodes,
                           std::map<base::cut::Edge,unsigned>&        uniqueNodes,
-                          boost::array<Simplex<3,unsigned>::Type,3>& inSimplices,
-                          boost::array<Simplex<3,unsigned>::Type,3>& outSimplices,
-                          Simplex<2,unsigned>::Type& surfSimplex1,
-                          Simplex<2,unsigned>::Type& surfSimplex2 )
+                          boost::array<USimplex<3>::Type,3>& inSimplices,
+                          boost::array<USimplex<3>::Type,3>& outSimplices,
+                          USimplex<2>::Type&                 surfSimplex1,
+                          USimplex<2>::Type&                 surfSimplex2 )
             {
                 // indices of the three nodes outside
                 unsigned O1, O2;
@@ -141,18 +149,32 @@ namespace base{
                                            nodes, uniqueNodes );
 
                 // three inside tets
-                inSimplices[0] = {{ iS[I2], C4, C3, iS[I1] }};
-                inSimplices[1] = {{ C3,     C4, C2, iS[I1] }};
-                inSimplices[2] = {{ C1,     C3, C2, iS[I1] }};
+                inSimplices[0] = USimplex<3>::create( iS[I2], C4, C3, iS[I1] );
+                inSimplices[1] = USimplex<3>::create( C3,     C4, C2, iS[I1] );
+                inSimplices[2] = USimplex<3>::create( C1,     C3, C2, iS[I1] );
                 
                 // three outside tets
-                outSimplices[0] = {{ iS[O2], C4, C2, iS[O1] }};
-                outSimplices[1] = {{ C2,     C4, C3, iS[O1] }};
-                outSimplices[2] = {{ C1,     C2, C3, iS[O1] }};
+                outSimplices[0] = USimplex<3>::create( iS[O2], C4, C2, iS[O1] );
+                outSimplices[1] = USimplex<3>::create( C2,     C4, C3, iS[O1] );
+                outSimplices[2] = USimplex<3>::create( C1,     C2, C3, iS[O1] );
                 
                 // surface simplex
-                surfSimplex1 = {{ C1, C2, C3 }};
-                surfSimplex2 = {{ C2, C4, C3 }};
+                surfSimplex1 = USimplex<2>::create( C1, C2, C3 );
+                surfSimplex2 = USimplex<2>::create( C2, C4, C3 );
+
+                // // three inside tets
+                // inSimplices[0] = {{ iS[I2], C4, C3, iS[I1] }};
+                // inSimplices[1] = {{ C3,     C4, C2, iS[I1] }};
+                // inSimplices[2] = {{ C1,     C3, C2, iS[I1] }};
+                // 
+                // // three outside tets
+                // outSimplices[0] = {{ iS[O2], C4, C2, iS[O1] }};
+                // outSimplices[1] = {{ C2,     C4, C3, iS[O1] }};
+                // outSimplices[2] = {{ C1,     C2, C3, iS[O1] }};
+                // 
+                // // surface simplex
+                // surfSimplex1 = {{ C1, C2, C3 }};
+                // surfSimplex2 = {{ C2, C4, C3 }};
 
                 return;
             }
@@ -199,13 +221,13 @@ namespace base{
  *  \param[out]    volumeIn       Connectivity of the volume inside the domain
  *  \param[out]    volumeOut      Connectivity of the volume outside the domain
  */
-void base::cut::marchingTet( const base::cut::Simplex<3,unsigned>::Type& indexSimplex,
-                             const base::cut::Simplex<3,double>::Type&   distances,
+void base::cut::marchingTet( const base::cut::USimplex<3>::Type& indexSimplex,
+                             const base::cut::DSimplex<3>::Type& distances,
                              std::vector<base::Vector<3,double>::Type>&  nodes,
                              std::map<base::cut::Edge,unsigned>&         uniqueNodes,
-                             std::vector<base::cut::Simplex<2,unsigned>::Type>& surface,
-                             std::vector<base::cut::Simplex<3,unsigned>::Type>& volumeIn, 
-                             std::vector<base::cut::Simplex<3,unsigned>::Type>& volumeOut )
+                             std::vector<base::cut::USimplex<2>::Type>& surface,
+                             std::vector<base::cut::USimplex<3>::Type>& volumeIn, 
+                             std::vector<base::cut::USimplex<3>::Type>& volumeOut )
 {
     // flags checking the values of the distances
     std::bitset<4> flags;
@@ -230,9 +252,9 @@ void base::cut::marchingTet( const base::cut::Simplex<3,unsigned>::Type& indexSi
             (flags.test(0) ? 0 : (flags.test(1) ? 1 : (flags.test(2) ? 2 : 3)));
         // indices of the outside vertices, such that in-out1-out2-out3 is proper
         // 
-        base::cut::Simplex<3,unsigned>::Type inSimplex;
-        boost::array<base::cut::Simplex<3,unsigned>::Type,3> outSimplices;
-        base::cut::Simplex<2,unsigned>::Type surfSimplex;
+        base::cut::USimplex<3>::Type                   inSimplex;
+        boost::array<base::cut::USimplex<3>::Type,3>  outSimplices;
+        base::cut::USimplex<2>::Type                 surfSimplex;
         detail_::cutTet1( in, indexSimplex, distances, nodes, uniqueNodes,
                           inSimplex, outSimplices, surfSimplex );
         
@@ -255,8 +277,8 @@ void base::cut::marchingTet( const base::cut::Simplex<3,unsigned>::Type& indexSi
             if ( flags.test(d) and     foundFirst )   in2 = d;
         }
 
-        boost::array<base::cut::Simplex<3,unsigned>::Type,3> inSimplices, outSimplices;
-        base::cut::Simplex<2,unsigned>::Type surfSimplex1, surfSimplex2;
+        boost::array<base::cut::USimplex<3>::Type,3> inSimplices, outSimplices;
+        base::cut::USimplex<2>::Type                surfSimplex1, surfSimplex2;
         detail_::cutTet2( in1, in2, indexSimplex, distances, nodes, uniqueNodes,
                           inSimplices, outSimplices, surfSimplex1, surfSimplex2 );
 
@@ -276,9 +298,9 @@ void base::cut::marchingTet( const base::cut::Simplex<3,unsigned>::Type& indexSi
             (flags.test(0) == false ? 0 : (flags.test(1) == false ? 1 :
                                           (flags.test(2) == false  ? 2 : 3)));
 
-        base::cut::Simplex<3,unsigned>::Type outSimplex;
-        boost::array<base::cut::Simplex<3,unsigned>::Type,3> inSimplices;
-        base::cut::Simplex<2,unsigned>::Type surfSimplex;
+        base::cut::USimplex<3>::Type                  outSimplex;
+        boost::array<base::cut::USimplex<3>::Type,3>   inSimplices;
+        base::cut::USimplex<2>::Type                 surfSimplex;
         detail_::cutTet1( out, indexSimplex, distances, nodes, uniqueNodes,
                           outSimplex, inSimplices, surfSimplex );
         

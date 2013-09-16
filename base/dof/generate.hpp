@@ -73,6 +73,13 @@ void base::dof::generateAndPreserveIndexMap( const MESH& mesh,
 
     // Number of DoFs
     field.addDoFs( indexMap.numDoFs() );
+
+    // Assign IDs to every dof object
+    std::size_t doFID = 0;
+    typename FIELD::DoFPtrIter doFIter = field.doFsBegin();
+    typename FIELD::DoFPtrIter doFEnd  = field.doFsEnd();
+    for ( ; doFIter != doFEnd; ++doFIter, doFID++ )
+        (*doFIter) -> setID( doFID );
     
     // A DoF element for every element
     const std::size_t numMeshElements =

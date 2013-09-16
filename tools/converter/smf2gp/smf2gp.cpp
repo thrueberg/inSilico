@@ -14,10 +14,9 @@
 #include <string>
 // boost includes
 #include <boost/lexical_cast.hpp>
-// base/mesh includes
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Unstructured.hpp>
+// base  includes
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
 // base/io includes
 #include <base/io/smf/Reader.hpp>
 #include <base/io/gp/Writer.hpp>
@@ -45,19 +44,13 @@ namespace tools{
                     static const base::Shape shape   = SHAPE;
                     static const unsigned degree     = DEGREE;
                     static const unsigned    dim     = 3;
-        
-                    // Typedefs for defining a mesh
-                    typedef base::mesh::Node<dim>                 Node;
-                    typedef base::LagrangeShapeFun<degree,shape>  SFun;
-                    typedef base::mesh::Element<Node,SFun>        Element;
-                    typedef base::mesh::Unstructured<Element>     Mesh;
 
-                    // Mesh object
+                    // Mesh type and object
+                    typedef base::Unstructured<shape,degree,dim>  Mesh;
                     Mesh mesh;
 
                     // SMF input
-                    base::io::smf::Reader<Mesh> smfReader;
-                    smfReader( mesh, smf ); 
+                    base::io::smf::readMesh( smf, mesh );
 
                     // Gnuplot data output
                     base::io::gp::Writer::apply( mesh.elementsBegin(),

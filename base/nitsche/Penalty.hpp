@@ -31,7 +31,8 @@ namespace base{
 
         //----------------------------------------------------------------------
         /** Convenience function for the LHS term of the penalty method */
-        template<typename SURFACEQUADRATURE, typename SOLVER,
+        template<typename SURFACETUPLEBINDER,
+                 typename SURFACEQUADRATURE, typename SOLVER,
                  typename BOUNDFIELD>
         void penaltyLHS( const SURFACEQUADRATURE& surfaceQuadrature,
                          SOLVER&                  solver, 
@@ -40,26 +41,34 @@ namespace base{
         {
 
             // object to compute the LHS penalty term
-            typedef Penalty<typename BOUNDFIELD::ElementPtrTuple> Penalty;
+            typedef base::nitsche::Penalty<typename SURFACETUPLEBINDER::Tuple>
+                Penalty;
+            Penalty penalty( factor );
 
             // integrator and assembler object
             typedef base::asmb::StiffnessMatrix<SURFACEQUADRATURE,SOLVER,
-                                                typename BOUNDFIELD::ElementPtrTuple> SysMat;
+                                                typename SURFACETUPLEBINDER::Tuple> SysMat;
+            
             typename SysMat::Kernel kernel =
-                boost::bind( &Penalty::lhs, _1, _2, _3, factor, _4 );
+                boost::bind( &Penalty::lhs, &penalty, _1, _2, _3, _4 );
 
             SysMat systemMat( kernel, surfaceQuadrature, solver );
 
             // apply
-            std::for_each( boundField.elementsBegin(),
-                           boundField.elementsEnd(), systemMat );
+            typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
+            typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+                systemMat( SURFACETUPLEBINDER::makeTuple( *iter ) );
+            }
+            
             return;
         }
 
 
         //----------------------------------------------------------------------
         /** Convenience function for the RHS term of the penalty method */
-        template<typename SURFACEQUADRATURE, typename SOLVER,
+        template<typename SURFACETUPLEBINDER,
+                 typename SURFACEQUADRATURE, typename SOLVER,
                  typename BOUNDFIELD, typename BCFUN>
         void penaltyRHS( const SURFACEQUADRATURE& surfaceQuadrature,
                          SOLVER&                  solver, 
@@ -68,22 +77,26 @@ namespace base{
                          const double factor )
         {
             // object to compute the LHS penalty term
-            typedef Penalty<typename BOUNDFIELD::ElementPtrTuple> Penalty;
-
+            typedef Penalty<typename SURFACETUPLEBINDER::Tuple> Penalty;
+            Penalty penalty( factor );
+            
             // integrator and assembler object
             typedef base::asmb::ForceIntegrator<SURFACEQUADRATURE,SOLVER,
-                                                typename BOUNDFIELD::ElementPtrTuple>
+                                                typename SURFACETUPLEBINDER::Tuple>
                 SurfaceForceInt;
             typename SurfaceForceInt::ForceKernel surfaceForceKernel =
-                boost::bind( &Penalty::template rhs<BCFUN>, _1, _2, _3,
-                             factor, boost::ref( bcFun ), _4 );
+                boost::bind( &Penalty::template rhs<BCFUN>, &penalty, _1, _2, _3,
+                             boost::ref( bcFun ), _4 );
             SurfaceForceInt surfaceForceInt( surfaceForceKernel,
                                              surfaceQuadrature, solver );
             
-            
             // apply
-            std::for_each( boundField.elementsBegin(),
-                           boundField.elementsEnd(), surfaceForceInt );
+            typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
+            typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+                surfaceForceInt( SURFACETUPLEBINDER::makeTuple( *iter ) );
+            }
+            
             return;
         }
 
@@ -155,8 +168,11 @@ public:
     //! Type of DoF value vector
     typedef typename base::Vector<doFSize,base::number>::Type VecDof;
 
-    //! Bubnov-Galerkin term
-    static const bool bubnov = boost::is_same<TestElement,TrialElement>::value;
+    //--------------------------------------------------------------------------
+    Penalty( const double factor ) : factor_( factor ) { }
+
+    void setFactor( const double factor ) { factor_ = factor; }
+        
 
     //--------------------------------------------------------------------------
     /** Evaluation of the kernel function for the system matrix term
@@ -164,19 +180,20 @@ public:
      *  \param[in]   surfFieldTuple  Tuple of field element pointers
      *  \param[in]   eta    Local evaluation coordinate
      *  \param[in]   weight Corresponding quadrature weight
-     *  \param[in]   factor Penalty factor \f$ \gamma \f$
      *  \param[out]  result Result container (pre-sized and zero-initialised)
      */
-    static void lhs( const SurfFieldTuple& surfFieldTuple,
-                     const LocalVecDim&    eta,
-                     const double          weight,
-                     const double          factor, 
-                     base::MatrixD&        result )
+    void lhs( const SurfFieldTuple& surfFieldTuple,
+              const LocalVecDim&    eta,
+              const double          weight,
+              base::MatrixD&        result )
     {
         // extract test and trial elements from tuple
         const SurfaceElement* surfEp  = surfFieldTuple.geomElementPtr();
         const TestElement*    testEp  = surfFieldTuple.testElementPtr();
         const TrialElement*   trialEp = surfFieldTuple.trialElementPtr();
+
+        // check for bubnov case via pointer identity
+        const bool isBubnov = (testEp == trialEp);
         
         // Get pointer to domain element
         const DomainElement* domainEp = surfEp -> getDomainElementPointer();
@@ -198,15 +215,15 @@ public:
         (testEp -> fEFun()).evaluate( domainEp, xi, testFunValues );
 
         typename TrialElement::FEFun::FunArray trialFunValues;
-        if ( bubnov ) trialFunValues = testFunValues;
+        if ( isBubnov ) trialFunValues = testFunValues;
         else (trialEp -> fEFun()).evaluate( domainEp, xi, trialFunValues );
 
         // deduce the size of every contribution
-        const unsigned numRowBlocks = testFunValues.size();
-        const unsigned numColBlocks = trialFunValues.size();
+        const unsigned numRowBlocks = static_cast<unsigned>( testFunValues.size()  );
+        const unsigned numColBlocks = static_cast<unsigned>( trialFunValues.size() );
 
         // scalar multiplier of the whole entry
-        const double aux = weight * detG * (factor / h);
+        const double aux = weight * detG * (factor_ / h);
 
         // Loop over shape functions
         for ( unsigned i = 0; i < numRowBlocks; i++ ) {
@@ -222,6 +239,7 @@ public:
                 
             }
         }
+
         return;
     }
 
@@ -233,17 +251,15 @@ public:
      *  \param[in]   surfFieldTuple  Tuple of field element pointers
      *  \param[in]   eta    Local evaluation coordinate
      *  \param[in]   weight Corresponding quadrature weight
-     *  \param[in]   factor Penalty factor \f$ \gamma \f$
      *  \param[in]   bcFun  Function describing the boundary condition
      *  \param[out]  result Result container (pre-sized and zero-initialised)
      */
     template<typename BCFUN>
-    static void rhs( const SurfFieldTuple& surfFieldTuple,
-                     const LocalVecDim&    eta,
-                     const double          weight,
-                     const double          factor,
-                     const BCFUN&          bcFun,
-                     base::VectorD&        result )
+    void rhs( const SurfFieldTuple& surfFieldTuple,
+              const LocalVecDim&    eta,
+              const double          weight,
+              const BCFUN&          bcFun,
+              base::VectorD&        result )
     {
         // extract test and trial elements from tuple
         const SurfaceElement* surfEp  = surfFieldTuple.geomElementPtr();
@@ -269,7 +285,7 @@ public:
         (testEp -> fEFun()).evaluate( domainEp, xi, testFunValues );
 
         // deduce the size of every contribution
-        const unsigned numRowBlocks = testFunValues.size();
+        const unsigned numRowBlocks = static_cast<unsigned>( testFunValues.size() );
 
         // Evaluate element geometry
         const GlobalVecDim x = base::Geometry<SurfaceElement>()( surfEp, eta );
@@ -278,7 +294,7 @@ public:
         const VecDof bc = bcFun( x );
 
         // scalar multiplier of the whole entry
-        const double aux = weight * detG * (factor / h);
+        const double aux = weight * detG * (factor_ / h);
 
         // Loop over shape functions
         for ( unsigned i = 0; i < numRowBlocks; i++ ) {
@@ -293,6 +309,8 @@ public:
         return;
     }
 
+private:
+    double factor_;
 };
 
 

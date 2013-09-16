@@ -81,6 +81,17 @@ public:
                                      typename detail_::ElementPtrType<FIELD5>::Type>
     ElementPtrTuple;
 
+    //--------------------------------------------------------------------------
+    //! For convenience, delegate the type specification from here
+    template<int I, int J=-1, int K=-1, int L=-1, int M=-1>
+    struct TupleBinder
+    {
+        // Define the type of the tuple-binder
+        typedef typename
+        base::asmb::FieldTupleBinder<ElementPtrTuple,I,J,K,L,M> Type;
+    };
+
+
     //! Iterator of local container
     typedef typename std::vector<ElementPtrTuple>::const_iterator FieldIterator;
     

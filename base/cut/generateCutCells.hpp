@@ -1,0 +1,115 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   generateCutCells.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_cut_generatecutcells_hpp
+#define base_cut_generatecutcells_hpp
+
+//------------------------------------------------------------------------------
+// std includes
+#include <vector>
+#include <iterator>
+// boost includes
+#include <boost/array.hpp>
+// base  includes
+#include <base/linearAlgebra.hpp>
+// base/cut includes
+#include <base/cut/LevelSet.hpp>
+#include <base/cut/Cell.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace cut{
+
+        template<typename MESH, typename CELL>
+        void generateCutCells(
+            const MESH& mesh,
+            const std::vector<base::cut::LevelSet<MESH::Element::dim> >& levelSet,
+            std::vector<CELL> & cutCells );
+    }
+}
+
+//------------------------------------------------------------------------------
+/** Function to generate cut-cell structures based on a given level set.
+ *  Get for every element of the domain mesh the (nodal) values of the level set
+ *  function. These are then used in order to construct the volume and surface
+ *  triangulations which recover the implicit domain in the cut cells.
+ *
+ *  \warning The level set data is retrieved via the index of the nodes of the
+ *           domain mesh. This will not work in case of a structured mesh with
+ *           higher-order B-splines and a multi-index approach would be
+ *           necessary.
+ *
+ *  \tparam MESH  Type of domain mesh
+ *  \tparam CELL  Type of cell for the cut-cell structure
+ *  \param[in]  mesh     Access to the domain mesh
+ *  \param[in]  levelSet All the level set data
+ *  \param[out] cutCells The cells representing elements (inside, outside, cut)
+ */
+template<typename MESH, typename CELL>
+void base::cut::generateCutCells(
+    const MESH& mesh,
+    const std::vector<base::cut::LevelSet<MESH::Element::dim> >& levelSet,
+    std::vector<CELL> & cutCells )
+{
+    // number of vertices of a cell
+    static const unsigned numVertices = CELL::numVertices;
+
+    // needs re-ordering if these conditions are fulfilled
+    static const bool reorder =
+        ( (CELL::shape ==
+           base::HyperCubeShape<base::ShapeDim<CELL::shape>::value>::value) and
+          (MESH::Element::GeomFun::ordering == base::sfun::HIERARCHIC) );
+
+    typename MESH::ElementPtrConstIter eIter = mesh.elementsBegin();
+    typename MESH::ElementPtrConstIter eEnd  = mesh.elementsEnd();
+
+    // make space for the cells
+    cutCells.resize( std::distance( eIter, eEnd ) );
+
+    // go through all elements of the mesh
+    for ( std::size_t elemNum = 0; eIter != eEnd; ++eIter, elemNum++ ) {
+
+        // this element's array of signed distances
+        boost::array<double,numVertices> signedDistances;
+
+        // get signed distances via node IDs
+        typename MESH::Element::NodePtrConstIter nIter = (*eIter) -> nodesBegin();
+        for ( unsigned v = 0; v < numVertices; ++nIter, v++ ) {
+
+            const std::size_t nodeID = (*nIter) -> getID();
+            const double sd = levelSet[ nodeID ].getSignedDistance();
+
+            signedDistances[ v ] = sd;
+        }
+
+        // if necessary, reorder from hierarchic to lexicographic 
+        if ( reorder ) {
+
+            static const base::Shape hcShape =
+                base::HyperCubeShape<base::ShapeDim<CELL::shape>::value>::value;
+            typedef base::mesh::HierarchicOrder<hcShape,1> Hierarchic;
+            
+            boost::array<double,numVertices> tmp;
+
+            for ( unsigned v = 0; v < numVertices; v++ ) {
+                const unsigned hier = Hierarchic::apply( v );
+                tmp[ v ] = signedDistances[ hier ];
+            }
+
+            signedDistances = tmp;
+        }
+
+        // create the cut cell structure
+        cutCells[ elemNum ].create( signedDistances );
+    }
+
+    return;
+}
+
+#endif

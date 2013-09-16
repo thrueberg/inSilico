@@ -25,7 +25,8 @@ namespace torus{
                     tools::meshGeneration::Point& centre,
                     std::size_t& numElements1,
                     std::size_t& numElements2,
-                    bool& makeTriangles )
+                    bool& makeTriangles,
+                    std::string& message )
     {
         if ( ( argc != 8 ) and ( argc != 9 ) ){
             std::cerr << "Usage: " << argv[0]
@@ -60,9 +61,16 @@ namespace torus{
         makeTriangles = ( argc == 8 ? false :
                           boost::lexical_cast<bool>( argv[8] ) );
 
+        // concatenate the input arguments
+        for ( int c = 0; c < argc; c++ ) {
+            message += argv[c];
+            message += " ";
+        }
+
         return true;
     }
 }
+
 
 //------------------------------------------------------------------------------
 int main( int argc, char* argv[] )
@@ -75,22 +83,25 @@ int main( int argc, char* argv[] )
     Point centre;               // centre of the torus
     std::size_t nElem1, nElem2; // grid of nElem1 x nElem2
     bool makeTriangles;         // flag to decide element shape
+    std::string message;        // message for trace back of output
     const bool input = torus::userInput( argc, argv, radius1, radius2, centre,
-                                         nElem1, nElem2, makeTriangles );
+                                         nElem1, nElem2, makeTriangles, message );
     if ( not input ) return 0;  // unsuccessful input
 
     // angle increments
-    const double dPhi   = 2. * M_PI / nElem1;
-    const double dTheta = 2. * M_PI / nElem2;
+    const double dPhi   = 2. * M_PI / static_cast<double>( nElem1 );
+    const double dTheta = 2. * M_PI / static_cast<double>( nElem2 );
 
     // generate points
     std::vector<Point>   points;
     for ( std::size_t j = 0; j < nElem2; j++ ) {
         for ( std::size_t i = 0; i < nElem1; i++ ) {
-            Point p;
-            p[0] = centre[0] + ( radius1 + radius2 * std::cos(j*dTheta) )* cos(i * dPhi );
-            p[1] = centre[1] + ( radius1 + radius2 * std::cos(j*dTheta) )* sin(i * dPhi );
-            p[2] = centre[2] +   radius2 * std::sin(j*dTheta);
+            Point p = centre;
+            const double iD = static_cast<double>( i );
+            const double jD = static_cast<double>( j );
+            p[0] += ( radius1 + radius2 * std::cos(jD * dTheta) )* cos(iD * dPhi );
+            p[1] += ( radius1 + radius2 * std::cos(jD * dTheta) )* sin(iD * dPhi );
+            p[2] +=             radius2 * std::sin(jD * dTheta);
             points.push_back( p );
         }
     }
@@ -98,18 +109,18 @@ int main( int argc, char* argv[] )
     // generate elements
     std::vector<Element> elements;
 
-    for ( unsigned j = 0; j < nElem2; j++ ) {
-        for ( unsigned i = 0; i < nElem1; i++ ) {
+    for ( std::size_t j = 0; j < nElem2; j++ ) {
+        for ( std::size_t i = 0; i < nElem1; i++ ) {
 
             // following indices with boundary periodicity
-            const unsigned iNext = (i < nElem1 - 1? i+1 : 0);
-            const unsigned jNext = (j < nElem2 - 1? j+1 : 0);
+            const std::size_t iNext = (i < nElem1 - 1? i+1 : 0);
+            const std::size_t jNext = (j < nElem2 - 1? j+1 : 0);
                 
             // the four vertices of a quadrilateral
-            const unsigned i1 = j     * nElem1 + i;
-            const unsigned i2 = j     * nElem1 + iNext;
-            const unsigned i4 = jNext * nElem1 + i;
-            const unsigned i3 = jNext * nElem1 + iNext;
+            const std::size_t i1 = j     * nElem1 + i;
+            const std::size_t i2 = j     * nElem1 + iNext;
+            const std::size_t i4 = jNext * nElem1 + i;
+            const std::size_t i3 = jNext * nElem1 + iNext;
 
             if ( makeTriangles ) {
                 // generate two triangles
@@ -139,6 +150,8 @@ int main( int argc, char* argv[] )
     // write output to stream
     const std::string elementShape = ( makeTriangles ? "triangle" : "quadrilateral" );
     const unsigned    elementNumPoints = ( makeTriangles ? 3 : 4 );
+
+    tools::meshGeneration::writeSMFComment( message, std::cout );
     tools::meshGeneration::writeSMFHeader( elementShape, elementNumPoints, 
                                            points.size(), elements.size(), std::cout );
     tools::meshGeneration::writePoints(   points,   std::cout );

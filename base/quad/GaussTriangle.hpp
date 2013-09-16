@@ -35,7 +35,7 @@ namespace base{
             template<> struct NumTriaPoints<2>{ static const unsigned value =  3; };
             template<> struct NumTriaPoints<3>{ static const unsigned value =  4; };
             template<> struct NumTriaPoints<4>{ static const unsigned value =  6; };
-            template<> struct NumTriaPoints<5>{ static const unsigned value =  6; };
+            template<> struct NumTriaPoints<5>{ static const unsigned value =  7; };
             template<> struct NumTriaPoints<6>{ static const unsigned value = 13; };
             template<> struct NumTriaPoints<7>{ static const unsigned value = 13; };
             template<> struct NumTriaPoints<8>{ static const unsigned value = 19; };

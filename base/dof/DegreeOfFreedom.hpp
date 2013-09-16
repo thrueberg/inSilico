@@ -13,11 +13,13 @@
 //------------------------------------------------------------------------------
 // std   includes
 #include <algorithm>
+#include <vector>
 // boost includes
 #include <boost/utility.hpp>
 #include <boost/array.hpp>
 // base  includes
 #include <base/numbers.hpp>
+#include <base/dof/Constraint.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -26,6 +28,12 @@ namespace base{
         
         template<unsigned SIZE, unsigned NHIST = 0>
         class DegreeOfFreedom;
+
+        enum DoFStatus {
+            ACTIVE,
+            CONSTRAINED,
+            INACTIVE };
+       
     }
 }
 
@@ -53,22 +61,45 @@ public:
     typedef boost::array<number,size>         ValueArray;
 
     //! Activity storage
-    typedef boost::array<bool,size>           ActivityArray;
+    typedef boost::array<DoFStatus,size>      StatusArray;
 
     //! History storage
     typedef boost::array<ValueArray,nHist+1>  HistoryStorage;
+
+    //! Self type
+    typedef base::dof::DegreeOfFreedom<size,nHist> SelfType;
+
+    //! Type of constraint
+    typedef base::dof::Constraint<SelfType>       Constraint;
 
     //--------------------------------------------------------------------------
     /** Empty constructor invalidates the member data
      */
     DegreeOfFreedom()
+        : id_( base::invalidInt )
     {
         indices_.assign( base::invalidInt );
         for ( unsigned h = 0; h < nHist+1; h++ )
             for ( unsigned s = 0; s < size; s++ )
                 values_[h][s] = 0.;
-        activity_.assign( true );
+        
+        status_.assign( ACTIVE );
+
+        constraints_.assign( NULL );
     }
+
+    ~DegreeOfFreedom()
+    {
+        for ( unsigned s = 0; s < constraints_.size(); s++ )
+            delete constraints_[s];
+    }
+
+    //--------------------------------------------------------------------------
+    //! @name ID methods
+    //@{
+    void setID( const std::size_t id ) { id_ = id; }
+    std::size_t getID() const { return id_; }
+    //@}
 
     //--------------------------------------------------------------------------
     //! @name Index Mutators
@@ -138,15 +169,26 @@ public:
     //@}
 
     //--------------------------------------------------------------------------
-    //! @name Activity
+    //! @name Status
     //@{
     template<typename OUTITER>
-    void getActivity( OUTITER iter ) const
+    void getStatus( OUTITER iter ) const
     {
-        std::copy( activity_.begin(), activity_.end(), iter );
+        std::copy( status_.begin(), status_.end(), iter );
     }
 
-    bool isActive( const unsigned which ) const { return activity_[ which ]; }
+    bool isActive( const unsigned which ) const
+    {
+        return ( status_[ which ] == ACTIVE );
+    }
+
+    bool isConstrained( const unsigned which ) const
+    {
+        return ( status_[ which ] == CONSTRAINED );
+    }
+
+    void activateAll()   { status_.assign( ACTIVE );   }
+    void deactivateAll() { status_.assign( INACTIVE ); }
     //@}
 
     //--------------------------------------------------------------------------
@@ -154,45 +196,72 @@ public:
     //@{
     void constrainValue( const unsigned which, const number value )
     {
-        activity_[which] = false;
-        
-        if ( constraints_.empty() )
-            constraints_.resize( size, base::invalidReal() );
-        
-        constraints_[ which ] = value;
+        // if dof had been active, inactivate and create a constraint
+        if ( status_[which] == ACTIVE ) {
+            status_[which] = CONSTRAINED;
+            constraints_[ which ] = new Constraint( value );
+        }
+        // otherwise pass the value to the constraint
+        else if ( status_[which] == CONSTRAINED )
+            constraints_[ which ] -> setValue( value );
     }
 
-    number getConstraint( const unsigned which ) const
+    //! Return the prescribed value of the constraint
+    number getPrescribedValue( const unsigned which ) const
     {
-        return constraints_[which];
+        assert( status_[which] == CONSTRAINED );
+        return constraints_[which] -> getValue(); 
     }
 
+    //! Return prescribed values of all constraints (or invalid numbers)
     template<typename OUTITER>
-    void getConstraints( OUTITER iter ) const
+    void getPrescribedValues( OUTITER iter ) const
     {
         for ( unsigned d = 0; d < size; d ++ ) {
-            if ( activity_[d] )
-                *iter = base::invalidReal();
+            if ( status_[d] == CONSTRAINED )
+                *iter = constraints_[d] -> getValue();
             else
-                *iter = constraints_[d];
+                *iter = base::invalidReal();
+
             ++iter;
         }
     }
 
+    //! Destroy the constraints
     void clearConstraints()
     {
-        constraints_.clear();
-        activity_.assign( true );
+        for ( unsigned s = 0; s < constraints_.size(); s++ )
+            delete constraints_[s];
+        
+        status_.assign( ACTIVE );
+    }
+
+    //! Generate a new constraint
+    void makeConstraint( const unsigned which )
+    {
+        if ( status_[which] == ACTIVE ) {
+            status_[      which ] = CONSTRAINED;
+            constraints_[ which ] = new Constraint();
+        }
+    }
+
+    //! Return specific constraint object
+    Constraint* getConstraint( const unsigned which )
+    {
+        return constraints_[which];
     }
     //@}
+
     
 private:
+    std::size_t    id_;       //!< ID for convenience
+    
     IndexArray     indices_;  //!< Storage of the dof indices
-    //ValueArray    values_;   //!< Storage of the dof values
-    HistoryStorage values_;
-    ActivityArray  activity_; //!< Flags if DoF-entries are active
+    HistoryStorage values_;   //!< Result values and history storage
+    StatusArray    status_;   //!< Flags if DoF-entries are active
 
-    std::vector<number> constraints_;
+    //! Array of pointers to possible constraints
+    boost::array<Constraint*,size> constraints_;
 };
 
 #endif

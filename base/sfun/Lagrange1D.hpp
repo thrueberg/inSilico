@@ -33,7 +33,7 @@ public:
     //! Template parameter: polynomial degree
     static const unsigned degree = DEGREE;
 
-    //! For inspection
+    //! For introspection
     static const unsigned dim = 1;
 
     //! Number of functions

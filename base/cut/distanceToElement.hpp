@@ -101,7 +101,16 @@ namespace base{
 
 //------------------------------------------------------------------------------
 /** Compute the distance between a point and an element.
- *
+ *  A given surface element is sampled by a Lagrangian element with the same
+ *  shape and the same degree of geometry representation. Then, in function of
+ *  the shape, the closest point is computed based on a linear geometry
+ *  approximation (using the vertices of the Lagrangian element only).
+ *  If the new distance is closer than the previously stored one, the passed
+ *  level set datum is updated, otherwise untouched.
+ *  \tparam SELEMENT  Type of surface element (not necessarily interpolatory)
+ *  \param[in]     surfEp   Pointer to surface element
+ *  \param[in]     isSigned Flag if distance function shall be signed
+ *  \param[in,out] ls       Old and new level set datum
  */
 template<typename SELEMENT>
 void base::cut::distanceToElement( const SELEMENT* surfEp,

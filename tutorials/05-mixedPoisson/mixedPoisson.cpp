@@ -2,19 +2,18 @@
 #include <fstream>
 #include <string>
 #include <boost/lexical_cast.hpp>
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Unstructured.hpp>
+
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
 #include <base/mesh/MeshBoundary.hpp>
 #include <base/mesh/CreateBoundaryMesh.hpp>
 #include <base/Quadrature.hpp>
-#include <base/LagrangeShapeFun.hpp>
+
 #include <base/io/Format.hpp>
 #include <base/io/smf/Reader.hpp>
 #include <base/io/vtk/LegacyWriter.hpp>
-#include <base/dof/DegreeOfFreedom.hpp>
-#include <base/dof/Element.hpp>
-#include <base/dof/Field.hpp>
+#include <base/Field.hpp>
+
 #include <base/dof/numbering.hpp>
 #include <base/dof/Distribute.hpp>
 #include <base/dof/constrainBoundary.hpp>
@@ -28,7 +27,6 @@
 
 #include <base/asmb/FieldBinder.hpp>
 #include <base/asmb/SurfaceFieldBinder.hpp>
-
 
 #include <base/asmb/ForceIntegrator.hpp>
 #include <base/asmb/BodyForce.hpp>
@@ -178,17 +176,13 @@ int main( int argc, char * argv[] )
     const unsigned    doFSize  = 1;
 
     //--------------------------------------------------------------------------
-    const unsigned    dim     = base::ShapeDim<shape>::value;
-    typedef base::mesh::Node<dim>                 Node;
-    typedef base::LagrangeShapeFun<geomDeg,shape> SFun;
-    typedef base::mesh::Element<Node,SFun>        Element;
-    typedef base::mesh::Unstructured<Element>     Mesh;
-
+    typedef base::Unstructured<shape,geomDeg>     Mesh;
+    const unsigned dim = Mesh::Node::dim;
+    
     Mesh mesh;
     {
         std::ifstream smf( smfFile.c_str() );
-        base::io::smf::Reader<Mesh> smfReader;
-        smfReader( mesh, smf ); 
+        base::io::smf::readMesh( smf, mesh );
         smf.close();
     }
 
@@ -201,9 +195,8 @@ int main( int argc, char * argv[] )
  
     // DOF handling
     typedef base::fe::Basis<shape,fieldDeg>        FEBasis;
-    typedef base::dof::DegreeOfFreedom<doFSize>    DoF;
-    typedef base::dof::Element<DoF,FEBasis::FEFun> FieldElement;
-    typedef base::dof::Field<FieldElement>         Field;
+    typedef base::Field<FEBasis,doFSize>           Field;
+    typedef Field::DegreeOfFreedom                 DoF;
     Field field;
 
     // generate DoFs from mesh
@@ -234,18 +227,18 @@ int main( int argc, char * argv[] )
     Solver solver( numDofs );
 
     // Bind the fields together
-    typedef base::asmb::FieldBinder<Mesh,Field,Field> FieldBinder;
-    FieldBinder fieldBinder( mesh, field, field );
-    typedef FieldBinder::ElementPtrTuple FieldTuple;
+    typedef base::asmb::FieldBinder<Mesh,Field> FieldBinder;
+    FieldBinder fieldBinder( mesh, field );
+    typedef FieldBinder::TupleBinder<1,1>::Type FTB;
 
 
     // Body force
-    base::asmb::bodyForceComputation( quadrature, solver, fieldBinder,
-                                      boost::bind( &PoissonProblem<dim>::forceFun,
-                                                   &pp, _1 ) );
+    base::asmb::bodyForceComputation<FTB>( quadrature, solver, fieldBinder,
+                                           boost::bind( &PoissonProblem<dim>::forceFun,
+                                                        &pp, _1 ) );
 
     // Create a connectivity out of this list
-    typedef base::mesh::CreateBoundaryMesh<Element> CreateBoundaryMesh;
+    typedef base::mesh::CreateBoundaryMesh<Mesh::Element> CreateBoundaryMesh;
     typedef CreateBoundaryMesh::BoundaryMesh BoundaryMesh;
     BoundaryMesh boundaryMesh;
     {
@@ -255,21 +248,20 @@ int main( int argc, char * argv[] )
                                    boundaryMesh );
     }
 
-
     typedef base::asmb::SurfaceFieldBinder<BoundaryMesh,Field> SurfaceFieldBinder;
     SurfaceFieldBinder surfaceFieldBinder( boundaryMesh, field );
+    typedef SurfaceFieldBinder::TupleBinder<1>::Type SFTB;
 
     // Neumann boundary condition
-    base::asmb::neumannForceComputation( surfaceQuadrature, solver, surfaceFieldBinder,
-                                         boost::bind( &PoissonProblem<dim>::neumannBC, &pp,
-                                                      _1, _2 ) );
-
+    base::asmb::neumannForceComputation<SFTB>( surfaceQuadrature, solver, surfaceFieldBinder,
+                                               boost::bind( &PoissonProblem<dim>::neumannBC, &pp,
+                                                            _1, _2 ) );
 
     // compute stiffness matrix
-    typedef heat::Laplace<FieldTuple> Laplace;
+    typedef heat::Laplace<FTB::Tuple> Laplace;
     Laplace laplace( 1. );
-    base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                            fieldBinder, laplace );
+    base::asmb::stiffnessMatrixComputation<FTB>( quadrature, solver,
+                                                 fieldBinder, laplace );
     
     // Finalise assembly
     solver.finishAssembly();
@@ -278,8 +270,7 @@ int main( int argc, char * argv[] )
     solver.choleskySolve();
 
     // distribute results back to dofs
-    base::dof::Distribute<DoF,Solver> distributeDoF( solver );
-    std::for_each( field.doFsBegin(), field.doFsEnd(), distributeDoF );
+    base::dof::setDoFsFromSolver( solver, field );
 
     //--------------------------------------------------------------------------
     // output to a VTK file

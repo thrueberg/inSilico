@@ -13,6 +13,9 @@
 //------------------------------------------------------------------------------
 // base includes
 #include <base/shape.hpp>
+// base/mesh includes
+#include <base/mesh/ElementFaces.hpp>
+
 //------------------------------------------------------------------------------
 namespace base{
     namespace fe{

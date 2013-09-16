@@ -76,6 +76,13 @@ namespace tools{
                 << "! elementNumPoints " << elementNumPoints << '\n'
                 << numNodes << "  " << numElements << '\n';
         }
+
+        //----------------------------------------------------------------------
+        void writeSMFComment( const std::string& message,
+                              std::ostream& out )
+        {
+            out << "# " << message << '\n';
+        }
         
         
     }

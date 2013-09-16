@@ -19,6 +19,7 @@
 #include <boost/tokenizer.hpp>
 // base includes
 #include <base/verify.hpp>
+#include <base/shape.hpp>
 
 //------------------------------------------------------------------------------
 namespace tools{

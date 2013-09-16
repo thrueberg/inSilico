@@ -21,14 +21,14 @@ namespace tools{
 
             //------------------------------------------------------------------
             // generate chain  of elements
-            void generateElements( const unsigned nNodes, 
+            void generateElements( const std::size_t nNodes, 
                                    std::vector<tools::meshGeneration::Element> & elements, 
                                    const bool closed = true ) 
             {
-                const unsigned nElements = nNodes - ( closed ? 0 : 1 );
-                for ( unsigned e = 0; e < nElements; e ++ ) {
-                    const unsigned v1 = e;
-                    const unsigned v2 = (closed and (e == nElements - 1) ) ? 0 : v1 + 1 ;
+                const std::size_t nElements = nNodes - ( closed ? 0 : 1 );
+                for ( std::size_t e = 0; e < nElements; e ++ ) {
+                    const std::size_t v1 = e;
+                    const std::size_t v2 = (closed and (e == nElements - 1) ) ? 0 : v1 + 1 ;
                     tools::meshGeneration::Element el;
                     el.push_back( v1 );
                     el.push_back( v2 );

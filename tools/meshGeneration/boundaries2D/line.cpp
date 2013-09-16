@@ -19,10 +19,12 @@
 
 //------------------------------------------------------------------------------
 namespace line{
+
     bool userInput( const int argc, char* argv[],
                     tools::meshGeneration::Point& p1,
                     tools::meshGeneration::Point& p2,
-                    std::size_t& numElements )
+                    std::size_t& numElements,
+                    std::string& message )
     {
         if ( argc != 6 ) {
             std::cerr << "Usage: " << argv[0]
@@ -42,6 +44,12 @@ namespace line{
         p2[2] = 0.;
         // number of elements
         numElements = boost::lexical_cast<std::size_t>( argv[5] );
+        
+        // concatenate the input arguments
+        for ( int c = 0; c < argc; c++ ) {
+            message += argv[c];
+            message += " ";
+        }
 
         return true;
     }
@@ -58,7 +66,8 @@ int main( int argc, char* argv[] )
 
     Point X1, X2;
     std::size_t nElem;
-    const bool input = line::userInput( argc, argv, X1, X2, nElem );
+    std::string message;
+    const bool input = line::userInput( argc, argv, X1, X2, nElem, message );
 
     if ( not input ) return 0;
 
@@ -81,6 +90,7 @@ int main( int argc, char* argv[] )
                                                            closed );
 
     // write output to stream
+    tools::meshGeneration::writeSMFComment( message, std::cout );
     tools::meshGeneration::writeSMFHeader( "line", 2,
                                            points.size(), elements.size(), std::cout );
     tools::meshGeneration::writePoints(   points,   std::cout );

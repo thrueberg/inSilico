@@ -26,7 +26,7 @@
 namespace base{
     namespace sfun{
 
-        template<typename SFUN, unsigned DIM>
+        template<typename SFUN, unsigned DIM, base::sfun::Ordering ORDERING>
         class TensorProduct;
 
         namespace detail_{
@@ -78,7 +78,7 @@ namespace base{
  *  \tparam SFUN Underlying one-dimensional function type
  *  \tparam DIM  Spatial dimension of the tensor-product
  */
-template<typename SFUN, unsigned DIM>
+template<typename SFUN, unsigned DIM, base::sfun::Ordering ORDERING>
 class base::sfun::TensorProduct
 {
     STATIC_ASSERT_MSG( (DIM>0), "Nonsense" );
@@ -87,7 +87,8 @@ public:
     //! @name Template parameter
     //@{
     typedef SFUN ShapeFun1D;
-    static const unsigned dim = DIM;
+    static const unsigned dim                  = DIM;
+    static const base::sfun::Ordering ordering = ORDERING;
     //@}
     
     //! Polynomial degree
@@ -107,9 +108,7 @@ public:
                                              base::sfun::ScalarShapeFunResult> SFRA;
 
     //! Hierarchic re-ordering for Lagrange shape functions
-    static const bool isLagrangeFun = boost::is_same< ShapeFun1D,
-                                                      base::sfun::Lagrange1D<degree> >::value;
-    typedef typename base::IfElse< isLagrangeFun,
+    typedef typename base::IfElse< ordering == base::sfun::HIERARCHIC, 
                                    detail_::MakeHierarchic<ShapeFun1D,dim>,
                                    detail_::PlainCopy >::Type   Reordering;
 

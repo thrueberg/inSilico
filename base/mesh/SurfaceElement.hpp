@@ -23,26 +23,54 @@
 namespace base{
     namespace mesh{
 
-        template<typename ELEMENT>
+        template<typename ELEMENT,
+                 base::Shape SHAPE = base::FaceShape<ELEMENT::shape>::value>
         class SurfaceElement;
+
 
         namespace detail_{
 
-            //------------------------------------------------------------------
-            //! Helper Traits class for automatically deriving from the
-            //! right element class
-            template<typename ELEMENT>
-            struct SurfaceElementTraits
+            template<typename SELEMENT, base::Shape shape>
+            struct LocalDomainCoordinate
             {
-                typedef typename ELEMENT::Node Node;
-                static const base::Shape shape =
-                    base::FaceShape<ELEMENT::shape>::value;
-                typedef base::LagrangeShapeFun<ELEMENT::GeomFun::degree,
-                                               shape>  GeomFun;
-            };
-        
-        }
+                typedef typename SELEMENT::DomainCoordinate DomainCoordinate;
+                typedef typename SELEMENT::GeomFun::VecDim  SurfaceCoordinate;
+                
+                static DomainCoordinate apply( const SELEMENT* sep, 
+                                               const SurfaceCoordinate& eta )
+                {
+                    DomainCoordinate xi = DomainCoordinate::Constant( 0. );
+                    typename SELEMENT::GeomFun::FunArray funValues;
+                    (sep -> geomFun()).fun( eta, funValues );
 
+                    typename SELEMENT::ParamConstIter pIter = sep -> parametricBegin();
+                    typename SELEMENT::ParamConstIter pEnd  = sep -> parametricEnd();
+                    for ( unsigned p = 0; pIter != pEnd; ++pIter, p++ )
+                        xi += (*pIter) * funValues[p];
+
+                    return xi;
+                }
+                
+            };
+
+            template<typename SELEMENT>
+            struct LocalDomainCoordinate<SELEMENT,base::POINT>
+            {
+                typedef typename SELEMENT::DomainCoordinate DomainCoordinate;
+                typedef typename SELEMENT::GeomFun::VecDim  SurfaceCoordinate;
+                
+                static DomainCoordinate apply( const SELEMENT* sep, 
+                                               const SurfaceCoordinate& eta )
+                {
+                    typename SELEMENT::ParamConstIter pIter = sep -> parametricBegin();
+                    DomainCoordinate xi = *pIter;
+                    return xi;
+                }
+                
+            };
+
+                
+        }
     }
 }
 
@@ -55,32 +83,34 @@ namespace base{
  *
  *  \tparam ELEMENT  Type of volume element
  */
-template<typename ELEMENT>
+template<typename ELEMENT, base::Shape SHAPE>
 class base::mesh::SurfaceElement
-    : public base::mesh::Element< typename detail_::SurfaceElementTraits<ELEMENT>::Node,
-                                  typename detail_::SurfaceElementTraits<ELEMENT>::GeomFun >
+    : public base::mesh::Element<
+    typename ELEMENT::Node,
+    base::LagrangeShapeFun<ELEMENT::GeomFun::degree,SHAPE> >
 {
 public:
-    //! Template parameter: element of volume mesh
+    //! @name Template parameter
+    //@{
     typedef ELEMENT DomainElement;
+    static const base::Shape shape = SHAPE;
+    //@}
 
     //! Type of nodes is the same as for the volume
     typedef typename DomainElement::Node Node;
 
-    //! Traits for type definitions
-    typedef detail_::SurfaceElementTraits<DomainElement>  SET;
-
     //! Local dimension of the surface
-    static const unsigned dim = base::ShapeDim<SET::shape>::value;
-
-    //! Shape: always a simplex
-    static const base::Shape shape = SET::shape;
+    static const unsigned dim = base::ShapeDim<shape>::value;
 
     //! Geometry function: Lagrangian with same degree as volume element
-    typedef typename SET::GeomFun GeomFun;
+    typedef typename base::LagrangeShapeFun<ELEMENT::GeomFun::degree,
+                                            shape>  GeomFun;
 
     //! Inherits from this element
     typedef base::mesh::Element<Node,GeomFun>       BasisElement;
+
+    //! This type
+    typedef base::mesh::SurfaceElement<DomainElement,shape> SelfType;
 
     //! Local coordinates of the volume element
     typedef typename base::Vector<dim+1>::Type  DomainCoordinate;
@@ -138,24 +168,37 @@ public:
     DomainCoordinate
     localDomainCoordinate( const typename GeomFun::VecDim& eta ) const
     {
-        // initialise with zero
-        DomainCoordinate xi = DomainCoordinate::Constant( 0. );
-
-        // evalute the geomtry function of this element
-        typename GeomFun::FunArray funValues;
-        (BasisElement::geomFun()).fun( eta, funValues );
-
-        for ( unsigned p = 0; p < parametric_.size(); p++ )
-            xi += parametric_[p] * funValues[p];
-
-        return xi;
+        // Delegate to a policy in order to avoid function evaluation
+        // in case of domain-dim = 1 ---> surface-dim = 0
+        return detail_::LocalDomainCoordinate<SelfType,
+                                              shape>::apply( this, eta );
     }
         
+    /** Make a deep copy of a given surface element.
+     *  Delegate call to BasisElement and copy the local data.
+     *  \tparam SELEMENT Surface element type to copy from
+     *  \tparam CITER    Coefficient iterator for passing the pointers
+     *  \param[in] other     Other element to copy from
+     *  \param[in] coeffIter Iterator pointing to begin of coefficient array
+     */
+    template<typename SELEMENT,typename CITER>
+    void deepCopy( const SELEMENT* other, const CITER coeffIter )
+    {
+        // Deep copy of basis element
+        BasisElement::template deepCopy<SELEMENT,CITER>( other, coeffIter );
 
+        // Pass pointer to domain element
+        domainElementPtr_ = other -> getDomainElementPointer();
+
+        // copy parametric coordinates one-by-one
+        std::copy( other -> parametricBegin(), other -> parametricEnd(),
+                   parametric_.begin() );
+        
+    }
     
 private:
-    DomainElement* domainElementPtr_; //! Pointer to connected volume element
-    ParamtricArray       parametric_;       //! Storage of parametric coordinates
+    DomainElement* domainElementPtr_; //!< Pointer to connected volume element
+    ParamtricArray       parametric_; //!< Storage of parametric coordinates
 };
 
 

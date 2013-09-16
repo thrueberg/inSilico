@@ -16,6 +16,7 @@
 #include <boost/utility.hpp>
 // base/asmb includes
 #include <base/asmb/FieldIterator.hpp>
+#include <base/asmb/FieldTupleBinder.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -122,6 +123,16 @@ public:
 
     //! For instrospection
     typedef typename FieldIterator::ElementPtrTuple ElementPtrTuple;
+
+    //--------------------------------------------------------------------------
+    //! For convenience, delegate the type specification from here
+    template<int I, int J=-1, int K=-1, int L=-1, int M=-1>
+    struct TupleBinder
+    {
+        // Define the type of the tuple-binder
+        typedef typename
+        base::asmb::FieldTupleBinder<ElementPtrTuple,I,J,K,L,M> Type;
+    };
 
     //! Constructor with mesh, a field and four optional fields
     FieldBinder( MESH& mesh,

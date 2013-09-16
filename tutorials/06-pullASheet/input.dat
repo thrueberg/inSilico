@@ -1,4 +1,4 @@
-meshFile       quad020.smf
+meshFile       quad.020.smf
 E              1000.
 nu             0.3
 maxIter        30

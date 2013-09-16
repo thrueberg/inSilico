@@ -3,35 +3,37 @@
 #include <string>
 #include <boost/lexical_cast.hpp>
 
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Unstructured.hpp>
-#include <base/LagrangeShapeFun.hpp>
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
+
 #include <base/mesh/MeshBoundary.hpp>
 #include <base/Quadrature.hpp>
+
 #include <base/io/Format.hpp>
 #include <base/io/smf/Reader.hpp>
+#include <base/io/vtk/LegacyWriter.hpp>
 
 #include <base/fe/Basis.hpp>
-#include <base/dof/DegreeOfFreedom.hpp>
-#include <base/dof/Element.hpp>
-#include <base/dof/Field.hpp>
+#include <base/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
 
 #include <base/dof/Distribute.hpp>
 #include <base/dof/constrainBoundary.hpp>
+
 #include <base/post/ErrorNorm.hpp>
 #include <base/post/evaluateAtNodes.hpp>
+
 #include <base/solver/Eigen3.hpp>
-#include <base/io/vtk/LegacyWriter.hpp>
 
 #include <base/asmb/FieldIterator.hpp>
-#include <heat/Laplace.hpp>
 #include <base/asmb/StiffnessMatrix.hpp>
+
 #include <base/asmb/FieldBinder.hpp>
 
 #include <base/aux/FundamentalSolution.hpp>
+
+#include <heat/Laplace.hpp>
 
 //------------------------------------------------------------------------------
 // Function for the point-wise constraint of the Boundary
@@ -48,16 +50,6 @@ void dirichletBC( const typename FUN::arg1_type x, DOF* doFPtr, FUN fun )
 }
 //[dirichlet]}
 
-struct PrintIDs
-{
-    template<typename FT>
-    void operator()( const FT ft ) const
-    {
-        std::cout << (ft.template get<0>()) -> getID() <<" "
-                  << (ft.template get<1>()) -> getID() <<" "
-                  << (ft.template get<2>()) -> getID() <<"\n";
-    }
-};
 
 //------------------------------------------------------------------------------
 int main( int argc, char * argv[] )
@@ -78,18 +70,14 @@ int main( int argc, char * argv[] )
     const unsigned    doFSize = 1; // temperature
 
     //--------------------------------------------------------------------------
-    const unsigned    dim     = base::ShapeDim<shape>::value;
-    typedef base::mesh::Node<dim>                 Node;
-    typedef base::LagrangeShapeFun<geomDeg,shape> SFun;
-    typedef base::mesh::Element<Node,SFun>        Element;
-    typedef base::mesh::Unstructured<Element>     Mesh;
+    typedef base::Unstructured<shape,geomDeg>       Mesh;
+    const unsigned dim = Mesh::Node::dim;
 
     Mesh mesh;
     {
         std::ifstream smf( smfFile.c_str() );
         VERIFY_MSG( smf.is_open(), "Cannot open mesh file" );
-        base::io::smf::Reader<Mesh> smfReader;
-        smfReader( mesh, smf ); 
+        base::io::smf::readMesh( smf, mesh );
         smf.close();
     }
 
@@ -102,9 +90,7 @@ int main( int argc, char * argv[] )
     typedef base::fe::Basis<shape,fieldDeg> FEBasis;
 
     // DOF handling
-    typedef base::dof::DegreeOfFreedom<doFSize>    DoF;
-    typedef base::dof::Element<DoF,FEBasis::FEFun> FieldElement;
-    typedef base::dof::Field<FieldElement>         Field;
+    typedef base::Field<FEBasis,doFSize>           Field;
     Field field;
 
     base::dof::generate<FEBasis>( mesh, field );
@@ -127,8 +113,9 @@ int main( int argc, char * argv[] )
     base::dof::constrainBoundary<FEBasis>( meshBoundary.boundaryBegin(),
                                            meshBoundary.boundaryEnd(),
                                            mesh, field, 
-                                           boost::bind( &dirichletBC<FSolFun,DoF>, _1, _2,
-                                                        fSolFun ) );
+                                           boost::bind( &dirichletBC<FSolFun,
+                                                                     Field::DegreeOfFreedom>,
+                                                        _1, _2, fSolFun ) );
 
     // Number of DoFs after constraint application!
     const std::size_t numDofs =
@@ -139,20 +126,19 @@ int main( int argc, char * argv[] )
     typedef base::solver::Eigen3           Solver;
     Solver solver( numDofs );
 
-    typedef base::asmb::FieldBinder<Mesh,Field,Field> FieldBinder;
-    FieldBinder fieldBinder( mesh, field, field );
-    typedef FieldBinder::ElementPtrTuple FieldTuple;
+    typedef base::asmb::FieldBinder<Mesh,Field> FieldBinder;
+    FieldBinder fieldBinder( mesh, field );
 
+    typedef FieldBinder::TupleBinder<1,1>::Type FTB;
 
     // Object providing the element stiffness matrix
     const double conductivity = 1.0;
-    typedef heat::Laplace<FieldTuple> Laplace;
+    typedef heat::Laplace<FTB::Tuple> Laplace;
     Laplace laplace( conductivity );
 
-    base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                            fieldBinder, laplace );
+    base::asmb::stiffnessMatrixComputation<FTB>( quadrature, solver,
+                                                 fieldBinder, laplace );
 
-    
     // Finalise assembly
     solver.finishAssembly();
 
@@ -160,10 +146,7 @@ int main( int argc, char * argv[] )
     solver.choleskySolve();
 
     // distribute results back to dofs
-    {
-        base::dof::Distribute<DoF,Solver> distributeDoF( solver );
-        std::for_each( field.doFsBegin(), field.doFsEnd(), distributeDoF );
-    }
+    base::dof::setDoFsFromSolver( solver, field );
 
     // output to a VTK file
     {

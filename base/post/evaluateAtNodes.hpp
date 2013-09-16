@@ -54,10 +54,6 @@ void base::post::evaluateAtNodes( const MESH& mesh,
                                   std::vector<typename base::post::detail_::
                                               ValueTypeBinder<FIELD>::Type>& nodalValues )
 {
-    // Number of vertices
-    static const unsigned numVertices =
-        base::NumNFaces<FIELD::Element::shape,base::VERTEX>::value;
-
     // DoF size
     static const unsigned doFSize = FIELD::DegreeOfFreedom::size;
 
@@ -103,13 +99,8 @@ void base::post::evaluateAtNodes( const MESH& mesh,
             doFValues.push_back( doFValue );
         }
 
-        // First DoFs are vertex DoFs
-        for ( unsigned v = 0; v < numVertices; v ++ ) {
-            nodalValues[ nodeIDs[v] ] = doFValues[ v ];
-        }
-
-        // Following DoFs require field evaluation
-        for ( unsigned n = numVertices; n < MESH::Element::numNodes; n ++ ) {
+        // Nodal DoFs always by means of field evaluation
+        for ( unsigned n = 0; n < MESH::Element::numNodes; n ++ ) {
 
             // Evaluation point
             const VecDim xi = supportPoints[ n ];

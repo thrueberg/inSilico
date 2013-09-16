@@ -2,10 +2,8 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/LagrangeShapeFun.hpp>
-#include <base/mesh/Unstructured.hpp>
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
 #include <base/mesh/SurfaceElement.hpp>
 #include <base/io/smf/Reader.hpp>
 //[tut01Includes]}
@@ -61,12 +59,8 @@ int main( int argc, char * argv[] )
     const unsigned degEstimate = 4;
 
     //--------------------------------------------------------------------------
-    const unsigned    dim     = base::ShapeDim<shape>::value;
-    typedef base::mesh::Node<dim>                 Node;
-    typedef base::LagrangeShapeFun<geomDeg,shape> SFun;
-    typedef base::mesh::Element<Node,SFun>        Element;
-    typedef base::mesh::Unstructured<Element>     Mesh;
-
+    typedef base::Unstructured<shape,geomDeg>    Mesh;
+    
     //PP
     std::string meshFile, surfFile;
     double radius;
@@ -89,8 +83,7 @@ int main( int argc, char * argv[] )
     Mesh mesh;
     {
         std::ifstream smf( meshFile.c_str() );
-        base::io::smf::Reader<Mesh> smfReader;
-        smfReader( mesh, smf ); 
+        base::io::smf::readMesh( smf, mesh );
         smf.close();
     }
 
@@ -100,7 +93,7 @@ int main( int argc, char * argv[] )
         Quadrature quadrature;
 
         double volume = 0.;
-        Metric<Element,Quadrature> volumeInt( quadrature, volume );
+        Metric<Mesh::Element,Quadrature> volumeInt( quadrature, volume );
 
         std::for_each( mesh.elementsBegin(), mesh.elementsEnd(), volumeInt );
         
@@ -113,15 +106,13 @@ int main( int argc, char * argv[] )
 
 
     // Input surface mesh
-    typedef base::mesh::SurfaceElement<Element>   SurfaceElement;
-    typedef base::mesh::Unstructured<SurfaceElement> SurfaceMesh;
+    typedef base::mesh::SurfaceElement<Mesh::Element>   SurfaceElement;
+    typedef base::mesh::Unstructured<SurfaceElement>    SurfaceMesh;
     SurfaceMesh surfaceMesh;
     {
         std::ifstream smf( surfFile.c_str() );
-        base::io::smf::Reader<SurfaceMesh> smfReader;
-        smfReader( surfaceMesh, smf ); 
+        base::io::smf::readMesh( smf, surfaceMesh );
         smf.close();
-
     }
 
     // compute area of the surface mesh

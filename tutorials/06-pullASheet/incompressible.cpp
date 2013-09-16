@@ -3,21 +3,18 @@
 #include <string>
 #include <boost/lexical_cast.hpp>
 
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Unstructured.hpp>
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
+
 #include <base/mesh/MeshBoundary.hpp>
 #include <base/mesh/CreateBoundaryMesh.hpp>
 #include <base/Quadrature.hpp>
-#include <base/LagrangeShapeFun.hpp>
 #include <base/io/smf/Reader.hpp>
 #include <base/io/PropertiesParser.hpp>
 #include <base/io/vtk/LegacyWriter.hpp>
 #include <base/io/Format.hpp>
 
-#include <base/dof/DegreeOfFreedom.hpp>
-#include <base/dof/Element.hpp>
-#include <base/dof/Field.hpp>
+#include <base/Field.hpp>
 #include <base/dof/numbering.hpp>
 #include <base/dof/Distribute.hpp>
 #include <base/dof/constrainBoundary.hpp>
@@ -154,18 +151,14 @@ int main( int argc, char * argv[] )
 
     //--------------------------------------------------------------------------
     // define a mesh
-    const unsigned dim = base::ShapeDim<shape>::value;
-    typedef base::mesh::Node<dim>                 Node;
-    typedef base::LagrangeShapeFun<geomDeg,shape> SFun;
-    typedef base::mesh::Element<Node,SFun>        Element;
-    typedef base::mesh::Unstructured<Element>     Mesh;
+    typedef base::Unstructured<shape,geomDeg>     Mesh;
+    const unsigned dim = Mesh::Node::dim;
 
     // create a mesh and read from input
     Mesh mesh;
     {
         std::ifstream smf( meshFile.c_str() );
-        base::io::smf::Reader<Mesh> smfReader;
-        smfReader( mesh, smf ); 
+        base::io::smf::readMesh( smf, mesh );
         smf.close();
     }
 
@@ -179,17 +172,15 @@ int main( int argc, char * argv[] )
     // Create a displacement field
     const unsigned    doFSizeU = dim;
     typedef base::fe::Basis<shape,fieldDegU>         FEBasisU;
-    typedef base::dof::DegreeOfFreedom<doFSizeU>     DoFU;
-    typedef base::dof::Element<DoFU,FEBasisU::FEFun> FieldElementU;
-    typedef base::dof::Field<FieldElementU>          Displacement;
+    typedef base::Field<FEBasisU,doFSizeU>           Displacement;
+    typedef Displacement::DegreeOfFreedom            DoFU;
     Displacement displacement;
 
     // Create a pressure field
     const unsigned    doFSizeP = 1;
     typedef base::fe::Basis<shape,fieldDegP>         FEBasisP;
-    typedef base::dof::DegreeOfFreedom<doFSizeP>     DoFP;
-    typedef base::dof::Element<DoFP,FEBasisP::FEFun> FieldElementP;
-    typedef base::dof::Field<FieldElementP>          Pressure;
+    typedef base::Field<FEBasisP,doFSizeP>           Pressure;
+    typedef Pressure::DegreeOfFreedom                DoFP;
     Pressure pressure;
 
     // generate DoFs from mesh
@@ -201,7 +192,7 @@ int main( int argc, char * argv[] )
     meshBoundary.create( mesh.elementsBegin(), mesh.elementsEnd() );
 
     // Create a boundary mesh from this list
-    typedef base::mesh::CreateBoundaryMesh<Element> CreateBoundaryMesh;
+    typedef base::mesh::CreateBoundaryMesh<Mesh::Element> CreateBoundaryMesh;
     typedef CreateBoundaryMesh::BoundaryMesh BoundaryMesh;
     BoundaryMesh boundaryMesh;
     {
@@ -230,38 +221,33 @@ int main( int argc, char * argv[] )
     Material material( mu, alpha, 1.e9, 2.0 );
 #endif
 
-    // Definition of the field combinations
-    typedef base::asmb::FieldBinder<Mesh,Displacement,Displacement,Pressure> FieldUUP;
-    typedef FieldUUP::ElementPtrTuple FieldUUPTuple;
-    FieldUUP fieldUUP( mesh, displacement, displacement, pressure );
 
-    typedef base::asmb::FieldBinder<Mesh,Displacement,Pressure,Displacement> FieldUPU;
-    typedef FieldUPU::ElementPtrTuple FieldUPUTuple;
-    FieldUPU fieldUPU( mesh, displacement, pressure, displacement );
-    
-    typedef base::asmb::FieldBinder<Mesh,Pressure,Displacement,Displacement> FieldPUU;
-    typedef FieldPUU::ElementPtrTuple FieldPUUTuple;
-    FieldPUU fieldPUU( mesh, pressure, displacement, displacement );
+    typedef base::asmb::FieldBinder<Mesh,Displacement,Pressure> Field;
+    Field field( mesh, displacement, pressure );
 
-    typedef base::asmb::FieldBinder<Mesh,Pressure,Pressure,Displacement> FieldPPU;
-    typedef FieldPPU::ElementPtrTuple FieldPPUTuple;
-    FieldPPU fieldPPU( mesh, pressure, pressure, displacement );
+    // Define field combinations
+    typedef Field::TupleBinder<1,1,2>::Type TopLeft;
+    typedef Field::TupleBinder<1,2,1>::Type TopRight;
+    typedef Field::TupleBinder<2,1,1>::Type BottomLeft;
+    typedef Field::TupleBinder<2,2,1>::Type BottomRight;
+
 
     // surface displacement field
     typedef base::asmb::SurfaceFieldBinder<BoundaryMesh,Displacement> SurfaceFieldBinder;
     SurfaceFieldBinder surfaceFieldBinder( boundaryMesh, displacement );
+    typedef SurfaceFieldBinder::TupleBinder<1>::Type SFTB;
 
     // kernel objects
-    typedef solid::IncompressibleUU<Material,FieldUUPTuple> IncompressibleUU;
+    typedef solid::IncompressibleUU<Material,TopLeft::Tuple> IncompressibleUU;
     IncompressibleUU incompressibleUU( material );
 
-    typedef solid::IncompressibleUP<FieldUPUTuple> IncompressibleUP;
+    typedef solid::IncompressibleUP<TopRight::Tuple> IncompressibleUP;
     IncompressibleUP incompressibleUP;
 
-    typedef solid::IncompressiblePU<Material,FieldPUUTuple> IncompressiblePU;
+    typedef solid::IncompressiblePU<Material,BottomLeft::Tuple> IncompressiblePU;
     IncompressiblePU incompressiblePU( material );
 
-    typedef solid::IncompressiblePP<Material,FieldPPUTuple> IncompressiblePP;
+    typedef solid::IncompressiblePP<Material,BottomRight::Tuple> IncompressiblePP;
     IncompressiblePP incompressiblePP( material );
 
     // Number the degrees of freedom
@@ -300,43 +286,43 @@ int main( int argc, char * argv[] )
                 // value of applied traction
                 const double tracValue =
                     static_cast<double>(step+1) / static_cast<double>( loadSteps );
-                base::asmb::neumannForceComputation( surfaceQuadrature, solver,
-                                                     surfaceFieldBinder,
-                                                     boost::bind( &PulledSheetProblem<dim>::
-                                                                  neumannBC,
-                                                                  _1, _2, tracValue ) );
+                base::asmb::neumannForceComputation<SFTB>( surfaceQuadrature, solver,
+                                                           surfaceFieldBinder,
+                                                           boost::bind( &PulledSheetProblem<dim>::
+                                                                        neumannBC,
+                                                                        _1, _2, tracValue ) );
             }
 
 
             //------------------------------------------------------------------
-            base::asmb::stiffnessMatrixComputation( quadrature, solver, 
-                                                    fieldUUP, incompressibleUU,
-                                                    iter > 0 );  
+            base::asmb::stiffnessMatrixComputation<TopLeft>( quadrature, solver, 
+                                                             field, incompressibleUU,
+                                                             iter > 0 );  
             
-            base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                                    fieldUPU, incompressibleUP,
-                                                    iter > 0 );  
+            base::asmb::stiffnessMatrixComputation<TopRight>( quadrature, solver,
+                                                              field, incompressibleUP,
+                                                              iter > 0 );  
             
-            base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                                    fieldPUU, incompressiblePU,
-                                                    iter > 0 );
+            base::asmb::stiffnessMatrixComputation<BottomLeft>( quadrature, solver,
+                                                                field, incompressiblePU,
+                                                                iter > 0 );
 
-            base::asmb::stiffnessMatrixComputation( quadrature, solver,
-                                                    fieldPPU, incompressiblePP,
-                                                    iter > 0 );  
+            base::asmb::stiffnessMatrixComputation<BottomRight>( quadrature, solver,
+                                                                 field, incompressiblePP,
+                                                                 iter > 0 );  
 
             //------------------------------------------------------------------
-            base::asmb::computeResidualForces( quadrature, solver, 
-                                               fieldUUP, incompressibleUU );
+            base::asmb::computeResidualForces<TopLeft>( quadrature, solver, 
+                                                        field, incompressibleUU );
 
-            base::asmb::computeResidualForces( quadrature, solver, 
-                                               fieldUPU, incompressibleUP );
+            base::asmb::computeResidualForces<TopRight>( quadrature, solver, 
+                                                         field, incompressibleUP );
 
-            base::asmb::computeResidualForces( quadrature, solver, 
-                                               fieldPUU, incompressiblePU );
+            base::asmb::computeResidualForces<BottomLeft>( quadrature, solver, 
+                                                           field, incompressiblePU );
 
-            base::asmb::computeResidualForces( quadrature, solver, 
-                                               fieldPPU, incompressiblePP );
+            base::asmb::computeResidualForces<BottomRight>( quadrature, solver, 
+                                                            field, incompressiblePP );
 
             // Finalise assembly
             solver.finishAssembly();
@@ -355,12 +341,8 @@ int main( int argc, char * argv[] )
             solver.superLUSolve();
             
             // distribute results back to dofs
-            base::dof::Distribute<DoFU,Solver,base::dof::ADD>
-                distributeDoFU( solver, iter > 0 );
-            std::for_each( displacement.doFsBegin(), displacement.doFsEnd(), distributeDoFU );
-            base::dof::Distribute<DoFP,Solver,base::dof::ADD>
-                distributeDoFP( solver, iter > 0 );
-            std::for_each( pressure.doFsBegin(), pressure.doFsEnd(), distributeDoFP );
+            base::dof::addToDoFsFromSolver( solver, displacement, iter > 0 );
+            base::dof::addToDoFsFromSolver( solver, pressure,     iter > 0 );
 
             // norm of displacement increment
             const double conv2 = solver.norm();
@@ -394,7 +376,8 @@ int main( int argc, char * argv[] )
             base::io::vtk::writePointData( vtkWriter, mesh, pressure,     "pressure" );
 
             base::io::vtk::writeCellData( vtkWriter, mesh, displacement,
-                                          boost::bind( solid::jacobian<Element,FieldElementU>,
+                                          boost::bind( solid::jacobian<Mesh::Element,
+                                                                       Displacement::Element>,
                                                        _1, _2 ), "J " );
             vtk.close();
         }

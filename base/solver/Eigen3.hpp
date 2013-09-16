@@ -112,17 +112,19 @@ public:
          * rhs_ = x;
          *
          */
-        
-        /** Note that in this version, the individual steps in the solve process
-         *  are made explicit. It appears that the latest (not yet installed)
-         *  version of Eigen has an inverse notion of P and Pinv. Therefore
-         *  in future, in the following the first and forth lines shall be
-         *  swapped in position.
+
+        /** Note that in this version, the individual steps in the
+         *  solve process are made explicit.  It appears that the
+         *  latest version of Eigen has an inverse notion of P and
+         *  Pinv with respect to previous versions. Therefore when
+         *  using old versions, in the following the first and forth
+         *  lines shall be swapped in position (as indicated by the
+         *  post-fixes).
          */
-        rhs_  = chol.permutationPinv() * rhs_;
-        chol.matrixL().solveInPlace( rhs_ );
-        chol.matrixU().solveInPlace( rhs_ );
-        rhs_ = chol.permutationP() * rhs_;
+        rhs_  = chol.permutationP() * rhs_;   //chol.permutationPinv() * rhs_;
+        chol.matrixL().solveInPlace( rhs_ );  //
+        chol.matrixU().solveInPlace( rhs_ );  //
+        rhs_ = chol.permutationPinv() * rhs_; //chol.permutationP() * rhs_;
     }
 
     //--------------------------------------------------------------------------
@@ -135,10 +137,32 @@ public:
     }
 #endif
 
+
+    int cgSolve()
+    {
+        // fill A and b
+        Eigen::ConjugateGradient<Eigen::SparseMatrix<number> > cg;
+        cg.compute( lhs_ );
+        VectorD x = cg.solve( rhs_ );
+        // std::cout << "#iterations: " << cg.iterations() << std::endl;
+        // std::cout << "estimated error: " << cg.error() << std::endl;
+        rhs_ = x;
+
+        return cg.iterations();
+    }        
+
+
     //--------------------------------------------------------------------------
     number getValue( const std::size_t index ) const
     {
         return rhs_[ index ];
+    }
+
+    //--------------------------------------------------------------------------
+    void systemInfo( std::ostream& out ) const
+    {
+        out << lhs_.rows() << " X " << lhs_.cols() << " sparse matrix with "
+            << lhs_.nonZeros() << " non-zero entries \n";
     }
 
     //--------------------------------------------------------------------------
@@ -157,6 +181,16 @@ public:
     {
         for ( int i = 0; i < rhs_.size(); i++ )
             out << i << " " << rhs_[i] << "\n";
+    }
+
+    //--------------------------------------------------------------------------
+    void debugTriplet( std::ostream& out ) const
+    {
+        for ( std::size_t t = 0; t < triplets_.size(); t++ ) {
+            out << triplets_[t].row()   << "  "
+                << triplets_[t].col()   << "  "
+                << triplets_[t].value() << "\n";
+        }
     }
     
 private:

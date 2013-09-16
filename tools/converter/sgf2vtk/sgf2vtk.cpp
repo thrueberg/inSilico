@@ -53,8 +53,7 @@ namespace tools{
                     Grid grid;
 
                     // SGF input
-                    base::io::sgf::Reader<Grid> sgfReader;
-                    sgfReader( grid, sgf ); 
+                    base::io::sgf::readGrid( sgf, grid );
             
                     // VTK Legacy output
                     base::io::vtk::LegacyWriter vtkWriter( vtk );

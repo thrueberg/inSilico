@@ -74,6 +74,13 @@ public:
     {
         for ( unsigned d = 0; d < dim; d ++ ) x_[d] = *iter++;
     }
+    //! Make a true copy by copying all private data
+    template<typename NODE>
+    void deepCopy( const NODE* other )
+    {
+        id_ = other -> getID();
+        x_  = other -> getX();
+    }
     //@}
 
     //--------------------------------------------------------------------------

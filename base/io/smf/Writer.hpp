@@ -31,6 +31,14 @@ namespace base{
         namespace smf{
             
             template<typename MESH> class Writer;
+
+            //! Convenience function to write a mesh in SMF format
+            template<typename MESH>
+            void writeMesh( const MESH& mesh, std::ostream& smf )
+            {
+                Writer<MESH> writer;
+                writer( mesh, smf );
+            }
             
         }
     }

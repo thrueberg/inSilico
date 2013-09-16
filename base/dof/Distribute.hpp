@@ -30,6 +30,30 @@ namespace base{
         template<typename DOF, typename SRC, DoFOperation DOFOP>
         class Distribute;
 
+        //----------------------------------------------------------------------
+        // Convenience function to set dof values
+        template<typename SOLVER, typename FIELD>
+        void setDoFsFromSolver( const SOLVER& solver,
+                                FIELD& field )
+        {
+            base::dof::Distribute<typename FIELD::DegreeOfFreedom,
+                                  SOLVER,SET> distributeDoF( solver, false );
+            distributeDoF.apply( field.doFsBegin(), field.doFsEnd() );
+        }
+
+        //----------------------------------------------------------------------
+        // Convenience function to add to dof values
+        template<typename SOLVER, typename FIELD>
+        void addToDoFsFromSolver( const SOLVER& solver,
+                                  FIELD& field,
+                                  const bool zeroConstraints = false )
+        {
+            base::dof::Distribute<typename FIELD::DegreeOfFreedom,SOLVER,ADD>
+                distributeDoF( solver, zeroConstraints );
+            distributeDoF.apply( field.doFsBegin(), field.doFsEnd() );
+        }
+
+        //----------------------------------------------------------------------
         namespace detail_{
 
             //! Type of operation  c = op( a, b )
@@ -62,6 +86,16 @@ namespace base{
 
 //------------------------------------------------------------------------------
 /** Pass values to degree of freedom.
+ *  The main activity of this object is carried out in 2 steps:
+ *
+ *    1. Ask every active dof-component for its ID, get the value from the
+ *       source (usually the solver), and apply that value to the dof-component
+ *       (according to the DOFOP flag by setting or adding)
+ *    2. Evaluate the constraint of every in-active dof (either as a homogeneous
+ *       dof, in case of e.g. non-linear iterations, or fully) and apply that
+ *       value to the dof-component (setting or adding)
+ *
+ *
  *  \tparam DOF   Type of degree of freedom
  *  \tparam SRC   Source of values (normally the solver)
  *  \tparam DOFOP Type of operation on the dof values
@@ -91,42 +125,65 @@ public:
           zeroConstraints_( zeroConstraints )
     {  }
 
-    //! Function call operator acting on an individual dof
-    void operator()( DOF * dof ) const
+    //! Distribute the solution values back to the degrees of freedom
+    template<typename DOFITER>
+    void apply( DOFITER first, DOFITER last )
     {
-        // Collect dof IDs
-        std::vector<unsigned> dofIDs( dofSize );
-        dof -> getIndices( dofIDs.begin() );
+        // go through all dofs in order to collect solution values
+        for ( DOFITER iter = first; iter != last; ++iter ) {
+            //(this -> operator())( *iter );
 
-        // Collect activity flags
-        std::vector<bool>     dofActivity( dofSize );
-        dof -> getActivity( dofActivity.begin() );
-
-        // Set values of active dofs
-        for ( unsigned d = 0; d < dofSize; d ++ ) {
+            DegreeOfFreedom* dof = *iter;
             
-            if ( dofActivity[d] ) {
+            // Collect dof IDs
+            std::vector<unsigned> dofIDs( dofSize );
+            dof -> getIndices( dofIDs.begin() );
+
+            // Go through all components
+            for ( unsigned d = 0; d < dofSize; d ++ ) {
+
+                // only query solution for active dofs
+                if ( dof -> isActive(d) ) {
                 
-                dof -> setValue( d,
-                                 DoFOp::apply( dof -> getValue( d ), 
-                                               sourceOfValues_.getValue( dofIDs[d] ) ) );
-            }
-            else {
-                if ( not zeroConstraints_ )
                     dof -> setValue( d,
-                                     DoFOp::apply( dof -> getValue( d ),
-                                                   dof -> getConstraint( d ) ) );
+                                     DoFOp::apply( dof -> getValue( d ), 
+                                                   sourceOfValues_.getValue( dofIDs[d] ) ) );
+                }
+                
             }
-                                               
+            
         }
 
-        return;
+        // go through all dofs in order to evaluate constraints
+        for ( DOFITER iter = first; iter != last; ++iter ) {
+
+            DegreeOfFreedom* dof = *iter;
+
+            for ( unsigned d = 0; d < dofSize; d++ ) {
+
+                // only evaluate constraints at inactive dofs
+                if ( dof -> isConstrained(d) ) {
+
+                    // evaluate the constraint of this dof-component
+                    const base::number constraintValue =
+                        dof -> getConstraint( d ) -> evaluate( not zeroConstraints_ );
+
+                    // apply to dof
+                    dof -> setValue( d,
+                                     DoFOp::apply( dof -> getValue( d ), 
+                                                   constraintValue ) );
+                    
+                }
+            }
+            
+        }
     }
     
 private:
     //! Access to source of values (usually the solver object)
     const SourceOfValues & sourceOfValues_;
-
+    //! In case of nonlinear iterations based on increments,
+    //! use homogeneous constraints only
     const bool zeroConstraints_;
 };
 

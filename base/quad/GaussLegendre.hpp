@@ -74,10 +74,6 @@ public:
     //! Type of coordinate-vector
     typedef typename base::Vector<dim>::Type VecDim;
 
-    //! Type of iterator for external access
-    typedef typename boost::array< std::pair<double, VecDim>,
-                                   numPoints>::const_iterator Iter;
-
     //! Specialized constructor for different number of Points
     GaussLegendre( )
     {
@@ -90,6 +86,10 @@ public:
             weightsAndPoints_[g] = std::make_pair( weight, point );
         }
     }
+
+    //! Type of iterator for external access
+    typedef typename boost::array< std::pair<double, VecDim>,
+                                   numPoints>::const_iterator Iter;
 
     //! Begin of array iterator
     Iter begin() const  { return weightsAndPoints_.begin(); }

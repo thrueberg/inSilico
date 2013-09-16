@@ -17,10 +17,8 @@
 #include <boost/array.hpp>
 // base includes
 #include <base/verify.hpp>
-// base/mesh includes
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Unstructured.hpp>
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
 // base/fe includes
 #include <base/fe/LagrangeElement.hpp>
 // base/io includes
@@ -106,21 +104,17 @@ namespace tools{
                     static const base::Shape shape   = SHAPE;
                     static const unsigned degree     = DEGREE;
                     static const unsigned    dim     = 3;
-        
-                    // Typedefs for defining a mesh
-                    typedef base::mesh::Node<dim>                 Node;
-                    typedef base::LagrangeShapeFun<degree,shape>  SFun;
-                    typedef base::mesh::Element<Node,SFun>        Element;
-                    typedef base::mesh::Unstructured<Element>     Mesh;
 
-                    static const unsigned numNodes = Element::numNodes;
-
-                    // Mesh object
+                    // Mesh type and object
+                    typedef base::Unstructured<shape,degree,dim>  Mesh;
                     Mesh mesh;
 
+                    typedef typename Mesh::Element Element;
+                    typedef typename Mesh::Node    Node;
+                    static const unsigned numNodes = Element::numNodes;
+
                     // SMF input
-                    base::io::smf::Reader<Mesh> smfReader;
-                    smfReader( mesh, smfIn );
+                    base::io::smf::readMesh( smfIn, mesh );
 
                     // go through elements and modify connectivities
                     typename Mesh::ElementPtrIter eIter = mesh.elementsBegin();
@@ -143,8 +137,7 @@ namespace tools{
                     }
 
                     // SMF output
-                    base::io::smf::Writer<Mesh> smfWriter;
-                    smfWriter( mesh, smfOut );
+                    base::io::smf::writeMesh( mesh, smfOut );
                 }
 
             };

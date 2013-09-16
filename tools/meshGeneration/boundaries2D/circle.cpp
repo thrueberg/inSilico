@@ -22,7 +22,8 @@ namespace circle{
     bool userInput( const int argc, char* argv[],
                     double& radius,
                     tools::meshGeneration::Point& centre,
-                    std::size_t& numElements )
+                    std::size_t& numElements,
+                    std::string& message )
     {
         if ( argc != 5 ) {
             std::cerr << "Usage: " << argv[0]
@@ -33,7 +34,7 @@ namespace circle{
         }
 
         // radius
-        radius = boost::lexical_cast<double>( argv[1] );
+        radius = boost::lexical_cast<double>(    argv[1] ); 
     
         // centre point
         centre[0] = boost::lexical_cast<double>( argv[2] );
@@ -41,6 +42,12 @@ namespace circle{
         centre[2] = 0.;
         // number of elements
         numElements = boost::lexical_cast<std::size_t>( argv[4] );
+
+        // concatenate the input arguments
+        for ( int c = 0; c < argc; c++ ) {
+            message += argv[c];
+            message += " ";
+        }
 
         return true;
     }
@@ -56,23 +63,28 @@ int main( int argc, char* argv[] )
     double radius;
     Point centre;
     std::size_t nElem;
-    const bool input = circle::userInput( argc, argv, radius, centre, nElem );
+    std::string message;
+    const bool input =
+        circle::userInput( argc, argv, radius, centre, nElem, message);
     if ( not input ) return 0;
 
     // angle increment
-    const double dPhi = 2. * M_PI / nElem;
+    const double dPhi = 2. * M_PI / static_cast<double>(nElem);
 
     // generate points
     std::vector<Point>   points;
     const std::size_t nNodes    = nElem;
     for ( std::size_t i = 0; i < nNodes; i++ ) {
         Point p;
-        p[0] = centre[0] + radius * cos( i * dPhi );
-        p[1] = centre[1] + radius * sin( i * dPhi );
+        p[0] = centre[0] + radius * cos( static_cast<double>(i) * dPhi );
+        p[1] = centre[1] + radius * sin( static_cast<double>(i) * dPhi );
         p[2] =  0.0;
         points.push_back( p );
     }
 
+    // write calling string as comment to output
+    tools::meshGeneration::writeSMFComment( message, std::cout );
+    
     //--------------------------------------------------------------------------
     // let user know geometric items
     const double area = radius * radius * M_PI;

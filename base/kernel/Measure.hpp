@@ -1,0 +1,77 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   kernel/Measure.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_kernel_measure_hpp
+#define base_kernel_measure_hpp
+
+//------------------------------------------------------------------------------
+// boost includes
+#include <boost/function.hpp>
+// base includes
+#include <base/geometry.hpp>
+#include <base/linearAlgebra.hpp>
+// base/kernel includes
+#include <base/kernel/KernelFun.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace kernel{
+
+        template<typename FIELDTUPLE>
+        class Measure;
+    }
+}
+
+//------------------------------------------------------------------------------
+/** Kernel for area/volume computations.
+ *  Using the simple formula
+ *  \f[
+ *        V = \int_\tau dx = \int_{\hat{\tau}} det J d\xi
+ *  \f]
+ *  for conversion from physical to parameter space, the area of an element
+ *  becomes the weighted sum of its metrics, i.e. the \f$ det J \f$ values.
+ *  \tparam FIELDTUPLE  Type of tupe of geometry and field for the integration
+ */
+template<typename FIELDTUPLE>
+class base::kernel::Measure
+    : public base::kernel::KernelFun<FIELDTUPLE,double>::Type
+{
+public:
+    //! Template parameter
+    typedef FIELDTUPLE FieldTuple;
+
+    //! @name Extract element types from pointers
+    //@{
+    typedef typename FieldTuple::GeomElement  GeomElement;
+    //@}
+
+    typedef void result_type;
+    
+    //! Local coordinate
+    typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
+
+    //--------------------------------------------------------------------------
+    //! Added weighted metric to the result storatge
+    void operator()( const FieldTuple&  fieldTuple,
+                     const LocalVecDim& xi,
+                     const double       weight,
+                     double& sumOfMeasures ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+
+        // element jacobian
+        const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );
+
+        sumOfMeasures += detJ * weight;
+
+    }
+};
+
+#endif

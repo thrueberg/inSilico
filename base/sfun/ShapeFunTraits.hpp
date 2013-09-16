@@ -20,11 +20,17 @@
 namespace base{
     namespace sfun{
 
+        enum Ordering
+        {
+            HIERARCHIC,    //!< First vertices, then edges, then faces, ...
+            LEXICOGRAPHIC, //!< First in 1-direction, then in 2-direction, ...
+        };
+
         //! Result types for scalar shape functions
         template<unsigned DIM>
         struct ScalarShapeFunResult
         {
-            typedef double                                   Fun;
+            typedef double                               Fun;
             typedef typename base::Vector<DIM>::Type     Grad;
             typedef typename base::Matrix<DIM,DIM>::Type Hessian;
         };
@@ -35,7 +41,7 @@ namespace base{
         {
             typedef typename base::Vector<DIM>::Type     Fun;
             typedef typename base::Matrix<DIM,DIM>::Type Grad;
-            typedef typename boost::array<Grad,DIM>          Hessian;
+            typedef typename boost::array<Grad,DIM>      Hessian;
         };
 
         //----------------------------------------------------------------------

@@ -11,14 +11,8 @@
 //[headerMesh]{
 // base::Shape and the traits object
 #include <base/shape.hpp>
-// Lagrangian shape functions
-#include <base/LagrangeShapeFun.hpp>
-// Node definition
-#include <base/mesh/Node.hpp>
-// Element definition
-#include <base/mesh/Element.hpp>
 // Unstructured mesh
-#include <base/mesh/Unstructured.hpp>
+#include <base/Unstructured.hpp>
 // Mesh boundary definition
 #include <base/mesh/MeshBoundary.hpp>
 // Creation of a boundary mesh
@@ -60,19 +54,9 @@ int main( int argc, char* argv[] )
     // Definition of the polynomial degree of the geometry approximation
     const unsigned geomDeg = 1;
 
-    //--------------------------------------------------------------------------
-    // spatial dimension dictated by element shape (not necessarily)
-    const unsigned dim = base::ShapeDim<elemShape>::value;
     //[attributes]}
     //[mesh]{
-    // type of a geometry node
-    typedef base::mesh::Node<dim>                        Node;
-    // type of shape function for geometry approximation
-    typedef base::LagrangeShapeFun<geomDeg,elemShape>    GeomFun;
-    // type of element 
-    typedef base::mesh::Element<Node,GeomFun>            Element;
-    // type of mesh
-    typedef base::mesh::Unstructured<Element>            Mesh;
+    typedef base::Unstructured<elemShape,geomDeg>            Mesh;
 
     // Create an empty mesh object
     Mesh mesh;
@@ -83,10 +67,8 @@ int main( int argc, char* argv[] )
         //[smfInp]{  Input from an smf file
         // input file stream from smf file
         std::ifstream smf( smfFileName.c_str() );
-        // smf-reader object
-        base::io::smf::Reader<Mesh> smfReader;
-        // read into mesh
-        smfReader( mesh, smf );
+        // read smf mesh
+        base::io::smf::readMesh( smf, mesh );
         // close the stream
         smf.close();
         //[smfInp]}
@@ -94,7 +76,7 @@ int main( int argc, char* argv[] )
 
     //--------------------------------------------------------------------------
     //[boundary]{ Boundary creation
-    typedef base::mesh::CreateBoundaryMesh<Element> CreateBoundaryMesh;
+    typedef base::mesh::CreateBoundaryMesh<Mesh::Element> CreateBoundaryMesh;
     CreateBoundaryMesh::BoundaryMesh boundaryMesh;
     {
         // Create list of <Element,faceNo> pairs
@@ -135,10 +117,8 @@ int main( int argc, char* argv[] )
             const std::string smfBoundaryFileName = baseName + "_boundary.smf";
             // output stream
             std::ofstream smf( smfBoundaryFileName.c_str() );
-            // smf-writer object
-            base::io::smf::Writer<CreateBoundaryMesh::BoundaryMesh> smfWriter;
-            // write mesh to stream
-            smfWriter( boundaryMesh, smf );
+            // write to smf
+            base::io::smf::writeMesh( boundaryMesh, smf );
             // close stream
             smf.close();
             //[smfOut]}

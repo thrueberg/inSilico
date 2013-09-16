@@ -17,12 +17,14 @@ CC    = $(CPLUSPLUS)
 INCLUDES  = -I$(INSILICOROOT) 
 INCLUDES += -I$(BOOST_DIR)
 INCLUDES += -isystem$(EIGEN3_DIR)  #note the -isystem for surpression of warnings
+INCLUDES += -I$(SUPERLU_INC)
 
 # libraries
-LDLIBS  = 
+LDLIBS  =  -L $(SUPERLU_LIB_PATH) $(SUPERLU_LIB)
 
 # common flags
 CPPFLAGS = $(INCLUDES) 
+CPPFLAGS += -DUSE_SUPERLU
 
 # set flags depending on mode
 ifeq ($(strip $(DEBUG)),YES) 

@@ -63,6 +63,8 @@ public:
     //@}
 
     //! Access to shape function
+    FEFun & fEFun() { return BasisElement::shapeFun(); }
+    //! Const access to shape function
     const FEFun & fEFun() const { return BasisElement::shapeFun(); }
 };
 

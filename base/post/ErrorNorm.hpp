@@ -18,6 +18,8 @@
 // base includes
 #include <base/linearAlgebra.hpp>
 #include <base/geometry.hpp>
+// base/asmb includes
+#include <base/asmb/FieldElementPointerTuple.hpp>
 // base/post includes
 #include <base/post/evaluateField.hpp>
 
@@ -25,11 +27,20 @@
 namespace base{
     namespace post{
 
-        template<typename QUAD, unsigned DIM, unsigned DOFSIZE, unsigned ORDER>
+        template<typename GEOMELEMENT, typename FIELDELEMENT,unsigned ORDER>
         class ErrorNorm;
 
         //----------------------------------------------------------------------
-        /**
+        /** Convenience function for the computation of the FE error in a norm.
+         *  \tparam ORDER      Order of Sobolev norm
+         *  \tparam QUADRATURE Type of quadrature to apply
+         *  \tparam MESH       Type of geometry mesh
+         *  \tparam FIELD      Type of field with the FE solution
+         *  \param[in]   quadrature  Quadrature object
+         *  \param[in]   mesh        Mesh object
+         *  \param[in]   field       Field object with FE solution
+         *  \param[in]   refSol      Function object providing reference solution
+         *  \return                  Error in desired Sobolev norm
          */
         template<unsigned ORDER, typename QUADRATURE, typename MESH,
                  typename FIELD>
@@ -37,30 +48,39 @@ namespace base{
                                  const MESH&       mesh,
                                  const FIELD&      field,
                                  const typename
-                                 base::post::ErrorNorm<QUADRATURE,
-                                                       MESH::Node::dim,
-                                                       FIELD::DegreeOfFreedom::size,
-                                                       ORDER>::Reference& refSol )
+                                 base::post::ErrorNorm<
+                                     typename MESH::Element,
+                                     typename FIELD::Element,
+                                     ORDER>::Reference& refSol )
         {
-            typedef ErrorNorm<QUADRATURE,
-                              MESH::Node::dim,
-                              FIELD::DegreeOfFreedom::size,ORDER> Error;
-            Error error( refSol, quadrature );
+            typedef ErrorNorm<typename MESH::Element,typename FIELD::Element,
+                              ORDER> Error;
+            Error error( refSol );
 
             // compute for every element the error
             typename MESH::ElementPtrConstIter  elemIter  = mesh.elementsBegin();
             typename MESH::ElementPtrConstIter  elemLast  = mesh.elementsEnd();
-            typename FIELD::ElementPtrConstIter fieldElem = field.elementsBegin();
 
             double errorSquared = 0.;
     
-            for ( ; elemIter != elemLast; ++elemIter, ++fieldElem ) {
-                errorSquared += error.compute( *elemIter, *fieldElem );
-            }
+            for ( ; elemIter != elemLast; ++elemIter ) {
 
+                // get corresponding field element
+                typename FIELD::Element* fieldElem =
+                    field.elementPtr( (*elemIter) -> getID() );
+                    
+
+                // Construct a field element pointer tuple 
+                base::asmb::FieldElementPointerTuple<
+                    typename MESH::Element*,
+                    typename FIELD::Element*> fept( *elemIter, fieldElem );
+
+                // apply quadrature
+                quadrature.apply( error, fept, errorSquared );
+            }
+            
             // return the square root of the sum of the squares
             return  std::sqrt( errorSquared );
-        
         }
         
         //----------------------------------------------------------------------
@@ -111,6 +131,51 @@ namespace base{
                     return base::post::evaluateFieldGradient( gep, fep, xi );
                 }
             };
+
+            //------------------------------------------------------------------
+            //! Case FIELDDIM != GEOMDIM, convert from surface to domain
+            template<typename GEOMELEMENT, unsigned FIELDDIM, unsigned GEOMDIM>
+            struct SurfacePolicy
+            {
+                typedef const typename GEOMELEMENT::DomainElement DomainElement;
+
+                static DomainElement* domainElementPtr( const GEOMELEMENT* ge)
+                {
+                    return ge -> getDomainElementPointer();
+                }
+
+                typedef typename base::Vector<FIELDDIM>::Type VecDim;
+                typedef typename base::Vector<GEOMDIM>::Type  VecLDim;
+
+                static VecDim makeParametric( const GEOMELEMENT* ge,
+                                              const VecLDim& eta )
+                {
+                    return ge -> localDomainCoordinate( eta );
+                }
+
+            };
+
+            //! Case FIELDDIM == GEOMDIM, no conversion needed
+            template<typename GEOMELEMENT, unsigned FIELDDIM>
+            struct SurfacePolicy<GEOMELEMENT,FIELDDIM,FIELDDIM>
+            {
+                typedef const GEOMELEMENT DomainElement;
+
+                static DomainElement* domainElementPtr( const GEOMELEMENT* ge)
+                {
+                    return ge;
+                }
+
+                typedef typename base::Vector<FIELDDIM>::Type VecDim;
+                
+                static VecDim makeParametric( const GEOMELEMENT* ge,
+                                              const VecDim& eta )
+                {
+                    return eta;
+                }
+
+            };
+
         
         } // namespace detail_
     } // namespace post
@@ -135,20 +200,32 @@ namespace base{
  *  the \f$ L_2 \f$ norm and in case of \f$ s = 1 \f$ it will be the
  *  \f$ H^1 \f$ semi-norm.
  *
- *  \tparam REF     Functor providing the reference solution
- *  \tparam QUAD    Quadrature
+ *  \tparam GEOMELEMENT  Mesh element
+ *  \tparam FIELDELEMENT Field element
  *  \tparam ORDER   Sobolev-Norm order \f$ s \f$
  */
-template<typename QUAD, unsigned DIM, unsigned DOFSIZE, unsigned ORDER>
+template<typename GEOMELEMENT, typename FIELDELEMENT, unsigned ORDER>
 class base::post::ErrorNorm
+    : public boost::function<void( const
+                                   base::asmb::FieldElementPointerTuple<GEOMELEMENT*,
+                                   FIELDELEMENT*>&,
+                                   const typename FIELDELEMENT::ShapeFun::VecDim&,
+                                   const double,
+                                   double&)>
+
 {
  public:
     //! @name Template parameter
     //@{
-    typedef QUAD    Quadrature;
-    static const unsigned dim     = DIM;
-    static const unsigned doFSize = DOFSIZE;
+    typedef GEOMELEMENT GeomElement;
+    typedef FIELDELEMENT FieldElement;
     static const unsigned order   = ORDER;
+    //@}
+        
+    //! @name Deduced attributes
+    //@{    
+    static const unsigned dim     = GeomElement::Node::dim;
+    static const unsigned doFSize = FieldElement::DegreeOfFreedom::size;
     //@}
 
     //! Result type of the approximation and reference solution
@@ -164,71 +241,61 @@ class base::post::ErrorNorm
     typedef detail_::FieldEvaluationBinder<dim,doFSize,order> Approximation;
     
     //! Construction with approximate and reference solutions and quadrature
-    ErrorNorm( const Reference&  reference,
-               const Quadrature& quadrature )
-        : reference_( reference ),
-          quadrature_( quadrature )
+    ErrorNorm( const Reference& reference )
+    : reference_( reference )
     { }
-    
+
+    //! Tuple of element pointers
+    typedef
+    base::asmb::FieldElementPointerTuple<GeomElement*, FieldElement*> FEPT;
+
+    //! Conversion from surface to domain policy
+    typedef detail_::SurfacePolicy<GeomElement,FieldElement::dim,GeomElement::dim>
+    SurfacePolicy;
+
     //--------------------------------------------------------------------------
     /** Main function, evaluates solutions and sums upt the differences for each
      *  quadrature point. 
-     *  \param[in] geomElemPtr  Pointer to geometry element
-     *  \param[in] fieldElemPtr Pointer to field element
-     *  \return          Value of the error squared on this element
+     *  \param[in] fept             Pair of mesh and field element pointers
+     *  \param[in] xi               Local evaluation coordinate
+     *  \param[in] weight           Quadrature weight
+     *  \param[in,out] errorSquared Sum of squares of errors
      */
-    template<typename GEOMELEMENT, typename FIELDELEMENT>
-    double compute( const GEOMELEMENT*  geomElemPtr,
-                    const FIELDELEMENT* fieldElemPtr ) const
+    void operator()( const FEPT& fept, 
+                     const typename GeomElement::GeomFun::VecDim& xi,
+                     const double weight,
+                     double& errorSquared ) const
     {
-        // sanity checks
-        {
-            STATIC_ASSERT_MSG( (dim==GEOMELEMENT::Node::dim),
-                               "Dimensions do not fit!");
-            STATIC_ASSERT_MSG( (doFSize==FIELDELEMENT::DegreeOfFreedom::size),
-                               "DoF sizes do not fit!");
-        }
+        // Access to the mesh and field element pointer tuples
+        const GeomElement*  geomEPtr  = fept.geomElementPtr();
+        const FieldElement* fieldEPtr = fept.testElementPtr();
+        
+        // get global coordinate
+        const typename GEOMELEMENT::Node::VecDim x =
+            base::Geometry<GEOMELEMENT>()( geomEPtr, xi );
 
-        // value of the error in this element
-        double error2 = 0.;
+        // get jacobian
+        const double detJ = base::Jacobian<GEOMELEMENT>()( geomEPtr, xi );
 
-        // do the quadrature loop
-        typename Quadrature::Iter qIter = quadrature_.begin();
-        typename Quadrature::Iter qEnd  = quadrature_.end();
-        for ( ; qIter != qEnd; ++qIter ) {
+        // get reference
+        const ValueType ref = reference_( x );
+                    
+        // get approximation
+        const ValueType approx =
+            Approximation::apply( SurfacePolicy::domainElementPtr( geomEPtr ),
+                                  fieldEPtr,
+                                  SurfacePolicy::makeParametric( geomEPtr, xi ) );
+        // point-wise error
+        const ValueType error = ref - approx;
 
-            // local evaluation point
-            const typename Quadrature::VecDim xi = qIter -> second;
-            
-            // get global coordinate
-            const typename GEOMELEMENT::Node::VecDim x =
-                base::Geometry<GEOMELEMENT>()( geomElemPtr, xi );
+        // sum-up
+        errorSquared += base::dotProduct( error, error ) * detJ * weight;
 
-            // get jacobian
-            const double detJ = base::Jacobian<GEOMELEMENT>()( geomElemPtr, xi );
-
-            // get reference
-            const ValueType ref = reference_( x );
-
-            // get approximation
-            const ValueType approx = Approximation::apply( geomElemPtr,
-                                                           fieldElemPtr,
-                                                           xi );
-            // point-wise error
-            const ValueType error = ref - approx;
-
-            // sum-up
-            error2 += base::dotProduct( error, error ) * detJ * (qIter -> first);
-            
-        }
-            
-        return error2;
+        return;
     }
     
-    
 private:
-    const Reference&     reference_;     //!< Reference   solution
-    const Quadrature&    quadrature_;    //!< Quadrature object
+    const Reference& reference_;     //!< Reference solution
 };
 
 

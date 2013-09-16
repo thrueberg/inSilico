@@ -250,6 +250,54 @@ namespace base{
     };
 
     //--------------------------------------------------------------------------
+    namespace detail_{
+
+        //! Compute normal via cross product of surface jacobi-matrix
+        template<typename SELEMENT,unsigned LOCALDIM>
+        struct EvaluateNormal
+        {
+            typedef GeomTraits<SELEMENT> GT;
+
+            static typename GT::GlobalVecDim apply( const SELEMENT* sep,
+                                                    const typename GT::LocalVecDim& eta )
+            {
+                // Get the Jacobi matrix
+                const typename base::Matrix<GT::globalDim,
+                                            GT::localDim>::Type J
+                    = JacobiMatrix<SELEMENT>()( sep, eta );
+
+                // Un-normalised normal vector is the cross product of J's columns
+                return base::crossProduct( J );
+            }
+            
+        };
+
+        //! Case of one-dimensional domain: normal is +/- 1
+        template<typename SELEMENT>
+        struct EvaluateNormal<SELEMENT,0>
+        {
+            typedef GeomTraits<SELEMENT> GT;
+
+            STATIC_ASSERT_MSG( GT::globalDim < 2, "This case is not implemented" );
+
+            static typename GT::GlobalVecDim apply( const SELEMENT* sep,
+                                                    const typename GT::LocalVecDim& eta )
+            {
+                const bool isRight =
+                    ( ( *(sep -> parametricBegin()) )[0] > 0.0 );
+
+                typename GT::GlobalVecDim normal;
+                if ( isRight ) normal[0] = +1.0;
+                else           normal[0] = -1.0;
+
+                return normal;
+            }
+            
+        };
+        
+    }
+
+    //--------------------------------------------------------------------------
     /** Computation of the normal vector on a surface element.
      *  In three space dimensions, the two columns of the Jacobi matrix are
      *  span the tangent space of the surface element at the considered point.
@@ -283,14 +331,10 @@ namespace base{
                                 const typename GT::LocalVecDim& eta,
                                 typename GT::GlobalVecDim& normal ) const
         {
-            // Get the Jacobi matrix
-            const typename base::Matrix<GT::globalDim,
-                                            GT::localDim>::Type J
-                = JacobiMatrix<SELEMENT>()( sep, eta );
-
-            // Un-normalised normal vector is the cross product of J's columns
-            normal = base::crossProduct( J );
-
+            // un-normalised normal vector
+            normal =
+                detail_::EvaluateNormal<SELEMENT,GT::localDim>::apply( sep, eta );
+            
             // Normalise the normal vector (sic)
             const result_type length = base::norm( normal );
             normal /= length;

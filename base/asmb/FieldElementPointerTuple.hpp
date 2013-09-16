@@ -10,6 +10,9 @@
 #ifndef base_asmb_fieldelementpointertuple_hpp
 #define base_asmb_fieldelementpointertuple_hpp
 
+// base includes
+#include <base/types.hpp>
+
 //------------------------------------------------------------------------------
 namespace base{
     namespace asmb{
@@ -35,9 +38,6 @@ namespace base{
         class FieldElementPointerTuple;
 
         //----------------------------------------------------------------------
-        namespace detail_{
-
-        }
         
         //! Generate a tuple from a surface field tuple
         template<typename SFEPT>
@@ -57,11 +57,11 @@ namespace base{
             static Type convert( const SFEPT & sfept )
             {
                 return Type( sfept.geomElementPtr() -> getDomainElementPointer(),
-                             sfept.template copy<1>(),
-                             sfept.template copy<2>(),
-                             sfept.template copy<3>(),
-                             sfept.template copy<4>(),
-                             sfept.template copy<5>() );
+                             sfept.template get<1>(),
+                             sfept.template get<2>(),
+                             sfept.template get<3>(),
+                             sfept.template get<4>(),
+                             sfept.template get<5>() );
             }
         };
 
@@ -103,6 +103,37 @@ namespace base{
                               5 ) ) ) ) );
             };
 
+            //------------------------------------------------------------------
+            template<typename TUPLE,int N>
+            struct TupleElementType
+            {
+                typedef typename boost::tuples::element<N,TUPLE>::type Type;
+            };
+
+            template<typename TUPLE>
+            struct TupleElementType<TUPLE,-1>
+            {
+                typedef DummyElementPtr Type;
+            };
+
+            template<typename TUPLE,int N>
+            struct GetTupleElement
+            {
+                static typename TupleElementType<TUPLE,N>::Type apply( const TUPLE& t )
+                {
+                    return t.template get<N>();
+                }
+            };
+
+            template<typename TUPLE>
+            struct GetTupleElement<TUPLE,-1>
+            {
+                static DummyElementPtr apply( const TUPLE& t )
+                {
+                    return makeDummyElementPtr();
+                }
+            };
+
 
         } // namespace detail_
 
@@ -132,17 +163,19 @@ class base::asmb::FieldElementPointerTuple
                          FIELD3EPTR,FIELD4EPTR,FIELD5EPTR> Tuple;
     
 public:
+    //! Maximal storage of fields as defined by the implementation
+    static const unsigned maxNumFields = 5; 
+    
     //! Number of fields which are not a dummy
     static const unsigned numFields = detail_::NumFields<FIELD1EPTR,FIELD2EPTR,
                                                          FIELD3EPTR,FIELD4EPTR,
                                                          FIELD5EPTR>::value;
     
     //! Type via index
-    template<unsigned N>
+    template<int N>
     struct Binder
     {
-        STATIC_ASSERT_MSG( N <= numFields, "Access exceeds storage size" );
-        typedef typename boost::tuples::element<N,Tuple>::type Type;
+        typedef typename detail_::TupleElementType<Tuple,N>::Type Type;
     };
 
     //! @name Human readable names of the template parameter
@@ -165,13 +198,14 @@ public:
     typedef typename base::TypeReduction<AuxField3ElementPtr>::Type  AuxField3Element;
     //@}
 
+    
     //! Constructor with all pointers
     FieldElementPointerTuple( GeomElementPtr      geomElementPtr,     
-                              TestElementPtr      testElementPtr,     
-                              TrialElementPtr     trialElementPtr,    
-                              AuxField1ElementPtr auxField1ElementPtr,
-                              AuxField2ElementPtr auxField2ElementPtr,
-                              AuxField3ElementPtr auxField3ElementPtr )
+                              TestElementPtr      testElementPtr,  
+                              TrialElementPtr     trialElementPtr     = detail_::makeDummyElementPtr(),
+                              AuxField1ElementPtr auxField1ElementPtr = detail_::makeDummyElementPtr(),
+                              AuxField2ElementPtr auxField2ElementPtr = detail_::makeDummyElementPtr(),
+                              AuxField3ElementPtr auxField3ElementPtr = detail_::makeDummyElementPtr() )
         : tuple_( geomElementPtr,      testElementPtr,      trialElementPtr,
                   auxField1ElementPtr, auxField2ElementPtr, auxField3ElementPtr )
     {
@@ -179,19 +213,10 @@ public:
     }
     
     //! Value access via index
-    template<unsigned N>
-    const typename Binder<N>::Type& get() const
+    template<int N>
+    const typename Binder<N>::Type get() const
     {
-        STATIC_ASSERT_MSG( N <= numFields, "Access exceeds storage size" );
-        return tuple_.template get<N>();
-    }
-
-    //! Value access via index without bound check
-    template<unsigned N>
-    const typename boost::tuples::element<N,Tuple>::type copy() const
-    {
-        STATIC_ASSERT_MSG( N < 6, "Access exceeds implementation" );
-        return tuple_.template get<N>();
+        return detail_::GetTupleElement<Tuple,N>::apply( tuple_ );
     }
 
     //! @name Access with names

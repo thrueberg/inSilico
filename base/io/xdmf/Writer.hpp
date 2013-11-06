@@ -16,6 +16,7 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include <iterator>
 // boost includes
 #include <boost/lexical_cast.hpp>
 #include <boost/bind.hpp>
@@ -271,7 +272,7 @@ void base::io::xdmf::Writer::writeAttribute( VALITER first,
 
     const std::size_t numDoFs = std::distance( first, last );
 
-    typedef typename VALITER::value_type DoFValue;
+    typedef typename std::iterator_traits<VALITER>::value_type DoFValue;
 
     std::copy( first, last, 
                base::io::OStreamIterator<DoFValue>(

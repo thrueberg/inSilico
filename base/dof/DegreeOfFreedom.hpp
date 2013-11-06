@@ -160,6 +160,12 @@ public:
         return values_[H][which];
     }
 
+    template<unsigned H>
+    void setHistoryValue( const unsigned which, const number value )
+    {
+        values_[H][which] = value;
+    }
+
     void pushHistory()
     {
         for ( unsigned h = nHist; h > 0; h-- )

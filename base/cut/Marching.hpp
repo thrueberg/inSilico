@@ -250,13 +250,13 @@ struct base::cut::MarchingCube
         typedef base::cut::DecomposeHyperCube<dim>   DHC;
             
         // remember the edges / vertices that are already in the
-        std::map<Edge,unsigned> uniqueNodes;
+        std::map<base::cut::Edge,unsigned> uniqueNodes;
             
         // fill nodes with the vertices of the HyperCube
         for ( unsigned v = 0; v < numVertices; v++ ) {
             // store 
             nodes.push_back( HC::vertex(v) );
-            Edge edge( v );
+            base::cut::Edge edge( v );
             uniqueNodes[ edge ] = v;
         }
 
@@ -305,7 +305,7 @@ struct base::cut::MarchingSimplex
                        std::vector<VolSimplex>&  volumeOut )
     {
         // remember the edges / vertices that are already in the
-        std::map<Edge,unsigned> uniqueNodes;
+        std::map<base::cut::Edge,unsigned> uniqueNodes;
 
         // get the vertices of the simplex
         typename base::cut::Simplex<dim,VecDim>::Type vertices;
@@ -315,7 +315,7 @@ struct base::cut::MarchingSimplex
         for ( unsigned v = 0; v < numVertices; v++ ) {
             // store
             nodes.push_back( vertices[v] );
-            Edge edge( v );
+            base::cut::Edge edge( v );
             uniqueNodes[ edge ] = v;
         }
 
@@ -360,12 +360,12 @@ namespace base{
             unsigned intersect( const unsigned i1, const unsigned i2,
                                 const double   d1, const double   d2,
                                 std::vector<typename base::Vector<DIM,double>::Type>& nodes,
-                                std::map<Edge,unsigned>& uniqueNodes )
+                                std::map<base::cut::Edge,unsigned>& uniqueNodes )
             {
                 // New node lies on this edge
-                Edge edge( i1, i2 );
+                base::cut::Edge edge( i1, i2 );
                 // Find edge in map of unique nodes
-                std::map<Edge,unsigned>::iterator iter = uniqueNodes.find( edge );
+                std::map<base::cut::Edge,unsigned>::iterator iter = uniqueNodes.find( edge );
                 // If already exists pass back number of existing node
                 if ( iter != uniqueNodes.end() ) {
                     return iter -> second;

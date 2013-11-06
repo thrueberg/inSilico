@@ -22,6 +22,19 @@
 namespace base{
     namespace time{
         template<unsigned Q> class AdamsMoulton;
+
+        namespace detail_{
+
+            //! Compiler workaround
+            template<unsigned Q>
+            struct NumSteps<Q,AdamsMoulton>
+            {
+                static const unsigned numLHS = Q+1;
+                static const unsigned numRHS = 1;
+                static const unsigned numSteps = Q-1;
+            };
+        }
+
     }
 }
 

@@ -28,8 +28,8 @@ namespace mat{
      *  http://en.wikipedia.org/wiki/Eigenvalue_algorithm under the subsection
      *  of 3x3 matrices. The basis of the method is that if \f$ A = p B + q I\f$,
      *  the eigenvalues \f$ \lambda \f$ of \f$ A \f$ relate to the eigenvalues
-     *  \f$ \mu \f$ by \f$ \lambda = p \mu + q \f$. It is know that
-     *  the eigenvalues of a 3x3 matrix are the roots of a cubic equation.
+     *  \f$ \mu \f$ of \f$ B \f$ by \f$ \lambda = p \mu + q \f$. It is known
+     *  that the eigenvalues of a 3x3 matrix are the roots of a cubic equation.
      *  Now, the values of \f$ p \f$ and \f$ q \f$ are chosen such that this
      *  cubic equation for the matrix \f$ B \f$ is easier to solve.
      *  The proposed choice is \f$ p = \sqrt{ tr( (A - qI )^2 ) } / 6 \f$ and
@@ -40,7 +40,7 @@ namespace mat{
      *  \f]
      *  and from these the values of \f$ \lambda \f$. Note that for efficieny
      *  reasons the sum of the off-diagonal squares is compared to the square
-     *  of the trace in the beginning. If they are significant smaller then
+     *  of the trace in the beginning. If they are significant smaller, 
      *  the matrix is assumed to be diagonal and the computation is trivial.
      */
     inline boost::array<double,3> eigenValues( const Tensor& A )

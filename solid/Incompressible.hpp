@@ -141,10 +141,6 @@ public:
     STATIC_ASSERT_MSG( PressElement::DegreeOfFreedom::size==1,
                        "No pressure element provided" );
 
-    //! Flag for equal test and form functions --> Bubnov-Galerkin
-    static const bool bubnov = boost::is_same<TrialElement,
-                                              TestElement>::value;
-
     //! Local coordinate
     typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
 
@@ -187,6 +183,11 @@ public:
         const TrialElement* trialEp  = fieldTuple.trialElementPtr();
         const PressElement* pressEp  = fieldTuple.auxField1ElementPtr();
 
+        // bubnov flag
+        const bool bubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
+
         // call hyperElastic object which does the iso-choric part
         hyperElastic_.tangentStiffness( fieldTuple, xi, weight, matrix );
 
@@ -200,8 +201,8 @@ public:
             (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
     
         // Sizes and sanity checks
-        const unsigned numRowBlocks = testGradX.size();
-        const unsigned numColBlocks = trialGradX.size();
+        const unsigned numRowBlocks = static_cast<unsigned>( testGradX.size()  );
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
         assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * nDoFs );
         assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * nDoFs );
 
@@ -291,7 +292,7 @@ public:
         const double detJ =
             (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
 
-        const unsigned numRowBlocks = testGradX.size();
+        const std::size_t numRowBlocks = testGradX.size();
         assert( static_cast<unsigned>( vector.size() ) == numRowBlocks * nDoFs );
 
         // Get deformation gradient of the current state
@@ -306,7 +307,7 @@ public:
         const double p = solid::pressureHistory<HIST>( geomEp, pressEp, xi );
 
         // loop over the test functions
-        for ( unsigned M = 0; M < numRowBlocks; M++ ) { // test functions
+        for ( std::size_t M = 0; M < numRowBlocks; M++ ) { // test functions
 
             // loop over the vector components of trials
             for ( unsigned i = 0; i < nDoFs; i++ ) { // test fun comp
@@ -409,8 +410,8 @@ public:
         (trialEp -> fEFun()).evaluate( geomEp, xi, trialFun );
         
         // Sizes and sanity checks
-        const unsigned numRowBlocks = testGradX.size();
-        const unsigned numCols      = trialFun.size();
+        const unsigned numRowBlocks = static_cast<unsigned>( testGradX.size() );
+        const unsigned numCols      = static_cast<unsigned>( trialFun.size()  );
         assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * nDoFs );
         assert( static_cast<unsigned>( matrix.cols() ) == numCols  );
 
@@ -610,7 +611,7 @@ public:
         const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );        
 
         //
-        const unsigned numRows = testFun.size();
+        const std::size_t numRows = testFun.size();
         assert( static_cast<unsigned>( vector.size() ) == numRows );
 
         // Get deformation gradient of the current state
@@ -623,7 +624,7 @@ public:
         const double ratio         = material_.giveBulkRatio( F );
 
         // loop over the test functions
-        for ( unsigned M = 0; M < numRows; M++ ) { // test functions
+        for ( std::size_t M = 0; M < numRows; M++ ) { // test functions
 
             const double entry =
                 ratio * detF* testFun[M] * detJ * weight;
@@ -674,10 +675,6 @@ public:
     typedef typename FieldTuple::AuxField1Element DispElement;
     //@}
 
-    //! Flag for equal test and form functions --> Bubnov-Galerkin
-    static const bool bubnov = boost::is_same<TrialElement,
-                                              TestElement>::value;
-
     //! Local coordinate
     typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
 
@@ -716,6 +713,11 @@ public:
         const TrialElement* trialEp = fieldTuple.trialElementPtr();
         const DispElement*  dispEp  = fieldTuple.auxField1ElementPtr();
 
+        // bubnov flag
+        const bool bubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
+
         //
         const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );
 
@@ -729,8 +731,8 @@ public:
             (trialEp -> fEFun()).evaluate( geomEp, xi, trialFun );
         
         // Sizes and sanity checks
-        const unsigned numRows = testFun.size();
-        const unsigned numCols = trialFun.size();
+        const unsigned numRows = static_cast<unsigned>( testFun.size() );
+        const unsigned numCols = static_cast<unsigned>( trialFun.size() );
         assert( static_cast<unsigned>( matrix.rows() ) == numRows );
         assert( static_cast<unsigned>( matrix.cols() ) == numCols );
 
@@ -802,7 +804,7 @@ public:
         const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );        
 
         //
-        const unsigned numRows = testFun.size();
+        const std::size_t numRows = testFun.size();
         assert( static_cast<unsigned>( vector.size() ) == numRows );
 
         // Get deformation gradient of the current state
@@ -818,7 +820,7 @@ public:
         const double oneOverKappa  = material_.giveInverseBulk( F );
 
         // loop over the test functions
-        for ( unsigned M = 0; M < numRows; M++ ) { // test functions
+        for ( std::size_t M = 0; M < numRows; M++ ) { // test functions
 
             const double entry =
                 -detF * oneOverKappa * p * testFun[M] * detJ * weight;

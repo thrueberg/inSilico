@@ -7,6 +7,8 @@
 //! @author Thomas Rueberg
 //! @date   2013
 
+#error DEPRECATED
+
 #ifndef base_mesh_extractmeshfaces_hpp
 #define base_mesh_extractmeshfaces_hpp
 

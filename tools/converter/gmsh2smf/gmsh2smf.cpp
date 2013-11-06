@@ -34,7 +34,7 @@ int main( int argc, char* argv[] )
         exit(-1);
     }
 
-    //! Mandatory input argument: Name of msh file (ends in .msh) 
+    // Mandatory input argument: Name of msh file (ends in .msh) 
     const std::string mshFile = boost::lexical_cast<std::string>( argv[1] );
 
     if ( mshFile.find( ".msh" ) == std::string::npos) {
@@ -42,32 +42,33 @@ int main( int argc, char* argv[] )
         exit(-1);
     }
 
-    //! Base name of input file determines base names of output
+    // Base name of input file determines base names of output
     const std::string baseName = mshFile.substr( 0, mshFile.find( ".msh" ) );
 
-    //! Input stream
+    // Input stream
     std::ifstream msh( mshFile.c_str() );
 
-    //! Validate stream
+    // Validate stream
     if ( not msh.is_open() ) {
         std::cerr << "(EE) Could not open file " << mshFile << "\n";
         exit(-1);
     }
 
-    //! @name Data reprenting the a msh-file
-    //@{
+    // Data reprenting the a msh-file
+    //{
     std::vector<std::string> physicalNames;
     physicalNames.push_back( "(unnamed)" );
     std::vector<gmsh2smf::Node> nodes;
     std::vector<unsigned> elementTypes, elementFirstTags;
     std::vector<std::vector<std::size_t> > connectivities;
-    //@}
+    //}
 
-    //! Create a tag reader to manage the input
+    // Create a tag reader to manage the input
     gmsh2smf::TagReader tagReader;
 
-    //! Read until a complement mesh has been found
+    // Read until a complement mesh has been found
     bool carryOn = true; unsigned numTags = 0;
+    bool readPhysical = false;
     while ( carryOn ) {
 
         const gmsh2smf::TagReader::Tag tag = tagReader.readAndValidate( msh );
@@ -80,6 +81,7 @@ int main( int argc, char* argv[] )
         }
         else if ( tag == gmsh2smf::TagReader::PhysicalNames ) {
             gmsh2smf::readPhysicalNames( msh, physicalNames );
+            readPhysical = true;
         }
         else if ( tag == gmsh2smf::TagReader::Nodes ) {
             gmsh2smf::readNodes( msh, nodes );
@@ -89,8 +91,8 @@ int main( int argc, char* argv[] )
             assert( elementTypes.size() == elementFirstTags.size() );
             assert( elementTypes.size() == connectivities.size() );
         }
-
-        //! Read closing tag and check if complete mesh has been found
+        
+        // Read closing tag and check if complete mesh has been found
         carryOn = not ( tagReader.readEndTag( msh ) );
 
         // Prevent infinite loop in malicious msh file
@@ -101,15 +103,18 @@ int main( int argc, char* argv[] )
         
     }
     msh.close();
+
+    // if not physical names are have been read, set some default flag
+    if ( not readPhysical ) physicalNames.push_back( "default" );
         
     //--------------------------------------------------------------------------
-    //! Output section
+    // Output section
 
-    //! write coordinates
+    // write coordinates
     const std::string coordFile = baseName + ".coords";
     gmsh2smf::writeCoordinates( coordFile, nodes );
 
-    //! tell caller what has been found
+    // tell caller what has been found
     std::cout << "----------------------------------------------------\n";
     std::cout << "Found " << physicalNames.size() << " physical names\n";
     std::cout << "Found " << elementTypes.size() << " elements\n";
@@ -134,7 +139,7 @@ int main( int argc, char* argv[] )
         elementMap.push_back( types );
     }
 
-    //! Write topology per domain
+    // Write topology per domain
     std::cout << "----------------------------------------------------\n";
     for ( unsigned d = 0; d < elementMap.size(); d ++ ) {
         if ( elementMap[d].size() ) {

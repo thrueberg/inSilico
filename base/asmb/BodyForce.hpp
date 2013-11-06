@@ -13,13 +13,12 @@
 //------------------------------------------------------------------------------
 // boost includes
 #include <boost/function.hpp>
-#include <boost/typeof/typeof.hpp>
-#include <boost/function_types/function_arity.hpp>
 // base includes
 #include <base/geometry.hpp>
 #include <base/linearAlgebra.hpp>
 // base/asmb includes
 #include <base/asmb/ForceIntegrator.hpp>
+#include <base/asmb/FunEvaluationPolicy.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -30,63 +29,6 @@ namespace base{
         class BodyForce;
 
         namespace detail_{
-
-            //----------------------------------------------------------------------
-            template<typename FIELDTUPLEBINDER>
-            struct ElementTypeBinder
-            {
-                typedef typename FIELDTUPLEBINDER::Tuple      Tuple;
-                typedef typename Tuple::GeomElement           GeomElement;
-                typedef typename GeomElement::GeomFun::VecDim LocalVecDim;
-                typedef typename GeomElement::Node::VecDim    GlobalVecDim;
-
-                typedef typename Tuple::TrialElement           TrialElement;
-                typedef typename TrialElement::DegreeOfFreedom DegreeOfFreedom;
-                typedef typename
-                base::Vector<DegreeOfFreedom::size>::Type VecDof;
-            };
-
-
-            //----------------------------------------------------------------------
-            template<typename FIELDTUPLEBINDER>
-            struct EvaluateViaElement
-            {
-                typedef ElementTypeBinder<FIELDTUPLEBINDER> ETB;
-                
-                typedef typename ETB::VecDof                   result_type;
-                typedef typename ETB::GeomElement              GeomElement;
-                typedef typename ETB::LocalVecDim              LocalVecDim;
-
-                typedef boost::function<result_type( const GeomElement*,
-                                                     const LocalVecDim& ) > Fun;
-
-                static result_type apply( const GeomElement* gep,
-                                          const LocalVecDim& xi, 
-                                          Fun& fFun )
-                {
-                    return fFun( gep, xi );
-                }
-            };
-
-            //----------------------------------------------------------------------
-            template<typename FIELDTUPLEBINDER>
-            struct EvaluateDirectly
-            {
-                typedef ElementTypeBinder<FIELDTUPLEBINDER> ETB;
-                
-                typedef typename ETB::VecDof                   result_type;
-                typedef typename ETB::GeomElement              GeomElement;
-                typedef typename ETB::GlobalVecDim             GlobalVecDim;
-
-                typedef boost::function<result_type( const GlobalVecDim& )> Fun;
-                
-                static result_type apply( const GeomElement* gep,
-                                          const typename GeomElement::GeomFun::VecDim& xi,
-                                          Fun& fFun )
-                {
-                    return fFun( base::Geometry<GeomElement>()( gep, xi ) );
-                }
-            };
 
             //----------------------------------------------------------------------
             template<typename FIELDTUPLEBINDER, typename QUADRATURE,
@@ -121,17 +63,15 @@ namespace base{
          *  physical coordinates.
          */
         template<typename FIELDTUPLEBINDER, typename QUADRATURE,
-                 typename SOLVER, typename FIELDBINDER>
+                 typename SOLVER, typename FIELDBINDER, typename FUN>
         void bodyForceComputation(
             const QUADRATURE& quadrature,
             SOLVER& solver,
             const FIELDBINDER& fieldBinder,
-            boost::function<
-                typename detail_::ElementTypeBinder<FIELDTUPLEBINDER>::VecDof(
-                    const typename detail_::ElementTypeBinder<FIELDTUPLEBINDER>::GlobalVecDim& )>
-            forceFun )
+            const FUN& forceFun )
         {
-            typedef detail_::EvaluateDirectly<FIELDTUPLEBINDER> Evaluate;
+            typedef base::asmb::EvaluateDirectly<
+                typename FIELDTUPLEBINDER::Tuple::GeomElement,FUN> Evaluate;
             
             // body force wrapper
             BodyForce<typename FIELDTUPLEBINDER::Tuple,Evaluate> bodyForce( forceFun );
@@ -149,18 +89,15 @@ namespace base{
          *  for an element pointer and a local coordinate.
          */
         template<typename FIELDTUPLEBINDER, typename QUADRATURE,
-                 typename SOLVER, typename FIELDBINDER>
+                 typename SOLVER, typename FIELDBINDER, typename FUN>
         void bodyForceComputation2(
             const QUADRATURE& quadrature,
             SOLVER& solver,
             const FIELDBINDER& fieldBinder,
-            boost::function<
-                typename detail_::ElementTypeBinder<FIELDTUPLEBINDER>::VecDof(
-                    const typename detail_::ElementTypeBinder<FIELDTUPLEBINDER>::GeomElement* , 
-                    const typename detail_::ElementTypeBinder<FIELDTUPLEBINDER>::LocalVecDim& )>
-            forceFun )
+            const FUN& forceFun )
         {
-            typedef detail_::EvaluateViaElement<FIELDTUPLEBINDER> Evaluate;
+            typedef base::asmb::EvaluateViaElement<
+                typename FIELDTUPLEBINDER::Tuple::GeomElement,FUN> Evaluate;
             
             // body force wrapper
             BodyForce<typename FIELDTUPLEBINDER::Tuple,Evaluate> bodyForce( forceFun );
@@ -197,7 +134,7 @@ class base::asmb::BodyForce
 public:
     //! @name Template parameter
     //@{
-    typedef FIELDTUPLE FieldTuple;
+    typedef FIELDTUPLE    FieldTuple;
     typedef EVALUTEPOLICY EvaluatePolicy;
     //@}
 
@@ -210,9 +147,6 @@ public:
     //! Local coordinate
     typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
 
-    //! Type of global vector
-    typedef typename base::GeomTraits<GeomElement>::GlobalVecDim GlobalVecDim;
-
     //! Size of a DoF
     static const unsigned doFSize = TestElement::DegreeOfFreedom::size;
 
@@ -224,7 +158,7 @@ public:
     
     //--------------------------------------------------------------------------
     //! Constructor setting all references
-    BodyForce( ForceFun& forceFun  )
+    BodyForce( const ForceFun& forceFun  )
         : forceFun_( forceFun )
     { }
 
@@ -261,8 +195,9 @@ public:
         // Loop over shape functions
         for ( unsigned s = 0; s < numFun; s++ ) {
 
-            vector.segment( s * doFSize,
-                            doFSize )  += f * funValues[s] * weight * detJ;
+            for ( unsigned d = 0; d < doFSize; d++ )
+                vector( s*doFSize+d ) += f[d] * funValues[s] * weight * detJ;
+            
         }
                 
         return;
@@ -271,7 +206,7 @@ public:
     
     //--------------------------------------------------------------------------
 private:
-    ForceFun&      forceFun_;  //!< Function producing body force
+    const ForceFun&      forceFun_;  //!< Function producing body force
 };
 
 

@@ -3,19 +3,26 @@
 // </preamble>
 //------------------------------------------------------------------------------
 
-//! @file   Structured.hpp
+//! @file   mesh/Structured.hpp
 //! @author Thomas Rueberg
 //! @date   2012
 
-#ifndef base_structured_hpp
-#define base_structured_hpp
+#ifndef base_mesh_structured_hpp
+#define base_mesh_structured_hpp
 
 //------------------------------------------------------------------------------
 // std includes
 #include <iterator>
+// boost includes
+#include <boost/type_traits/is_same.hpp>
 // base includes
+#include <base/shape.hpp>
+#include <base/meta.hpp>
+#include <base/verify.hpp>
 #include <base/MultiIndex.hpp>
-// base/mesh includes
+// base/sfun includes
+#include <base/sfun/Lagrange1D.hpp>
+// base/fe includes
 #include <base/fe/Field.hpp>
 
 //------------------------------------------------------------------------------

@@ -16,11 +16,13 @@
 // base includes
 #include <base/geometry.hpp>
 #include <base/linearAlgebra.hpp>
+#include <base/aux/EqualPointers.hpp>
 // base/mesh includes
 #include <base/mesh/Size.hpp>
 // base/asmb includes
 #include <base/asmb/StiffnessMatrix.hpp>
 #include <base/asmb/ForceIntegrator.hpp>
+#include <base/asmb/FunEvaluationPolicy.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -33,24 +35,26 @@ namespace base{
         /** Convenience function for the LHS term of the penalty method */
         template<typename SURFACETUPLEBINDER,
                  typename SURFACEQUADRATURE, typename SOLVER,
-                 typename BOUNDFIELD>
+                 typename BOUNDFIELD,
+                 typename PARAMETER>
         void penaltyLHS( const SURFACEQUADRATURE& surfaceQuadrature,
                          SOLVER&                  solver, 
                          const BOUNDFIELD&        boundField,
-                         const double factor )
+                         const PARAMETER&         parameter,
+                         const double             multiplier )
         {
 
             // object to compute the LHS penalty term
             typedef base::nitsche::Penalty<typename SURFACETUPLEBINDER::Tuple>
                 Penalty;
-            Penalty penalty( factor );
+            Penalty penalty( multiplier );
 
             // integrator and assembler object
             typedef base::asmb::StiffnessMatrix<SURFACEQUADRATURE,SOLVER,
                                                 typename SURFACETUPLEBINDER::Tuple> SysMat;
             
             typename SysMat::Kernel kernel =
-                boost::bind( &Penalty::lhs, &penalty, _1, _2, _3, _4 );
+                boost::bind( &Penalty::tangentStiffness, &penalty, _1, _2, _3, _4 );
 
             SysMat systemMat( kernel, surfaceQuadrature, solver );
 
@@ -58,45 +62,117 @@ namespace base{
             typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
             typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
             for ( ; iter != end; ++iter ) {
+
+                // get local penalty factor
+                const double factor = multiplier * parameter.penaltyWeight( iter );
+
+                penalty.setFactor( factor );
+                
                 systemMat( SURFACETUPLEBINDER::makeTuple( *iter ) );
             }
             
             return;
         }
 
+        //----------------------------------------------------------------------
+        namespace detail_{
+            template<typename SURFACETUPLEBINDER,
+                     typename EVALUATIONPOLICY,
+                     typename SURFACEQUADRATURE,
+                     typename SOLVER,
+                     typename BOUNDFIELD,    
+                     typename PARAMETER>
+            void computePenaltyRHS( const SURFACEQUADRATURE& surfaceQuadrature,
+                                    SOLVER& solver, BOUNDFIELD& boundField,
+                                    const typename EVALUATIONPOLICY::Fun& bcFun,
+                                    const PARAMETER& parameter,
+                                    const double multiplier )
+            {
+                // object to compute the LHS penalty term
+                typedef base::nitsche::Penalty<typename SURFACETUPLEBINDER::Tuple> Penalty;
+                Penalty penalty( multiplier );
+
+                // integrator and assembler object
+                typedef base::asmb::ForceIntegrator<SURFACEQUADRATURE,SOLVER,
+                                                    typename SURFACETUPLEBINDER::Tuple>
+                    SurfaceForceInt;
+                
+                typename SurfaceForceInt::ForceKernel surfaceForceKernel =
+                    boost::bind( &Penalty::template rhs<EVALUATIONPOLICY>,
+                                 &penalty, _1, _2, _3,
+                                 boost::ref( bcFun ), _4 );
+                SurfaceForceInt surfaceForceInt( surfaceForceKernel,
+                                                 surfaceQuadrature, solver );
+                
+                // apply
+                typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
+                typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
+                for ( ; iter != end; ++iter ) {
+
+                    const double factor = multiplier * parameter.penaltyWeight( iter );
+                    
+                    penalty.setFactor( factor );
+                    
+                    surfaceForceInt( SURFACETUPLEBINDER::makeTuple( *iter ) );
+                }
+            
+                return;
+
+            }
+        }
+        //----------------------------------------------------------------------
 
         //----------------------------------------------------------------------
         /** Convenience function for the RHS term of the penalty method */
+        //! Version with f(x)
         template<typename SURFACETUPLEBINDER,
                  typename SURFACEQUADRATURE, typename SOLVER,
-                 typename BOUNDFIELD, typename BCFUN>
+                 typename BOUNDFIELD,        typename BCFUN,
+                 typename PARAMETER>
         void penaltyRHS( const SURFACEQUADRATURE& surfaceQuadrature,
                          SOLVER&                  solver, 
                          const BOUNDFIELD&        boundField,
                          const BCFUN&             bcFun,
-                         const double factor )
+                         const PARAMETER&         parameter,
+                         const double             multiplier )
         {
-            // object to compute the LHS penalty term
-            typedef Penalty<typename SURFACETUPLEBINDER::Tuple> Penalty;
-            Penalty penalty( factor );
-            
-            // integrator and assembler object
-            typedef base::asmb::ForceIntegrator<SURFACEQUADRATURE,SOLVER,
-                                                typename SURFACETUPLEBINDER::Tuple>
-                SurfaceForceInt;
-            typename SurfaceForceInt::ForceKernel surfaceForceKernel =
-                boost::bind( &Penalty::template rhs<BCFUN>, &penalty, _1, _2, _3,
-                             boost::ref( bcFun ), _4 );
-            SurfaceForceInt surfaceForceInt( surfaceForceKernel,
-                                             surfaceQuadrature, solver );
-            
-            // apply
-            typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
-            typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
-            for ( ; iter != end; ++iter ) {
-                surfaceForceInt( SURFACETUPLEBINDER::makeTuple( *iter ) );
-            }
-            
+            typedef typename SURFACETUPLEBINDER::Tuple::GeomElement::DomainElement
+                DomainElement;
+            typedef base::asmb::EvaluateDirectly<DomainElement,BCFUN>
+                EvaluationPolicy;
+
+            detail_::computePenaltyRHS<SURFACETUPLEBINDER,
+                                       EvaluationPolicy>( surfaceQuadrature,
+                                                          solver,
+                                                          boundField, bcFun,
+                                                          parameter, multiplier );
+            return;
+        }
+
+        //----------------------------------------------------------------------
+        /** Convenience function for the RHS term of the penalty method */
+        //! Version with f( Ep*, xi )
+        template<typename SURFACETUPLEBINDER,
+                 typename SURFACEQUADRATURE, typename SOLVER,
+                 typename BOUNDFIELD,        typename BCFUN,
+                 typename PARAMETER>
+        void penaltyRHS2( const SURFACEQUADRATURE& surfaceQuadrature,
+                          SOLVER&                  solver, 
+                          const BOUNDFIELD&        boundField,
+                          const BCFUN&             bcFun,
+                          const PARAMETER&         parameter,
+                          const double             multiplier )
+        {
+            typedef typename SURFACETUPLEBINDER::Tuple::GeomElement::DomainElement
+                DomainElement;
+            typedef base::asmb::EvaluateViaElement<DomainElement,BCFUN>
+                EvaluationPolicy;
+
+            detail_::computePenaltyRHS<SURFACETUPLEBINDER,
+                                       EvaluationPolicy>( surfaceQuadrature,
+                                                          solver,
+                                                          boundField, bcFun,
+                                                          parameter, multiplier );
             return;
         }
 
@@ -182,10 +258,10 @@ public:
      *  \param[in]   weight Corresponding quadrature weight
      *  \param[out]  result Result container (pre-sized and zero-initialised)
      */
-    void lhs( const SurfFieldTuple& surfFieldTuple,
-              const LocalVecDim&    eta,
-              const double          weight,
-              base::MatrixD&        result )
+    void tangentStiffness( const SurfFieldTuple& surfFieldTuple,
+                           const LocalVecDim&    eta,
+                           const double          weight,
+                           base::MatrixD&        result ) const
     {
         // extract test and trial elements from tuple
         const SurfaceElement* surfEp  = surfFieldTuple.geomElementPtr();
@@ -193,7 +269,10 @@ public:
         const TrialElement*   trialEp = surfFieldTuple.trialElementPtr();
 
         // check for bubnov case via pointer identity
-        const bool isBubnov = (testEp == trialEp);
+        const bool isBubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
+
         
         // Get pointer to domain element
         const DomainElement* domainEp = surfEp -> getDomainElementPointer();
@@ -254,12 +333,12 @@ public:
      *  \param[in]   bcFun  Function describing the boundary condition
      *  \param[out]  result Result container (pre-sized and zero-initialised)
      */
-    template<typename BCFUN>
+    template<typename EVALPOL>
     void rhs( const SurfFieldTuple& surfFieldTuple,
               const LocalVecDim&    eta,
-              const double          weight,
-              const BCFUN&          bcFun,
-              base::VectorD&        result )
+              const double                 weight,
+              const typename EVALPOL::Fun& bcFun,
+              base::VectorD&        result ) const
     {
         // extract test and trial elements from tuple
         const SurfaceElement* surfEp  = surfFieldTuple.geomElementPtr();
@@ -287,11 +366,8 @@ public:
         // deduce the size of every contribution
         const unsigned numRowBlocks = static_cast<unsigned>( testFunValues.size() );
 
-        // Evaluate element geometry
-        const GlobalVecDim x = base::Geometry<SurfaceElement>()( surfEp, eta );
-
         // Evaluate boundary coondition
-        const VecDof bc = bcFun( x );
+        const VecDof bc = EVALPOL::apply( domainEp, xi, bcFun );
 
         // scalar multiplier of the whole entry
         const double aux = weight * detG * (factor_ / h);
@@ -301,8 +377,7 @@ public:
 
             for ( unsigned d = 0; d < doFSize; d++ ) {
 
-                result[ i*doFSize + d ] +=
-                    testFunValues[i] * bc[d] * aux;
+                result[ i*doFSize + d ] += testFunValues[i] * bc[d] * aux;
             }
         }
 

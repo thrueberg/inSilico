@@ -145,7 +145,7 @@ namespace base{
 
         //! Matrix type return value
         typedef typename base::Matrix<GT::globalDim,
-                                          GT::localDim>::Type result_type;
+                                      GT::localDim>::Type result_type;
 
         /** Overloaded function call operator for the computation of J
          *  \param[in] ep  Pointer to to element
@@ -177,7 +177,7 @@ namespace base{
 
     //--------------------------------------------------------------------------
     /** Compute the contra-variant basis as a given local coordinate.
-     *  (Note :the contra-variant basis reduces to the inverse Jacobian in
+     *  (Note: the contra-variant basis reduces to the inverse Jacobian in
      *   the case of DIM == LDIM)
      *  Definitions are given in detail_::ContraVariantBasisComputation
      *  \tparam ELEMENT Type of element
@@ -192,7 +192,7 @@ namespace base{
 
         //! Type of third arguement which is the contra-variant basis
         typedef typename base::Matrix<GT::globalDim,
-                                          GT::localDim>::Type MatDimLDim;
+                                      GT::localDim>::Type MatDimLDim;
 
         /** Overloaded function call operator producing the basis
          *  \param[in]  ep  Pointer to element
@@ -206,7 +206,7 @@ namespace base{
         {
             // Get Jacobi matrix
             typename base::Matrix<GT::globalDim,
-                                      GT::localDim>::Type J
+                                  GT::localDim>::Type J
                 = JacobiMatrix<ELEMENT>()( ep, xi );
 
             // Use specfic implementation
@@ -239,7 +239,7 @@ namespace base{
         {
             // Get Jacobi matrix
             const typename base::Matrix<GT::globalDim,
-                                            GT::localDim>::Type J
+                                        GT::localDim>::Type J
                 = JacobiMatrix<ELEMENT>()( ep, xi );
 
             // result = | J |
@@ -384,15 +384,16 @@ namespace base{
                 // - Determinant (metric) is computed at the same time:
                 //   \f$ det J = \sqrt{ | (G_{\alpha\beta}) |} \f$
                 typename Matrix<LDIM,LDIM>::Type metricTensInv;
-                double detJ;
+                double detG;
                 bool dummy;
-                metricTens.computeInverseAndDetWithCheck( metricTensInv, detJ, dummy );
+                metricTens.computeInverseAndDetWithCheck( metricTensInv, detG, dummy );
         
                 // - Contra-variant basis: 
                 //   \f$ g^\alpha = G^{\alpha\beta} g_\beta\f$
+                //   Note: G^{\alpha\beta} = G^{\beta\alpha}
                 contraVariant = coVariant * metricTensInv;
 
-                return detJ;
+                return std::sqrt( detG );
             }
         };
 

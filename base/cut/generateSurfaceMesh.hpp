@@ -132,10 +132,9 @@ void base::cut::generateSurfaceMesh(
             
         } // if cell is cut
             
-    } // end loop over surface elements
+    } // end loop over cells
 
-
-            
+    return;
 }
         
 #endif

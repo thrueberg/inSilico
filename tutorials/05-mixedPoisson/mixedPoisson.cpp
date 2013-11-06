@@ -6,7 +6,7 @@
 #include <base/shape.hpp>
 #include <base/Unstructured.hpp>
 #include <base/mesh/MeshBoundary.hpp>
-#include <base/mesh/CreateBoundaryMesh.hpp>
+#include <base/mesh/generateBoundaryMesh.hpp>
 #include <base/Quadrature.hpp>
 
 #include <base/io/Format.hpp>
@@ -18,16 +18,19 @@
 #include <base/dof/Distribute.hpp>
 #include <base/dof/constrainBoundary.hpp>
 #include <base/dof/generate.hpp>
-#include <base/asmb/StiffnessMatrix.hpp>
+
 #include <base/post/ErrorNorm.hpp>
-#include <base/post/evaluateAtNodes.hpp>
 #include <heat/Laplace.hpp>
 #include <base/solver/Eigen3.hpp>
 #include <base/fe/Basis.hpp>
 
+#include <base/kernel/Measure.hpp>
+
 #include <base/asmb/FieldBinder.hpp>
 #include <base/asmb/SurfaceFieldBinder.hpp>
 
+#include <base/asmb/StiffnessMatrix.hpp>
+#include <base/asmb/SimpleIntegrator.hpp>
 #include <base/asmb/ForceIntegrator.hpp>
 #include <base/asmb/BodyForce.hpp>
 #include <base/asmb/NeumannForce.hpp>
@@ -139,6 +142,18 @@ public:
         return result;
     }
 
+#if 0
+    template<typename GEOMELEMENT>
+    typename ReferenceSolution<DIM>::VecDof
+    forceFun2( const GEOMELEMENT* gep, 
+               const typename ReferenceSolution<DIM>::VecDim& xi ) const
+    {
+        typename ReferenceSolution<DIM>::VecDof result;
+        result = -referenceSolution_.laplacian( base::Geometry<GEOMELEMENT>()( gep, xi ) );
+        return result;
+    }
+#endif
+
     typename ReferenceSolution<DIM>::VecDof
     neumannBC( const typename ReferenceSolution<DIM>::VecDim& x,
                const typename ReferenceSolution<DIM>::VecDim& normal ) const
@@ -220,7 +235,7 @@ int main( int argc, char * argv[] )
     // Number of DoFs after constraint application!
     const std::size_t numDofs =
         base::dof::numberDoFsConsecutively( field.doFsBegin(), field.doFsEnd() );
-    std::cout << " Number of dofs " << numDofs << std::endl;
+    std::cout << "Number of dofs " << numDofs << std::endl;
 
     // Create a solver object
     typedef base::solver::Eigen3           Solver;
@@ -236,17 +251,22 @@ int main( int argc, char * argv[] )
     base::asmb::bodyForceComputation<FTB>( quadrature, solver, fieldBinder,
                                            boost::bind( &PoissonProblem<dim>::forceFun,
                                                         &pp, _1 ) );
+#if 0
+    base::asmb::bodyForceComputation2<FTB>( quadrature, solver, fieldBinder,
+                                            boost::bind( &PoissonProblem<dim>::forceFun2<Mesh::Element>,
+                                                         &pp, _1, _2 ) );
+#endif 
 
     // Create a connectivity out of this list
-    typedef base::mesh::CreateBoundaryMesh<Mesh::Element> CreateBoundaryMesh;
-    typedef CreateBoundaryMesh::BoundaryMesh BoundaryMesh;
+    typedef base::mesh::BoundaryMeshBinder<Mesh::Element>::Type BoundaryMesh;
     BoundaryMesh boundaryMesh;
     {
-        CreateBoundaryMesh::apply( meshBoundary.boundaryBegin(),
-                                   meshBoundary.boundaryEnd(),
-                                   mesh,
-                                   boundaryMesh );
+        // Create a real mesh object from this list
+        base::mesh::generateBoundaryMesh( meshBoundary.boundaryBegin(),
+                                          meshBoundary.boundaryEnd(),
+                                          mesh, boundaryMesh );
     }
+
 
     typedef base::asmb::SurfaceFieldBinder<BoundaryMesh,Field> SurfaceFieldBinder;
     SurfaceFieldBinder surfaceFieldBinder( boundaryMesh, field );
@@ -301,6 +321,14 @@ int main( int argc, char * argv[] )
                   boost::bind( &ReferenceSolution<dim>::evaluateGradient,
                                &refSol, _1 ) )
               << '\n';
+
+    //--------------------------------------------------------------------------
+    // Compute mesh volume
+    double volume = 0.;
+
+    base::asmb::simplyIntegrate<FTB>( quadrature, volume, fieldBinder,
+                                      base::kernel::Measure<FTB::Tuple>() );
+    std::cout << "Volume of mesh: " << volume << '\n';
 
     
     return 0;

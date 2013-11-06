@@ -44,11 +44,11 @@ public:
     static const unsigned numPoints = 1;
     
     //! Type of coordinate-vector
-    typedef typename base::Vector<dim>::Type VecDim;
-
+    typedef base::Vector<dim>::Type VecDim;
+    
     //! Type of iterator for external access
-    typedef typename boost::array< std::pair<double, VecDim>,
-                                   numPoints>::const_iterator Iter;
+    typedef boost::array<std::pair<double, VecDim>, numPoints>::const_iterator
+    Iter;
 
     PointEvaluation()
     {

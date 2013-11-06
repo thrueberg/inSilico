@@ -14,6 +14,7 @@
 // std   includes
 #include <ostream>
 #include <vector>
+#include <iterator>
 // base includes
 #include <base/shape.hpp>
 #include <base/types.hpp>
@@ -41,8 +42,8 @@ struct base::io::gp::Writer
     static void apply( EITER begin, EITER end, std::ostream& out )
     {
         // Deduce type of element
-        typedef typename
-            base::TypeReduction<typename EITER::value_type>::Type Element;
+        typedef typename std::iterator_traits<EITER>::value_type Aux;
+        typedef typename base::TypeReduction<Aux>::Type          Element;
     
         // @name Deduced attributes for writing 
         //@{

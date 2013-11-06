@@ -60,10 +60,6 @@ public:
 
     typedef void result_type;
 
-    //! Flag for equal test and form functions --> Bubnov-Galerkin
-    static const bool bubnov = boost::is_same<TrialElement,
-                                              TestElement>::value;
-    
     //! Local coordinate
     typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
 
@@ -96,13 +92,17 @@ public:
         const TestElement*  testEp  = fieldTuple.testElementPtr();
         const TrialElement* trialEp = fieldTuple.trialElementPtr();
 
+        // if pointers are identical, Galerkin-Bubnov scheme
+        const bool isBubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
         // Evaluate trial functions
         typename TrialElement::FEFun::FunArray trialFun;
         (trialEp ->  fEFun()).evaluate( geomEp, xi, trialFun );
 
         // Evaluate test functions
         typename TestElement::FEFun::FunArray  testFun;
-        if ( bubnov )
+        if ( isBubnov )
             // Note: assignment would not work because of a compile-time error
             std::copy( trialFun.begin(), trialFun.end(), testFun.begin() );
         else
@@ -114,8 +114,8 @@ public:
         // Sizes and sanity checks
         const unsigned numRowBlocks = static_cast<unsigned>(  testFun.size() );
         const unsigned numColBlocks = static_cast<unsigned>( trialFun.size() );
-        assert( static_cast<unsigned>( matrix.rows() ) * doFSize == numRowBlocks );
-        assert( static_cast<unsigned>( matrix.cols() ) * doFSize == numColBlocks );
+        assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * doFSize );
+        assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * doFSize );
 
         // scalar multiplier
         const double scalar = factor_ * detJ * weight;

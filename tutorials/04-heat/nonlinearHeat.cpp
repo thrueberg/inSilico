@@ -20,7 +20,6 @@
 #include <base/asmb/ForceIntegrator.hpp>
 #include <base/asmb/FieldBinder.hpp>
 #include <base/post/ErrorNorm.hpp>
-#include <base/post/evaluateAtNodes.hpp>
 #include <base/solver/Eigen3.hpp>
 #include <base/io/vtk/LegacyWriter.hpp>
 #include <base/io/Format.hpp>

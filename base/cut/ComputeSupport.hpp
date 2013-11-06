@@ -97,7 +97,7 @@ public:
         cutQuadrature_.apply( measure, fieldTuple, area );
 
         for ( unsigned d = 0; doFIter != doFEnd; ++doFIter, d++ )
-            doFSupports_[ (*doFIter) -> getID() ] += std::sqrt( area );
+            doFSupports_[ (*doFIter) -> getID() ] += area;
 #endif
 
         return;

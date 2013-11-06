@@ -24,6 +24,7 @@
 namespace fluid{
 
     template<typename FIELDTUPLE> class VectorLaplace;
+    template<typename FIELDTUPLE> class StressDivergence;
     template<typename FIELDTUPLE> class PressureGradient;
     template<typename FIELDTUPLE> class VelocityDivergence;
 }
@@ -41,64 +42,22 @@ namespace fluid{
  */
 template<typename FIELDTUPLE>
 class fluid::VectorLaplace
+    : public base::kernel::Laplace<FIELDTUPLE>
 {
 public:
-    //! Template parameter
     typedef FIELDTUPLE FieldTuple;
-
-    //! Sanity check
-    STATIC_ASSERT_MSG( FieldTuple::numFields >= 2,
-                       "Minimum number of fields violated" );
-
-    //! @name Extract element types from pointers
-    //@{
-    typedef typename FieldTuple::GeomElement      GeomElement;
-    typedef typename FieldTuple::TestElement      TestElement;
-    typedef typename FieldTuple::TrialElement     TrialElement;
-    //@}
-
-    //! Number of DoFs per vectorial entry
-    static const unsigned nDoFs = TestElement::DegreeOfFreedom::size;
-
-    //! Global space dimension
-    static const unsigned globalDim = base::GeomTraits<GeomElement>::globalDim;
-
-    //! Flag for equal test and form functions --> Bubnov-Galerkin
-    static const bool bubnov = boost::is_same<TrialElement,
-                                              TestElement>::value;
     
-    //! Local coordinate
-    typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
-
-    //! Type of global vector
-    typedef typename base::GeomTraits<GeomElement>::GlobalVecDim GlobalVecDim;
+    typedef typename base::kernel::Laplace<FieldTuple> Base;
 
     //! Constructor with fluid viscosity
     VectorLaplace( const double viscosity )
-    : viscosity_( viscosity )
+        : base::kernel::Laplace<FIELDTUPLE>( viscosity ),
+          viscosity_( viscosity )
     { }
 
     //--------------------------------------------------------------------------
-    /** Implementation of the vector Laplacian.
-     *  \f[
-     *      K[Md +i, Nd +j] = \int_\Omega \mu \phi^M_{,i} \phi^N_{,j}
-     *                                   \delta_{ij} dx
-     *  \f]
-     *  
-     */
-    void tangentStiffness( const FieldTuple&     fieldTuple,
-                           const LocalVecDim&    xi,
-                           const double          weight,
-                           base::MatrixD&        matrix ) const
-    {
-        // call generic laplace kernel
-        base::kernel::Laplace<FieldTuple> laplace( viscosity_ );
-        laplace.tangentStiffness( fieldTuple, xi, weight, matrix );
-    }
-
-    //--------------------------------------------------------------------------
     void residualForce( const FieldTuple&  fieldTuple,
-                        const LocalVecDim& xi,
+                        const typename Base::LocalVecDim& xi,
                         const double       weight,
                         base::VectorD&     vector ) const
     {
@@ -114,6 +73,149 @@ public:
      */
     template<unsigned HIST>
     void residualForceHistory( const FieldTuple&   fieldTuple,
+                               const typename Base::LocalVecDim&  xi,
+                               const double        weight,
+                               base::VectorD&      vector ) const
+    {
+        // Extract element pointer from tuple
+        const typename Base::GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+        const typename Base::TestElement*  testEp  = fieldTuple.testElementPtr();
+        const typename Base::TrialElement* trialEp = fieldTuple.trialElementPtr();
+        
+        // Evaluate gradient of test and trial functions
+        std::vector<typename Base::GlobalVecDim> testGradX;
+        const double detJ =
+            (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
+
+        // get velocity gradient
+        const typename base::Matrix<Base::globalDim,Base::nDoFs>::Type  gradU
+            = fluid::velocityGradientHistory<HIST>( geomEp, trialEp, xi );
+        
+        for ( unsigned M = 0; M < testGradX.size(); M++ ) {
+            for ( unsigned i = 0; i < Base::nDoFs; i++ ) {
+            
+                double dotProd = 0.;
+                for ( unsigned k = 0; k < Base::globalDim; k++ )
+                    dotProd += gradU( k, i ) * testGradX[M][k];
+
+                vector[M*Base::globalDim + i] += viscosity_ * dotProd * detJ * weight;
+            }
+        }
+    }
+
+private:
+    const double viscosity_;
+};
+
+//------------------------------------------------------------------------------
+/** 
+ *  \tparam FIELDTUPLE  Type of tuple of elements for evaluation
+ */
+template<typename FIELDTUPLE>
+class fluid::StressDivergence
+{
+public:
+    //! Template parameter
+    typedef FIELDTUPLE FieldTuple;
+
+    //! Sanity check
+    STATIC_ASSERT_MSG( FieldTuple::numFields >= 2,
+                       "Minimum number of fields violated" );
+
+    //! @name Extract element types from pointers
+    //@{
+    typedef typename FieldTuple::GeomElement      GeomElement;
+    typedef typename FieldTuple::TestElement      TestElement;
+    typedef typename FieldTuple::TrialElement     TrialElement;
+    //@}
+    
+    //! Number of DoFs per vectorial entry
+    static const unsigned nDoFs = TestElement::DegreeOfFreedom::size;
+
+    //! Spatial dimension
+    static const unsigned globalDim = GeomElement::Node::dim;
+    
+    //! Local coordinate
+    typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
+
+    //! Type of global vector
+    typedef typename base::GeomTraits<GeomElement>::GlobalVecDim GlobalVecDim;
+
+    StressDivergence( const double viscosity )
+        : viscosity_( viscosity ) { }
+    
+    //--------------------------------------------------------------------------
+    /** 
+     */
+    void tangentStiffness( const FieldTuple&     fieldTuple,
+                           const LocalVecDim&    xi,
+                           const double          weight,
+                           base::MatrixD&        matrix ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+        const TestElement*  testEp  = fieldTuple.testElementPtr();
+        const TrialElement* trialEp = fieldTuple.trialElementPtr();
+
+        // if pointers are identical, Galerkin-Bubnov scheme
+        const bool isBubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
+
+        // Evaluate gradient of test functions
+        std::vector<GlobalVecDim> testGradX, trialGradX;
+        const double detJ =
+            (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
+
+        if ( isBubnov ) trialGradX = testGradX;
+        else
+            (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
+
+
+        // Sizes and sanity checks
+        const unsigned numRowBlocks = static_cast<unsigned>( testGradX.size() );
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
+        assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * nDoFs );
+        assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * nDoFs );
+
+        // compute entries
+        for ( unsigned M = 0; M < numRowBlocks; M++ ) {
+            for ( unsigned N = 0; N < numColBlocks; N++ ) {
+
+                for ( unsigned i = 0; i < nDoFs; i++ ) {
+
+                    // psi^M,k * phi^N_k
+                    const double diag = testGradX[M].dot( trialGradX[N] );
+                    
+                    for ( unsigned j = 0; j < nDoFs; j++ ) {
+
+                        matrix( M * nDoFs + i, N * nDoFs + j ) +=
+                            ( testGradX[M][j] * trialGradX[N][i] +
+                              (i==j ? diag : 0.) ) *
+                            weight * detJ * viscosity_;
+                    }
+                }
+
+            }
+        }
+
+        return;
+    }
+
+    //--------------------------------------------------------------------------
+    void residualForce( const FieldTuple&  fieldTuple,
+                        const LocalVecDim& xi,
+                        const double       weight,
+                        base::VectorD&     vector ) const
+    {
+        this -> residualForceHistory<0>( fieldTuple, xi, weight, vector );
+    }
+
+    //--------------------------------------------------------------------------
+    /** Compute the residual forces due to a given velocity field
+     */
+    template<unsigned HIST>
+    void residualForceHistory( const FieldTuple&   fieldTuple,
                                const LocalVecDim&  xi,
                                const double        weight,
                                base::VectorD&      vector ) const
@@ -122,30 +224,77 @@ public:
         const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
         const TestElement*  testEp  = fieldTuple.testElementPtr();
         const TrialElement* trialEp = fieldTuple.trialElementPtr();
-        
+
         // Evaluate gradient of test and trial functions
         std::vector<GlobalVecDim> testGradX;
         const double detJ =
             (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
 
         // get velocity gradient
-        const typename base::Matrix<globalDim, nDoFs>::Type  gradU
-            = fluid::velocityGradientHistory<HIST>( geomEp, trialEp, xi );
-        
-        for ( unsigned M = 0; M < testGradX.size(); M++ ) {
-            for ( unsigned i = 0; i < nDoFs; i++ ) {
-            
-                double dotProd = 0.;
-                for ( unsigned k = 0; k < globalDim; k++ )
-                    dotProd += gradU( k, i ) * testGradX[M][k];
+        const typename base::Matrix<nDoFs,nDoFs>::Type
+            gradU = base::post::evaluateFieldGradientHistory<HIST>( geomEp,
+                                                                    trialEp, xi );
 
-                vector[M*globalDim + i] += viscosity_ * dotProd * detJ * weight;
+
+        // assemble
+        for ( unsigned M = 0; M < testGradX.size(); M++ ) {
+            for ( unsigned k = 0; k < nDoFs; k++ ) {
+
+                double entry = 0.;
+                for ( unsigned i = 0; i < nDoFs; i++ )
+                    entry += testGradX[M][i] * (gradU(k,i) + gradU(i,k) );
+
+                vector[M * nDoFs + k] +=
+                    entry * detJ * viscosity_ * weight;
+                
             }
         }
     }
 
+    //--------------------------------------------------------------------------
+    /*
+     */
+    void coNormalDerivative( const FieldTuple&  fieldTuple,
+                             const LocalVecDim& xi,
+                             const GlobalVecDim& normal,
+                             base::MatrixD& result ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*   geomEp  = fieldTuple.geomElementPtr();
+        const TrialElement*  trialEp = fieldTuple.trialElementPtr();
+
+        // Evaluate gradient of trial functions
+        std::vector<GlobalVecDim> trialGradX;
+        (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
+
+        // number of trial functions
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
+
+        // initiate the result with zeros
+        result = base::MatrixD::Zero( +nDoFs, numColBlocks * nDoFs );
+
+        for ( unsigned M = 0; M < trialGradX.size(); M++ ) {
+
+            const double trialGradN = trialGradX[M].dot( normal );
+
+            for ( unsigned i = 0; i < nDoFs; i++ ) {
+                
+                for ( unsigned k = 0; k < nDoFs; k++ ) {
+
+                    result( i, M * nDoFs + k ) =
+                        viscosity_ * ( trialGradX[M][i] * normal[k] +
+                                       (i==k ? trialGradN : 0.) );
+
+                }
+            }
+        }
+
+        
+        return;
+    }
+
 private:
-    const double viscosity_; //!< Fluid viscosity
+    const double viscosity_;
 };
 
 //------------------------------------------------------------------------------
@@ -216,8 +365,8 @@ public:
         (trialEp ->  fEFun()).evaluate( geomEp, xi, trialFun );
 
         // Sizes and sanity checks
-        const unsigned numRowBlocks = testGradX.size();
-        const unsigned numCols      = trialFun.size();
+        const unsigned numRowBlocks = static_cast<unsigned>( testGradX.size() );
+        const unsigned numCols      = static_cast<unsigned>( trialFun.size()  );
         assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * nDoFs );
         assert( static_cast<unsigned>( matrix.cols() ) == numCols );
 
@@ -274,6 +423,41 @@ public:
                 vector[M*globalDim + i] += -testGradX[M][i] * p * detJ * weight;
             }
         }
+    }
+
+    //--------------------------------------------------------------------------
+    /** Boundary term associated with the pressure gradient term.
+     *  Integration by parts gives
+     *  \f[
+     *      \int_\Omega \nabla p \cdot v d x =
+     *      \int_\Gamma p n \cdot v d s - \int_\Omega p \nabla \cdot v d x
+     *  \f]
+     *  and the boundary term is represented by this function. 
+     */
+    void coNormalDerivative( const FieldTuple&  fieldTuple,
+                             const LocalVecDim& xi,
+                             const GlobalVecDim& normal,
+                             base::MatrixD& result ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*   geomEp  = fieldTuple.geomElementPtr();
+        const TrialElement*  trialEp = fieldTuple.trialElementPtr();
+
+        typename TrialElement::FEFun::FunArray trialFun;
+        (trialEp ->  fEFun()).evaluate( geomEp, xi, trialFun );
+
+        const unsigned numCols      = static_cast<unsigned>( trialFun.size() );
+
+        result = base::MatrixD::Zero( globalDim, numCols );
+
+        for ( unsigned i = 0; i < numCols; i++ ) {
+        
+            for ( unsigned d = 0; d < globalDim; d++)
+                result( d, i) = -trialFun[i] * normal[d];
+
+        }
+        
+        return;
     }
 
 };

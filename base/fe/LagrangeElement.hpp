@@ -14,6 +14,7 @@
 // base includes
 #include <base/shape.hpp>
 #include <base/meta.hpp>
+#include <base/LagrangeShapeFun.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{

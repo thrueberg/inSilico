@@ -1,3 +1,13 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   vtk2vtu.cpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+//------------------------------------------------------------------------------
 // System includes
 #include <string>
 #include <iostream>
@@ -11,9 +21,8 @@
 #include <base/verify.hpp>
 
 //------------------------------------------------------------------------------
-// Converts ASCII-XML vtu/s-files to binary 
+// Converts ascii VTK file (with unstructured grid) to an XML-binary VTU file
 //------------------------------------------------------------------------------
-
 int main(int argc, char *argv[])
 {
     // print usage message
@@ -30,19 +39,17 @@ int main(int argc, char *argv[])
  
     // get basename
     const std::string basename = filename.substr( 0, filename.find( ".vtk" ) );
-    const std::string outputFilename = basename + ".bin.vtk";
+    const std::string outputFilename = basename + ".bin.vtu";
 
-    // create reader and writer
+    // create reader and read file
     vtkSmartPointer<vtkUnstructuredGridReader> reader =
         vtkSmartPointer<vtkUnstructuredGridReader>::New();
-    vtkSmartPointer<vtkXMLUnstructuredGridWriter> writer =
-        vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
-    
-    // read file
     reader -> SetFileName( filename.c_str() );
     reader -> Update();
 
-    // write XML binary file
+    // create writer and write file
+    vtkSmartPointer<vtkXMLUnstructuredGridWriter> writer =
+        vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
     writer -> SetFileName( outputFilename.c_str() );
     writer -> SetInputConnection( reader->GetOutputPort() );
     writer -> SetDataModeToAppended();

@@ -58,10 +58,6 @@ public:
     typedef typename FieldTuple::TrialElement TrialElement;
     //@}
 
-    //! Flag for equal test and form functions --> Bubnov-Galerkin
-    static const bool bubnov = boost::is_same<TrialElement,
-                                              TestElement>::value;
-    
     //! Local coordinate
     typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
 

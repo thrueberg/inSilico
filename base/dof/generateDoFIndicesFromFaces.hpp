@@ -15,6 +15,7 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <iterator>
 // boost includes
 #include <boost/array.hpp>
 // base includs
@@ -173,7 +174,9 @@ void base::dof::generateDoFIndicesFromFaces( FACEITER first, FACEITER last,
     // deduce element type
     typedef typename FACEITER::ElementIterator ElementIterator;
     typedef typename
-        base::TypeReduction<typename ElementIterator::value_type>::Type Element;
+        base::TypeReduction<typename
+                            std::iterator_traits<ElementIterator>::value_type>::Type
+        Element;
 
     // Types needed for unique storage
     typedef typename FACEITER::Face Face;

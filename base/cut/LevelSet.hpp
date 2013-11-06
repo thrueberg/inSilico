@@ -44,15 +44,17 @@ class base::cut::LevelSet
 {
 public:
     static const unsigned dim = DIM;
-    typedef typename base::Vector<dim,double>::Type VecDim;
+    typedef typename base::Vector<dim,double>::Type   VecDim;
+    typedef typename base::Vector<dim-1,double>::Type LocalVecDim;
 
     //--------------------------------------------------------------------------
     //! Constructor with coordinate, invalidates other member data
-    LevelSet( const VecDim& x = base::invalidVector<DIM>() )
+    LevelSet( const VecDim& x = base::invalidVector<dim>() )
     : x_( x ),
       isInterior_( false ),
-      closestPoint_( base::invalidVector<DIM>() ),
-      closestElement_( base::invalidInt )
+      closestPoint_( base::invalidVector<dim>() ),
+      closestElement_( base::invalidInt ),
+      localCoordinate_( base::invalidVector<dim-1>() )
     { }
 
     //--------------------------------------------------------------------------
@@ -63,6 +65,7 @@ public:
 
     void setClosestPoint(   const VecDim&     y ) { closestPoint_   = y; }
     void setClosestElement( const std::size_t e ) { closestElement_ = e; }
+    void setClosestLocalCoordinate( const LocalVecDim& xi ) { localCoordinate_ = xi; }
     //@}
 
     //--------------------------------------------------------------------------
@@ -80,6 +83,8 @@ public:
     }
     
     std::size_t getClosestElement() const { return closestElement_; }
+
+    LocalVecDim getClosestLocalCoordinate() const { return localCoordinate_; }
     //@}
 
     
@@ -92,6 +97,7 @@ private:
     bool        isInterior_;     //!< Flag, if the point x_ is interior
     VecDim      closestPoint_;   //!< Coordinates of the closest surface point 
     std::size_t closestElement_; //!< Index of the closest surface element
+    LocalVecDim localCoordinate_;//!< Element coordinate of closest point
     //@}
 };
 

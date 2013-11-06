@@ -26,19 +26,36 @@ namespace base{
             
             //! Dummy object as template placeholder for iterators
             struct DummyIterator
+                : public boost::iterator_facade<DummyIterator,
+                                                detail_::DummyElementPtr,
+                                                boost::random_access_traversal_tag,
+                                                detail_::DummyElementPtr>
             {
-                typedef detail_::DummyElementPtr value_type;
+                //! Boost's facade will provide the proper behaviour
+                typedef boost::iterator_facade<DummyIterator,
+                                               const detail_::DummyElementPtr,
+                                               boost::random_access_traversal_tag,
+                                               const detail_::DummyElementPtr> Facade;
+                
+            private:
+                //! Open back-door for the facade to acces these functions
+                friend class boost::iterator_core_access;
 
-                //! @name Incrementation functions which are do-nothing
-                DummyIterator& operator++(){ return *this; }
-                DummyIterator& operator--(){ return *this; }
-                DummyIterator& operator+=( const std::ptrdiff_t n )
+                void increment() {}
+                void decrement() {}
+                void advance( const Facade::difference_type n ) {}
+
+                Facade::difference_type distance_to( const DummyIterator & other ) const
                 {
-                    return *this;
+                    return 0;
                 }
 
-                //! Derference to dummy element pointer
-                value_type operator*() const
+                bool equal( const DummyIterator & other ) const
+                {
+                    return true;
+                }
+                
+                Facade::reference dereference() const
                 {
                     return detail_::makeDummyElementPtr();
                 }

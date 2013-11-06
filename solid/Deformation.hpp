@@ -37,8 +37,8 @@ namespace solid{
             GradU = base::post::evaluateFieldGradientHistory<HIST>( geomEp,
                                                                     fieldEp, xi );
         
-        // Add displacement gradient to tensor
-        F.block( 0, 0, GradU.rows(), GradU.cols() ) += GradU;
+        // Add displacement gradient to tensor (note the transposition)
+        F.block( 0, 0, GradU.cols(), GradU.rows() ) += GradU.transpose();
     }
 
     //--------------------------------------------------------------------------

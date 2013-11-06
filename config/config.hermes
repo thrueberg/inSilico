@@ -38,3 +38,12 @@ RELLDFLAGS  = -g -O3
 # defines
 DEBDEFINES  = -DDEBUG
 RELDEFINES  = -DNDEBUG
+
+# inclusion of system headers and insilico
+SYSINCLUDES = -I$(INSILICOROOT) -isystem$(EIGEN3_DIR) -isystem$(BOOST_DIR)
+
+# inclusion of system libraries (always, debug or release)
+SYSLIBS     = 
+DEBSYSLIBS  =
+RELSYSLIBS  = 
+

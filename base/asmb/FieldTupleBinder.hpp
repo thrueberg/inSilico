@@ -150,12 +150,12 @@ struct base::asmb::FieldTupleBinder
     //! Generate a tuple from a given tuple based on the index ordering
     static TransposedTuple makeTransposedTuple( const FieldTuple& ft )
     {
-        return Tuple( ft.geomElementPtr(),
-                      ft.template get<J>(),
-                      ft.template get<I>(),
-                      ft.template get<K>(),
-                      ft.template get<L>(),
-                      ft.template get<M>() );
+        return TransposedTuple( ft.geomElementPtr(),
+                                ft.template get<J>(),
+                                ft.template get<I>(),
+                                ft.template get<K>(),
+                                ft.template get<L>(),
+                                ft.template get<M>() );
     }
     //@}
 

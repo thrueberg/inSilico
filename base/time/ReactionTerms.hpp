@@ -15,6 +15,7 @@
 #include <vector>
 // base includes
 #include <base/linearAlgebra.hpp>
+#include <base/aux/EqualPointers.hpp>
 // base/asmb includes
 #include <base/asmb/collectFromDoFs.hpp>
 #include <base/asmb/assembleMatrix.hpp>
@@ -199,14 +200,9 @@ public:
 
     //! @name Access types of the tuple
     //@{
-    typedef typename FieldTuple::TestElementPtr   TestElementPtr;
-    typedef typename FieldTuple::TrialElementPtr  TrialElementPtr;
-    typedef typename FieldTuple::TrialElement     TrialElement;
+    typedef typename FieldTuple::TestElement   TestElement;
+    typedef typename FieldTuple::TrialElement  TrialElement;
     //@}
-
-    //! Bubnov-Galerkin method
-    static const bool isBubnov =
-        boost::is_same<TestElementPtr,TrialElementPtr>::value;
 
     //! General Kernel function
     typedef boost::function<void( const FieldTuple&,
@@ -238,11 +234,15 @@ public:
     void operator()( const FieldTuple&   fieldTuple )
     {
         // extract test and trial elements from tuple
-        TestElementPtr  testEp  = fieldTuple.testElementPtr();
-        TrialElementPtr trialEp = fieldTuple.trialElementPtr();
+        TestElement*  testEp  = fieldTuple.testElementPtr();
+        TrialElement* trialEp = fieldTuple.trialElementPtr();
+
+        const bool isBubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
 
         // dof activities
-        std::vector<bool> rowDoFActivity, colDoFActivity;
+        std::vector<base::dof::DoFStatus> rowDoFStatus, colDoFStatus;
 
         // dof IDs
         std::vector<std::size_t> rowDoFIDs, colDoFIDs;
@@ -255,19 +255,19 @@ public:
             WeightedDoFIDs;
         std::vector<WeightedDoFIDs> rowConstraints, colConstraints;
 
-                // Collect dof entities from element
-        base::asmb::collectFromDoFs( testEp, rowDoFActivity,
+        // Collect dof entities from element
+        base::asmb::collectFromDoFs( testEp, rowDoFStatus,
                                      rowDoFIDs, rowDoFValues,
                                      rowConstraints );
 
         if ( isBubnov ) {
-            colDoFActivity = rowDoFActivity;
+            colDoFStatus   = rowDoFStatus;
             colDoFIDs      = rowDoFIDs;
             colDoFValues   = rowDoFValues;
             colConstraints = rowConstraints;
         }
         else
-            base::asmb::collectFromDoFs( trialEp, colDoFActivity,
+            base::asmb::collectFromDoFs( trialEp, colDoFStatus,
                                          colDoFIDs, colDoFValues,
                                          colConstraints );
 
@@ -287,7 +287,7 @@ public:
         
             // assemble element matrix to global system
             base::asmb::assembleMatrix( lhsMatrix,
-                                        rowDoFActivity, colDoFActivity,
+                                        rowDoFStatus, colDoFStatus,
                                         rowDoFIDs, colDoFIDs,
                                         colDoFValues,
                                         rowConstraints, colConstraints, 
@@ -341,7 +341,7 @@ public:
             forceVec.noalias() = elemMat * resultVec;
 
             // Assemble to solver
-            base::asmb::assembleForces( forceVec, rowDoFActivity,
+            base::asmb::assembleForces( forceVec, rowDoFStatus,
                                         rowDoFIDs, rowConstraints, solver_ );
         }
         

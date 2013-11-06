@@ -17,8 +17,18 @@
 // Eigen includes
 #include <Eigen/Sparse>
 #include <Eigen/Core>
-#ifdef USE_SUPERLU
+
+#ifdef LOAD_SUPERLU
 #include <Eigen/SuperLUSupport>
+#endif
+
+#ifdef LOAD_PARDISO
+#define EIGEN_USE_MKL_ALL
+#include <Eigen/PardisoSupport>
+#endif
+
+#ifdef LOAD_UMFPACK
+#include <Eigen/UmfPackSupport>
 #endif
 
 // base includes
@@ -103,7 +113,7 @@ public:
     void choleskySolve()
     {
         // create a LLT-decomposition from the system matrix
-        Eigen::SimplicialLLT< Eigen::SparseMatrix<number> > chol( lhs_ );
+        Eigen::SimplicialLDLT< Eigen::SparseMatrix<number> > chol( lhs_ );
 
         /* This is the version, which should always work, but does not give
          * access to the factorisation, as needed in the block solver:
@@ -113,7 +123,7 @@ public:
          *
          */
 
-        /** Note that in this version, the individual steps in the
+        /*  Note that in this version, the individual steps in the
          *  solve process are made explicit.  It appears that the
          *  latest version of Eigen has an inverse notion of P and
          *  Pinv with respect to previous versions. Therefore when
@@ -121,14 +131,32 @@ public:
          *  lines shall be swapped in position (as indicated by the
          *  post-fixes).
          */
-        rhs_  = chol.permutationP() * rhs_;   //chol.permutationPinv() * rhs_;
-        chol.matrixL().solveInPlace( rhs_ );  //
-        chol.matrixU().solveInPlace( rhs_ );  //
-        rhs_ = chol.permutationPinv() * rhs_; //chol.permutationP() * rhs_;
+
+
+        /*  Solution of
+         *        A x = b
+         *  deferred to
+         *        A' y = AP A P^{-1} y = P b = b'
+         *  Steps are based on the factorisation
+         *        A' = L D L^T = L D U
+         *
+         *
+         *  1)    b' = P b        (permutate right hand side)
+         *  2) L y'' = b'         (solve for y'')
+         *  3)   y'  = D^{-1} y'' (diagonal part)
+         *  4) U y   = y'         (solve for y)
+         *  5)   x   = P^{-1} y   (undo permutation)
+         */
+        
+        rhs_  = chol.permutationP() * rhs_;                   // 1)
+        chol.matrixL().solveInPlace( rhs_ );                  // 2)
+        rhs_ = chol.vectorD().asDiagonal().inverse() * rhs_;  // 3)
+        chol.matrixU().solveInPlace( rhs_ );                  // 4)
+        rhs_ = chol.permutationPinv() * rhs_;                 // 5)
     }
 
     //--------------------------------------------------------------------------
-#ifdef USE_SUPERLU
+#ifdef LOAD_SUPERLU
     void superLUSolve()
     {
         Eigen::SuperLU< Eigen::SparseMatrix<number> >  superLU( lhs_ );
@@ -137,6 +165,34 @@ public:
     }
 #endif
 
+    //--------------------------------------------------------------------------
+#ifdef LOAD_PARDISO
+    void pardisoLUSolve()
+    {
+        Eigen::PardisoLU<Eigen::SparseMatrix<number> > pardisoLU( lhs_ );
+        VectorD x = pardisoLU.solve( rhs_ );
+        rhs_ = x;
+    }
+
+    void pardisoCholeskySolve()
+    {
+        Eigen::PardisoLDLT<Eigen::SparseMatrix<number> > pardisoLDLT( lhs_ );
+        VectorD x = pardisoLDLT.solve( rhs_ );
+        rhs_ = x;
+    }
+
+#endif
+
+    //--------------------------------------------------------------------------
+#ifdef LOAD_UMFPACK
+    void umfPackLUSolve()
+    {
+        Eigen::UmfPackLU<Eigen::SparseMatrix<number> > umfPackLU( lhs_ );
+        VectorD x = umfPackLU.solve( rhs_ );
+        rhs_ = x;
+    }
+#endif
+    
 
     int cgSolve()
     {

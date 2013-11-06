@@ -11,9 +11,13 @@
 #define base_surfacefieldbinder_hpp
 
 //------------------------------------------------------------------------------
+// std includes
+#include <vector>
 // boost includes
 #include <boost/tuple/tuple.hpp>
 #include <boost/utility.hpp>
+// base  includes
+#include <base/verify.hpp>
 // base/asmb includes
 #include <base/asmb/FieldElementPointerTuple.hpp>
 #include <base/asmb/FieldBinder.hpp>
@@ -71,9 +75,11 @@ class base::asmb::SurfaceFieldBinder
     : public boost::noncopyable
 {
 public:
+    //! For introspection
+    typedef SURFMESH Mesh;
 
     //! Directly define the element pointer tuple
-    typedef FieldElementPointerTuple<typename SURFMESH::Element*,
+    typedef FieldElementPointerTuple<typename Mesh::Element*,
                                      typename detail_::ElementPtrType<FIELD1>::Type,
                                      typename detail_::ElementPtrType<FIELD2>::Type,
                                      typename detail_::ElementPtrType<FIELD3>::Type,
@@ -97,7 +103,7 @@ public:
     
 
     //! Constructor with mesh, a field and four optional fields
-    SurfaceFieldBinder( SURFMESH& surfMesh,
+    SurfaceFieldBinder( Mesh& surfMesh,
                         FIELD1& field1,
                         FIELD2& field2 = detail_::makeDummyField(),
                         FIELD3& field3 = detail_::makeDummyField(),
@@ -105,7 +111,7 @@ public:
                         FIELD5& field5 = detail_::makeDummyField() )
     {
         // iterate over the surface mesh
-        for ( typename SURFMESH::ElementPtrConstIter bElemIter =
+        for ( typename Mesh::ElementPtrConstIter bElemIter =
                   surfMesh.elementsBegin();
               bElemIter != surfMesh.elementsEnd(); ++bElemIter ) {
 
@@ -135,6 +141,26 @@ public:
     FieldIterator elementsEnd() const
     {
         return elementPtrs_.end();
+    }
+
+    /** ´Random-access´ to the pointer tuples
+     *  The local storage contains element-pointer tuples which belong
+     *  the surface (boundary or immersed) of the domain. Consequently
+     *  they are not sorted by their ID. The parameter #e is the ID of
+     *  a volume element and all stored elements will be check in order
+     *  to find this value.
+     *  \param[in] e  ID of volume element to search among surface elements
+     */
+    ElementPtrTuple elementPtr( const std::size_t& e ) const
+    {
+        FieldIterator iter = this -> elementsBegin();
+        while ( ( (*iter).geomElementPtr() -> getID() ) != e )
+            ++iter;
+
+        VERIFY_MSG( iter != (this -> elementsEnd() ),
+                    "Cannot find surface element with that ID" );
+
+        return *iter;
     }
 
 private:

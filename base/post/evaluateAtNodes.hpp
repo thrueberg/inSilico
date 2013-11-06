@@ -34,11 +34,20 @@ namespace base{
 
         }
 
+        template<unsigned HIST,typename MESH, typename FIELD>
+        void evaluateHistoryAtNodes( const MESH& mesh,
+                                     const FIELD& field,
+                                     std::vector<typename detail_::ValueTypeBinder<FIELD>::Type>&
+                                     nodalValues );
+
         template<typename MESH, typename FIELD>
         void evaluateAtNodes( const MESH& mesh,
                               const FIELD& field,
                               std::vector<typename detail_::ValueTypeBinder<FIELD>::Type>&
-                              nodalValues );
+                              nodalValues )
+        {
+            evaluateHistoryAtNodes<0>( mesh, field, nodalValues );
+        }
 
     }
 }
@@ -48,11 +57,11 @@ namespace base{
  *  \tparam MESH  Type of mesh
  *  \tparam FIELD Type of field
  */
-template<typename MESH, typename FIELD>
-void base::post::evaluateAtNodes( const MESH& mesh,
-                                  const FIELD& field,
-                                  std::vector<typename base::post::detail_::
-                                              ValueTypeBinder<FIELD>::Type>& nodalValues )
+template<unsigned HIST,typename MESH, typename FIELD>
+void base::post::evaluateHistoryAtNodes( const MESH& mesh,
+                                         const FIELD& field,
+                                         std::vector<typename base::post::detail_::
+                                         ValueTypeBinder<FIELD>::Type>& nodalValues )
 {
     // DoF size
     static const unsigned doFSize = FIELD::DegreeOfFreedom::size;
@@ -94,7 +103,7 @@ void base::post::evaluateAtNodes( const MESH& mesh,
 
             ValueType doFValue;
             for ( unsigned d = 0; d < doFSize; d++ )
-                doFValue[d] = (*dIter) -> getValue( d );
+                doFValue[d] = (*dIter) ->template getHistoryValue<HIST>( d );
 
             doFValues.push_back( doFValue );
         }

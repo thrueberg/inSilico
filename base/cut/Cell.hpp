@@ -52,6 +52,7 @@ public:
     //! @name Convenience typedefs
     //@{
     typedef typename base::Vector<dim,double>::Type             VecDim;
+    typedef typename base::Vector<dim-1,double>::Type           VecLDim;
     typedef typename base::cut::Simplex<dim-1,unsigned>::Type   SurfIndexSimplex;
     typedef typename base::cut::Simplex<dim,  unsigned>::Type   VolIndexSimplex;
     typedef typename base::cut::Simplex<dim-1,  VecDim>::Type   SurfSimplex;
@@ -196,6 +197,35 @@ public:
             
             for ( unsigned s = 0; s < numVolSimp; s++ )
                 result += volumeJacobian( eta, s, inside ) * simplexRefSize;
+        }
+
+        return result;
+    }
+
+    double surfaceJacobian( const VecLDim& eta,
+                            const unsigned s ) const
+    {
+        typename base::Matrix<dim,dim-1>::Type J;
+        for ( unsigned d = 0; d < dim-1; d++ )
+            J.col(d) = (nodes_[ surface_[s][d+1] ] -
+                        nodes_[ surface_[s][0  ] ] );
+
+        return
+            std::sqrt( (J.transpose() * J).determinant() );
+    }
+    
+    double surfaceArea( ) const
+    {
+        double result = 0.;
+
+        if ( isCut_ ) {
+            const double simplexRefSize =
+                base::RefSize<base::SimplexShape<dim-1>::value>::apply();
+            
+            const VecLDim eta = base::constantVector<dim-1>( 0. );
+            
+            for ( unsigned s = 0; s < surface_.size(); s++ )
+                result += surfaceJacobian( eta, s ) * simplexRefSize;
         }
 
         return result;

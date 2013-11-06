@@ -30,15 +30,23 @@ namespace base{
                     static void apply( const DOFVALUE& value,
                                        std::ostream& out )
                     {
-                        for ( int d1 = 0; d1 < base::MatRows<DOFVALUE>::value; d1 ++ ) {
-                            for ( int d2 = 0; d2 < base::MatCols<DOFVALUE>::value; d2 ++ ) {
+                        static const int numRows = base::MatRows<DOFVALUE>::value;
+                        static const int numCols = base::MatCols<DOFVALUE>::value;
+                        
+                        for ( int d1 = 0; d1 < numRows; d1 ++ ) {
+                            for ( int d2 = 0; d2 < numCols; d2 ++ ) {
                                 out << value(d1,d2) << " ";
                             }
+                            if ( numCols == 2 ) out << "0 ";
                         }
                         
-                        // hack to avoid 2D vectors
-                        if ( base::MatSize<DOFVALUE>::value == 2 )
-                            out << "0";
+                        if ( numRows == 2 ) {
+                            for ( int d2 = 0; d2 < numCols; d2 ++ ) {
+                                out << "0 ";
+                            }
+                            if ( numCols == 2 ) out << "0 ";
+                        }
+                        
                     }
                 };
 

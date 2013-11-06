@@ -1,15 +1,9 @@
-# ------------------------------------------------------------------------------
-include $(INSILICOROOT)/definitions.mk
-# ------------------------------------------------------------------------------
+# debugging flag
 DEBUG=
 
-# compile/link executables and flags
-SHELL = /bin/bash
-CXX   = $(CPLUSPLUS)
-CC    = $(CPLUSPLUS)
+# destination folder of binaries
+BIN=$(INSILICOROOT)/tools/bin
 
-# initialise includes
-INCLUDES  = -I$(INSILICOROOT) -I$(BOOST_DIR)
 
 # VTK headers and libraries
 ifneq ($(origin VTK_PATH),undefined)
@@ -21,46 +15,16 @@ else
   VTK_INC = $(VTK_PATH)/$(shell basename $(VTK_PATH)/vtk-5.*)
 endif
 
-INCLUDES += -I$(VTK_INC)
+INCLUDES = -I$(VTK_INC)
 VTK_LIB  += -lvtkHybrid -lvtkIO -lvtkFiltering -lvtkCommon -lvtkGraphics
 
-# compilation flags
-CPPFLAGS = $(INCLUDES) -g3  #-03
-
 # libraries
-LIBS = $(VTK_LIB)
-
-
-# set flags depending on mode
-ifeq ($(DEBUG),YES) 
-	CPPFLAGS += $(DEBDEFINES) $(DEBCPPFLAGS) 
-	LDFLAGS  += $(DEBLDFLAGS)
-else
-	CPPFLAGS += $(RELDEFINES) $(RELCPPFLAGS) 
-	LDFLAGS  += $(RELLDFLAGS)
-endif
-
-# libraries
-LDLIBS  = $(LIBS)
-
-# bin folder
-ifneq (,$(wildcard $(HOME)/bin))
-	BIN = $(HOME)/bin
-else
-	BIN = /dev/null
-endif
+LDLIBS  = $(VTK_LIB)
 
 # ------------------------------------------------------------------------------
 # standard targets, compilable with implicit rules
-TARGETS = vtk2vtu
+TARGET = vtk2vtu vtk2vts plotOverLine vtxDiff vtxComp
 
 # ------------------------------------------------------------------------------
-all: $(TARGETS) 
-
-clean:
-	rm -f  *.o $(TARGETS) core
-
-install: $(TARGETS)
-	@echo make install: Copying $(TARGETS) to executable folder $(BIN)
-	@cp $(TARGETS) $(BIN)
+include $(INSILICOROOT)/config/convenience.mk
 

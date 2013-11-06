@@ -195,8 +195,8 @@ public:
         // extract test and trial elements from tuple
         TestElementPtr  testEp  = fieldTuple.testElementPtr();
 
-        // dof activities
-        std::vector<bool> doFActivity;
+        // dof status
+        std::vector<base::dof::DoFStatus> doFStatus;
 
         // dof IDs
         std::vector<std::size_t> doFIDs;
@@ -210,7 +210,7 @@ public:
             > constraints;
 
         // collect from element's dofs
-        base::asmb::collectFromDoFs( testEp, doFActivity, doFIDs,
+        base::asmb::collectFromDoFs( testEp, doFStatus, doFIDs,
                                      prescribedValues, constraints );
 
         // RHS weights for reaction terms
@@ -232,7 +232,7 @@ public:
             quadrature_.apply( crf, fieldTuple, elemForce );
 
             // Assemble to solver
-            base::asmb::assembleForces( elemForce, doFActivity,
+            base::asmb::assembleForces( elemForce, doFStatus,
                                         doFIDs, constraints, solver_ );
         }
         

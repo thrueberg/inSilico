@@ -22,6 +22,20 @@
 namespace base{
     namespace time{
         template<unsigned Q> class BDF;
+
+        namespace detail_{
+
+            //! Workaround for compilers 
+            template<unsigned Q>
+            struct NumSteps<Q,BDF>
+            {
+                static const unsigned numLHS = 2;
+                static const unsigned numRHS = Q;
+                static const unsigned numSteps =
+                    boost::static_unsigned_max<numLHS,numRHS>::value-1;
+            };
+            
+        }
     }
 }
 
@@ -71,6 +85,10 @@ public:
 
     //! Number of RHS terms needed
     static const unsigned numRHS = 1;
+
+    //! Number of total steps required
+    static const unsigned numSteps =
+        boost::static_unsigned_max<numLHS,numRHS>::value-1;
 
     //! Array of RHS weights
     typedef boost::array<double,numLHS> LHSWeightsArray;

@@ -19,7 +19,6 @@
 
 #include <base/dof/Distribute.hpp>
 #include <base/dof/constrainBoundary.hpp>
-#include <base/post/evaluateAtNodes.hpp>
 #include <base/asmb/FieldBinder.hpp>
 #include <base/asmb/StiffnessMatrix.hpp>
 
@@ -40,12 +39,15 @@ void dirichletBC( const typename base::Vector<DIM>::Type& x,
 {
     const double tol = 1.e-5;
 
+    // if d-th coordinate has the value 1.0
     bool onLid = ( std::abs( x[DIM-1] - 1.0 ) < tol );
+    // remove the corner/edge locations
     for ( unsigned d = 0; d < DIM-1; d ++ ) {
         if ( std::abs( x[d] - 0.0 ) < tol ) onLid = false;
         if ( std::abs( x[d] - 1.0 ) < tol ) onLid = false;
     }
 
+    // boundary condition is either 0 or the e_1 vector 
     for ( unsigned d = 0; d < DIM; d ++ ) {
         const double value = ( (d==0) and onLid ) ? 1.0 : 0.0;
         
@@ -156,9 +158,11 @@ int main( int argc, char * argv[] )
             numDoFsU );
     std::cout << " Number of pressure dofs " << numDoFsP << std::endl;
 
+    // the composite field with geometry, velocity and pressure
     typedef base::asmb::FieldBinder<Mesh,Velocity,Pressure> Field;
     Field field( mesh, velocity, pressure );
-    
+
+    // define the system blocks (U,U), (U,P), and (P,U)
     typedef Field::TupleBinder<1,1,1>::Type TopLeft;
     typedef Field::TupleBinder<1,2>::Type   TopRight;
     typedef Field::TupleBinder<2,1>::Type   BottomLeft;

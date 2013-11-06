@@ -28,20 +28,23 @@ namespace base{
         //----------------------------------------------------------------------
         template<typename VECDIM>
         VECDIM closestPointToLine( const VECDIM& x1, const VECDIM& x2,
-                                   const VECDIM& x );
+                                   const VECDIM& x,
+                                   base::Vector<1,double>::Type& xi );
 
         base::Vector<3,double>::Type
         closestPointToTriangle( const base::Vector<3,double>::Type& x1,
                                 const base::Vector<3,double>::Type& x2,
                                 const base::Vector<3,double>::Type& x3,
-                                const base::Vector<3,double>::Type& x  );
+                                const base::Vector<3,double>::Type& x,
+                                base::Vector<2,double>::Type& xi );
         
         base::Vector<3,double>::Type
         closestPointToQuadrilateral( const base::Vector<3,double>::Type& x1,
                                      const base::Vector<3,double>::Type& x2,
                                      const base::Vector<3,double>::Type& x3,
                                      const base::Vector<3,double>::Type& x4,
-                                     const base::Vector<3,double>::Type& x  );
+                                     const base::Vector<3,double>::Type& x,
+                                     base::Vector<2,double>::Type& xi   );
 
         //----------------------------------------------------------------------
         namespace detail_{
@@ -52,12 +55,13 @@ namespace base{
             template<unsigned DIM>
             struct ComputeClosestPoint<DIM,base::LINE>
             {
-                typedef typename base::Vector<DIM,double>::Type VecDim;
+                typedef typename base::Vector<DIM,double>::Type   VecDim;
+                typedef typename base::Vector<1,double>::Type     VecLDim;
                     
                 template<typename ARRAY>
-                static VecDim apply( const ARRAY& array, const VecDim& x )
+                static VecDim apply( const ARRAY& array, const VecDim& x, VecLDim& xi )
                 {
-                    return base::cut::closestPointToLine( array[0], array[1], x );
+                    return base::cut::closestPointToLine( array[0], array[1], x, xi );
                 }
             };
 
@@ -65,12 +69,13 @@ namespace base{
             struct ComputeClosestPoint<DIM,base::TRI>
             {
                 typedef typename base::Vector<DIM,double>::Type VecDim;
+                typedef typename base::Vector<2,double>::Type   VecLDim;
                     
                 template<typename ARRAY>
-                static VecDim apply( const ARRAY& array, const VecDim& x )
+                static VecDim apply( const ARRAY& array, const VecDim& x, VecLDim& xi )
                 {
                     return base::cut::closestPointToTriangle( array[0], array[1],
-                                                              array[2], x );
+                                                              array[2], x, xi );
                 }
             };
 
@@ -78,13 +83,14 @@ namespace base{
             struct ComputeClosestPoint<DIM,base::QUAD>
             {
                 typedef typename base::Vector<DIM,double>::Type VecDim;
+                typedef typename base::Vector<2,double>::Type   VecLDim;
                     
                 template<typename ARRAY>
-                static VecDim apply( const ARRAY& array, const VecDim& x )
+                static VecDim apply( const ARRAY& array, const VecDim& x, VecLDim& xi )
                 {
                     return base::cut::closestPointToQuadrilateral( array[0], array[1],
                                                                    array[2], array[3],
-                                                                   x );
+                                                                   x, xi );
                 }
             };
 
@@ -139,9 +145,10 @@ void base::cut::distanceToElement( const SELEMENT* surfEp,
 
     // compute the closest point
     const typename LevelSet::VecDim x = ls.getX();
+    typename base::Vector<SELEMENT::dim>::Type xi;
     const typename LevelSet::VecDim closestPoint =
         detail_::ComputeClosestPoint<LevelSet::dim,
-                                     SELEMENT::shape>::apply( globalX, x );
+                                     SELEMENT::shape>::apply( globalX, x, xi );
                                                                         
     // distances
     const double oldDistance = ls.getUnsignedDistance();
@@ -153,6 +160,7 @@ void base::cut::distanceToElement( const SELEMENT* surfEp,
         // set closest point and element
         ls.setClosestPoint( closestPoint );
         ls.setClosestElement( surfEp -> getID() );
+        ls.setClosestLocalCoordinate( xi );
 
         // for signed distances, check the side of point
         if ( isSigned ) {
@@ -190,35 +198,40 @@ void base::cut::distanceToElement( const SELEMENT* surfEp,
  */
 template<typename VECDIM>
 VECDIM base::cut::closestPointToLine( const VECDIM& a, const VECDIM& b,
-                                      const VECDIM& p )
+                                      const VECDIM& p,
+                                      typename base::Vector<1,double>::Type& xi)
 {
     // tangent vector
     const VECDIM t = b - a;
     
     // Project c onto ab, but deferring divide by Dot(ab, ab)
     const VECDIM pa = p - a;
-    double xi = base::dotProduct( pa, t);
+    double s = base::dotProduct( pa, t);
 
-    if (xi <= 0.0) {
+    if (s <= 0.0) {
         // c projects outside the [a,b] interval, on the a side; clamp to a
         // t = 0.0;
+        xi[0] = 0.0;
         return a;
     }
     else {
         const double denom = base::dotProduct(t, t);
         // Always nonnegative since denom = |ab|^2
-        if (xi >= denom) {
+        if (s >= denom) {
             // c projects outside the [a,b] interval, on the b side; clamp to b
             //t = 1.0;
+            xi[0] = 1.0;
             return b;
         }
         else {
             // c projects inside the [a,b] interval; must do deferred divide now
-            xi /= denom;
+            s /= denom;
         }
     }
     
-    return a + xi * t;
+    xi[0] = s;
+    
+    return a + s * t;
     
 }
 
@@ -249,7 +262,8 @@ base::Vector<3,double>::Type
 base::cut::closestPointToTriangle( const base::Vector<3,double>::Type& a,
                                    const base::Vector<3,double>::Type& b,
                                    const base::Vector<3,double>::Type& c,
-                                   const base::Vector<3,double>::Type& p  )
+                                   const base::Vector<3,double>::Type& p,
+                                   base::Vector<2,double>::Type& xi  )
 {
     typedef base::Vector<3,double>::Type Vec3;
     
@@ -259,18 +273,25 @@ base::cut::closestPointToTriangle( const base::Vector<3,double>::Type& a,
     const Vec3 ap = p - a;
     const double d1 = base::dotProduct(ab, ap);
     const double d2 = base::dotProduct(ac, ap);
-    if ( (d1 <= 0.0) and (d2 <= 0.0) ) return a; // barycentric coordinates (1,0,0)
+    if ( (d1 <= 0.0) and (d2 <= 0.0) ) {
+        xi[0] = xi[1] = 0.0;
+        return a; // barycentric coordinates (1,0,0)
+    }
     
     // Check if P in vertex region outside B
     const Vec3 bp = p - b;
     const double d3 = base::dotProduct(ab, bp);
     const double d4 = base::dotProduct(ac, bp);
-    if ( (d3 >= 0.0) and (d4 <= d3) ) return b; // barycentric coordinates (0,1,0)
+    if ( (d3 >= 0.0) and (d4 <= d3) ) {
+        xi[0] = 1.0; xi[1] = 0.0;
+        return b; // barycentric coordinates (0,1,0)
+    }
     
     // Check if P in edge region of AB, if so return projection of P onto AB
     const double vc = d1 * d4 - d3 * d2;
     if ( (vc <= 0.0) and (d1 >= 0.0) and (d3 <= 0.0)) {
         const double v = d1 / (d1 - d3);
+        xi[0] = v; xi[1] = 0.0;
         return a + v * ab; // barycentric coordinates (1-v,v,0)
     }
     
@@ -278,12 +299,16 @@ base::cut::closestPointToTriangle( const base::Vector<3,double>::Type& a,
     const Vec3   cp = p - c;
     const double d5 = base::dotProduct(ab, cp);
     const double d6 = base::dotProduct(ac, cp);
-    if ( (d6 >= 0.0) and (d5 <= d6)) return c; // barycentric coordinates (0,0,1)
+    if ( (d6 >= 0.0) and (d5 <= d6)) {
+        xi[0] = 0.0; xi[1] = 1.0;
+        return c; // barycentric coordinates (0,0,1)
+    }
 
     // Check if P in edge region of AC, if so return projection of P onto AC
     const double vb = d5 * d2 - d1 * d6;
     if ( (vb <= 0.0) and (d2 >= 0.0) and (d6 <= 0.0) ) {
         const double w = d2 / (d2 - d6);
+        xi[0] = 0.; xi[1] = w;
         return a + w * ac; // barycentric coordinates (1-w,0,w)
     }
     
@@ -291,6 +316,7 @@ base::cut::closestPointToTriangle( const base::Vector<3,double>::Type& a,
     const double va = d3 * d6 - d5 * d4;
     if ( (va <= 0.0) and ((d4 - d3) >= 0.0) and ((d5 - d6) >= 0.0)) {
         const double w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        xi[0] = 1.0 - w; xi[1] = w;
         return b + w * (c - b); // barycentric coordinates (0,1-w,w)
     }
     
@@ -298,6 +324,7 @@ base::cut::closestPointToTriangle( const base::Vector<3,double>::Type& a,
     const double denom = 1.0 / (va + vb + vc);
     const double v = vb * denom;
     const double w = vc * denom;
+    xi[0] = v; xi[1] = w;
     return a + ab * v + ac * w; // = u*a + v*b + w*c, u = va * denom = 1.0-v-w
 }
 
@@ -315,22 +342,29 @@ base::cut::closestPointToQuadrilateral( const base::Vector<3,double>::Type& x1,
                                         const base::Vector<3,double>::Type& x2,
                                         const base::Vector<3,double>::Type& x3,
                                         const base::Vector<3,double>::Type& x4,
-                                        const base::Vector<3,double>::Type& x  )
+                                        const base::Vector<3,double>::Type& x,
+                                        base::Vector<2,double>::Type& xi   )
 {
     typedef base::Vector<3,double>::Type Vec3;
 
+    base::Vector<2,double>::Type xi1, xi2;
+
     // First triangle
-    const Vec3 cp1 = closestPointToTriangle( x1, x2, x3, x );
+    const Vec3 cp1 = closestPointToTriangle( x1, x2, x3, x, xi1 );
     // Second triangle
-    const Vec3 cp2 = closestPointToTriangle( x1, x3, x4, x );
+    const Vec3 cp2 = closestPointToTriangle( x1, x3, x4, x, xi2 );
 
     // distances squared
     const double dist1 = base::dotProduct( cp1 - x, cp1 - x );
     const double dist2 = base::dotProduct( cp2 - x, cp2 - x );
 
     // return the closer point
-    if ( dist1 < dist2 ) return cp1;
+    if ( dist1 < dist2 ) {
+        xi = xi1;
+        return cp1;
+    }
 
+    xi = xi2;
     return cp2;
     
 }

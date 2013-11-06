@@ -27,6 +27,16 @@ namespace base{
 
         namespace detail_{
 
+            //! Helper object for compilers not supporting class injection
+            //! icpc does not compile when using
+            //!    static const unsigned numSteps = METHOD<ORDER>::numSteps
+            //! because it does not consider METHOD<ORDER> a complete type,
+            //! but g++ does. This helper object allows for a workaround and
+            //! is based on partial specialisations in the method definition
+            //! files
+            template<unsigned ORDER, template<unsigned> class METHOD>
+            struct NumSteps;
+
             //------------------------------------------------------------------
             // Recursive call for LHS weights
             template<unsigned ORDER, template<unsigned> class METHOD>
@@ -198,9 +208,10 @@ public:
     //@}
 
     //! Number of steps required deduced from number of LHS and RHS terms
-    static const unsigned numSteps =
-        boost::static_unsigned_max<Method::numLHS,Method::numRHS>::value-1;
-    
+    static const unsigned numSteps = detail_::NumSteps<order,METHOD>::numSteps;
+    // see comments above
+    //boost::static_unsigned_max<Method::numLHS,Method::numRHS>::value-1;
+
     //! Weight for the system mass matrix
     static double systemMassWeight( const unsigned step )
     {

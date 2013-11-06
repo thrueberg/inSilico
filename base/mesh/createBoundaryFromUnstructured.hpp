@@ -14,6 +14,7 @@
 // std  includes
 #include <map>
 #include <vector>
+#include <iterator>
 // boost includes
 #include <boost/utility.hpp>
 // base includes
@@ -52,7 +53,8 @@ void base::mesh::createBoundaryFromUnstructured( EITER first, EITER last,
                                                  boundaryElements )
 {
     // Template parameter: type of element
-    typedef typename base::TypeReduction<typename EITER::value_type>::Type Element;
+    typedef typename base::TypeReduction<
+        typename std::iterator_traits<EITER>::value_type>::Type Element;
 
     // Deduction of geometric entities
     static const base::Shape elemShape = Element::shape;

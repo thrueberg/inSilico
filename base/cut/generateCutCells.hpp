@@ -30,7 +30,8 @@ namespace base{
         void generateCutCells(
             const MESH& mesh,
             const std::vector<base::cut::LevelSet<MESH::Element::dim> >& levelSet,
-            std::vector<CELL> & cutCells );
+            std::vector<CELL> & cutCells,
+            const double tol  = 1.e-12 );
     }
 }
 
@@ -55,7 +56,8 @@ template<typename MESH, typename CELL>
 void base::cut::generateCutCells(
     const MESH& mesh,
     const std::vector<base::cut::LevelSet<MESH::Element::dim> >& levelSet,
-    std::vector<CELL> & cutCells )
+    std::vector<CELL> & cutCells,
+    const double tol  )
 {
     // number of vertices of a cell
     static const unsigned numVertices = CELL::numVertices;
@@ -75,6 +77,8 @@ void base::cut::generateCutCells(
     // go through all elements of the mesh
     for ( std::size_t elemNum = 0; eIter != eEnd; ++eIter, elemNum++ ) {
 
+        cutCells[ elemNum ].destroy();
+
         // this element's array of signed distances
         boost::array<double,numVertices> signedDistances;
 
@@ -83,7 +87,12 @@ void base::cut::generateCutCells(
         for ( unsigned v = 0; v < numVertices; ++nIter, v++ ) {
 
             const std::size_t nodeID = (*nIter) -> getID();
-            const double sd = levelSet[ nodeID ].getSignedDistance();
+            double sd = levelSet[ nodeID ].getSignedDistance();
+
+            if ( std::abs( sd ) < tol ) {
+                if ( sd < 0. ) sd -= tol;
+                else           sd += tol;
+            }
 
             signedDistances[ v ] = sd;
         }

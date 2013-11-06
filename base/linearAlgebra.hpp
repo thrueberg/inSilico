@@ -68,31 +68,6 @@ namespace base{
 #endif
 
     //--------------------------------------------------------------------------
-    //! Compute the inner product of two vectors
-    template<typename VEC>
-    double dotProduct( const VEC& a, const VEC& b )
-    {
-        return a.dot( b );
-    }
-
-    //--------------------------------------------------------------------------
-    /** Compute the Euclidean norm of a vector.
-     *  Definition
-     *  \f[
-     *      \| a \|_2 = ( \sum_{i=1}^d a_i^2 )^{1/2}
-     *  \f]
-     *  \tparam VEC  Type of vector
-     *  \param[in] a Input vector
-     *  \return      Euclidean norm of a
-     */
-    template<typename VEC>
-    double norm( const VEC& a )
-    {
-        return std::sqrt( dotProduct( a, a ) );
-    }
-
-
-    //--------------------------------------------------------------------------
     //! Cross product function for the columns of 3 x 2 matrix
     base::Vector<3>::Type
     crossProduct( const base::Matrix<3,2>::Type & surfJac )
@@ -166,6 +141,38 @@ namespace base{
 
         return result;
     }
+
+    //--------------------------------------------------------------------------
+    //! Compute the inner product of two vectors / matrices
+    template<typename VEC>
+    double dotProduct( const VEC& a, const VEC& b )
+    {
+        double result = 0.;
+        for ( int i = 0; i < base::MatRows<VEC>::value; i++ )
+            for ( int j = 0; j < base::MatCols<VEC>::value; j++ )
+                result += a(i,j) * b(i,j);
+        
+        return result;
+    }
+
+    //--------------------------------------------------------------------------
+    /** Compute the Euclidean norm of a vector / Frobenius norm of a matrix
+     *  Definition
+     *  \f[
+     *      \| a \|_2 = ( \sum_{i=1}^d a_i^2 )^{1/2}
+     *  \f]
+     *  \tparam VEC  Type of vector
+     *  \param[in] a Input vector
+     *  \return      Euclidean norm of a
+     */
+    template<typename VEC>
+    double norm( const VEC& a )
+    {
+        return std::sqrt( dotProduct( a, a ) );
+    }
+
+
+
     
 }
 

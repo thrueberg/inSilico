@@ -10,6 +10,8 @@
 #ifndef base_dof_scaleConstraints_hpp
 #define base_dof_scaleConstraints_hpp
 
+#error DEPRECATED
+
 //------------------------------------------------------------------------------
 // base
 #include <base/types.hpp>

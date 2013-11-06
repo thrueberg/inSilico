@@ -114,13 +114,13 @@ namespace base{
         void LagrangeTriangle<2>::supportPoints( boost::array<VecDim,
                                                               numFun> & values )
         {
-            values[0] = base::constantVector<dim>( 0. );
+            values[0][0] = 0.;  values[0][1] = 0.;
             values[1][0] = 1.;  values[1][1] = 0.;
             values[2][0] = 0.;  values[2][1] = 1.;
 
-            values[1][0] = 0.5; values[1][1] = 0.0;
-            values[1][0] = 0.5; values[1][1] = 0.5;
-            values[1][0] = 0.0; values[1][1] = 0.5;
+            values[3][0] = 0.5; values[3][1] = 0.0;
+            values[4][0] = 0.5; values[4][1] = 0.5;
+            values[5][0] = 0.0; values[5][1] = 0.5;
         }
         //@}
         

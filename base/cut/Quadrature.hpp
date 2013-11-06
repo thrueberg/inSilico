@@ -54,7 +54,7 @@ public:
     typedef typename base::Vector<base::ShapeDim<shape>::value>::Type VecDim;
 
     //! Constructor with access to cut cells and flag for in/outside 
-    Quadrature( const std::vector<Cell>& cells,
+    Quadrature( std::vector<Cell>& cells,
                 const bool inside = true )
         : cells_( cells ), inside_( inside )
     {

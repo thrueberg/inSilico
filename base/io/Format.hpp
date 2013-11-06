@@ -17,8 +17,12 @@
 #include <string>
 #include <sstream>
 // boost includes
+#include <boost/utility.hpp>
+#include <boost/array.hpp>
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
+// base includes
+#include <base/verify.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -80,6 +84,18 @@ namespace base{
 
 //------------------------------------------------------------------------------
 /** Create a table format for eye-candy output.
+ *
+ *  \code{.cpp}
+ *  // Array of the widths of the table (example width=3)
+ *  base::io::Table<3>::WidthArray widths = {{ W1, W2, W3 }};
+ *  // Construct table oject
+ *  base::io::Table<3> table( widths );
+ *  // Fill table row with data
+ *  table % Dat1;
+ *  table % Dat2 % Dat3;
+ *  // Table row is now filled, write the table
+ *  std::cout << table;
+ *  \endcode
  *  \tparam WIDTH  Number of entries in a table row
  */
 template<unsigned WIDTH>
@@ -157,9 +173,11 @@ public:
     //! Write to given stream
     void flush( std::ostream& out ) 
     {
-        for ( unsigned w = ctr_; w < width; w++ )
-            formatter_ % "";
+        // Add empty strings for not set fields
+        for ( unsigned w = ctr_; w < width; w++ ) formatter_ % "";
+        // Write self to stream
         out << formatter_;
+        
         ctr_ = 0;
     }
 

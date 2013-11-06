@@ -1,70 +1,23 @@
-#######################################
-# MAKEFILE for this directory         #
-#######################################
+# determine mode of compilation
+DEBUG  = NO
+# name the compilation targets
+TARGET = unitCubeSMF unitCubeSGF unitCubeSMFsimplex
 
-include $(INSILICOROOT)/definitions.mk
+# pass value to application flags
+APPFLAGS=
 
-# determine modus of compilation
-DEBUG=YES
-SIMPLEX=YES
+BIN=$(INSILICOROOT)/tools/bin
 
-# compile/link executables and flags
-SHELL = /bin/bash
-CXX   = $(CPLUSPLUS)
-CC    = $(CPLUSPLUS)
+# include configuration file
+include $(INSILICOROOT)/config/convenience.mk
 
-# includes
-INCLUDES  = -I$(INSILICOROOT) 
-INCLUDES += -I$(BOOST_DIR)
-INCLUDES += -isystem$(EIGEN3_DIR)  #note the -isystem for surpression of warnings
-
-# libraries
-LDLIBS  = 
-
-# common flags
-CPPFLAGS = $(INCLUDES) 
-
-# set flags depending on mode
-ifeq ($(strip $(DEBUG)),YES) 
-	CPPFLAGS += $(DEBDEFINES) $(DEBCPPFLAGS) 
-	LDFLAGS  += $(DEBLDFLAGS)
-else
-	CPPFLAGS += $(RELDEFINES) $(RELCPPFLAGS) 
-	LDFLAGS  += $(RELLDFLAGS)
-endif
-
-# bin folder
-ifneq (,$(wildcard $(HOME)/bin))
-	BIN = $(HOME)/bin
-else
-	BIN = /dev/null
-endif
-
-# set flag in order to generate simplex meshes
-ifeq ($(strip $(SIMPLEX)),YES)
-	CPPFLAGS += -DSIMPLEX
-endif
-
-
-# for cleanup
-RM = -rm -f
-
-TARGETS = unitCubeSMF unitCubeSGF
 
 #######################################
-# the rules
-#
-all: $(TARGETS)
+# new rules
 
-# clean: 
-clean:
-	$(RM) *.o $(TARGETS) core
-
-install: $(TARGETS)
-	@echo make install: Copying $(TARGETS) to executable folder $(BIN)
-	@cp $(TARGETS) $(BIN)
+# unitCubeSMF with simplex elements
+unitCubeSMFsimplex:
+	$(CXX) $(CPPFLAGS) -DSIMPLEX $(CXXFLAGS) -o unitCubeSMFsimplex unitCubeSMF.cpp
 
 
-# implict rules:
-# $(CC) $(LDFLAGS) n.o $(LOADLIBES) $(LDLIBS)
-# $(CXX) -c $(CPPFLAGS) $(CXXFLAGS)
+all: $(TARGET) install

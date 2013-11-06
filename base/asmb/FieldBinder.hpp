@@ -108,12 +108,15 @@ class base::asmb::FieldBinder
     : public boost::noncopyable
 {
 public:
+    //! For introspection
+    typedef MESH Mesh;
+    
     //! Tuple of references to the fields
     typedef boost::tuple<FIELD1&, FIELD2&, FIELD3&, FIELD4&, FIELD5&> FieldTuple;
 
     //! The compound iterator over the bound fields
     typedef
-    base::asmb::FieldIterator<typename detail_::ElementPtrIterType<MESH  >::Type,
+    base::asmb::FieldIterator<typename detail_::ElementPtrIterType<Mesh  >::Type,
                               typename detail_::ElementPtrIterType<FIELD1>::Type,
                               typename detail_::ElementPtrIterType<FIELD2>::Type,
                               typename detail_::ElementPtrIterType<FIELD3>::Type,
@@ -135,7 +138,7 @@ public:
     };
 
     //! Constructor with mesh, a field and four optional fields
-    FieldBinder( MESH& mesh,
+    FieldBinder( Mesh& mesh,
                  FIELD1& field1,
                  FIELD2& field2 = detail_::makeDummyField(),
                  FIELD3& field3 = detail_::makeDummyField(),
@@ -179,7 +182,7 @@ public:
 
 private:
     //! Mesh reference
-    MESH&      mesh_;
+    Mesh&      mesh_;
     //! Tuple of field references
     FieldTuple fieldTuple_;
 };

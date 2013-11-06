@@ -1,5 +1,5 @@
 # the list of directories 
-SUBDIRS := ${sort ${dir ${wildcard */}}}	
+SUBDIRS := gmsh2smf sgf2vtk sgfRefine smf2gp smf2vtk smfAffine smfReverse
 
 # generate the conversion tools
 converter: 
@@ -7,3 +7,4 @@ converter:
 	$(MAKE) -C $$i;\
   done
 
+all: converter

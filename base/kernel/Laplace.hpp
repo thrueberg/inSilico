@@ -16,6 +16,8 @@
 // base includes
 #include <base/geometry.hpp>
 #include <base/linearAlgebra.hpp>
+// base/aux includes
+#include <base/aux/EqualPointers.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -62,10 +64,6 @@ public:
     typedef typename FieldTuple::TrialElement TrialElement;
     //@}
 
-    //! Flag for equal test and form functions --> Bubnov-Galerkin
-    static const bool bubnov = boost::is_same<TrialElement,
-                                              TestElement>::value;
-    
     //! Local coordinate
     typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
 
@@ -107,12 +105,17 @@ public:
         const TestElement*  testEp  = fieldTuple.testElementPtr();
         const TrialElement* trialEp = fieldTuple.trialElementPtr();
 
+        // if pointers are identical, Galerkin-Bubnov scheme
+        const bool isBubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
+
         // Evaluate gradient of test and trial functions
         std::vector<GlobalVecDim> testGradX, trialGradX;
         const double detJ =
             (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
-
-        if ( bubnov ) trialGradX = testGradX;
+        
+        if ( isBubnov ) trialGradX = testGradX;
         else
             (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
 
@@ -146,6 +149,25 @@ public:
     }
 
     //--------------------------------------------------------------------------
+    /** Discrete co-normal derivative corresponding to the Laplace operator.
+     *  The co-normal derivative reads
+     *  \f[
+     *       B_n u = \kappa \nabla u \cdot n
+     *  \f]
+     *  with the scalar (e.g. conductivity) \f$ \kappa \f$ and the normal vector
+     *  \f$ n \f$. In the general case of the vector Laplacian, the result
+     *  matrix has the entries
+     *  \f[
+     *       B[ k, M*d + k ] = \kappa (\nabla \phi^M) \cdot n
+     *  \f]
+     *  for all \f$ 1 \leq k \leq d \f$ with \f$ d \f$ being the size of the
+     *  nodal  degree of freedom (i.e. \f$ d = 1 \f$ for the standard Laplace
+     *  and \f$ d = dim \f$ for the vector Laplace operator).
+     *  \param[in]  fieldTuple Tuple of field element pointers
+     *  \param[in]  xi         Local evaluation coordinate
+     *  \param[in]  normal     Unit normal vector \f$ n \f$
+     *  \param[out] result     Result container \f$ B \f$
+     */
     void coNormalDerivative( const FieldTuple&  fieldTuple,
                              const LocalVecDim& xi,
                              const GlobalVecDim& normal,
@@ -155,44 +177,20 @@ public:
         const GeomElement*   geomEp  = fieldTuple.geomElementPtr();
         const TrialElement*  trialEp = fieldTuple.trialElementPtr();
 
-        this -> normalDerivativeHelper_( geomEp, trialEp, xi,
-                                         normal, result );
-    }
-
-    //--------------------------------------------------------------------------
-    void dualCoNormalDerivative( const FieldTuple&  fieldTuple,
-                                 const LocalVecDim& xi,
-                                 const GlobalVecDim& normal,
-                                 base::MatrixD& result ) const
-    {
-        // Extract element pointer from tuple
-        const GeomElement*  geomEp = fieldTuple.geomElementPtr();
-        const TestElement*  testEp = fieldTuple.testElementPtr();
-
-        this -> normalDerivativeHelper_( geomEp, testEp, xi,
-                                         normal, result );
-    }
-
-private:
-
-    template<typename FIELDELEMENT>
-    void normalDerivativeHelper_( const GeomElement*  geomEp,
-                                  const FIELDELEMENT* fieldEp,
-                                  const LocalVecDim&  xi,
-                                  const GlobalVecDim& normal,
-                                  base::MatrixD& result ) const
-    {
         // evaluate gradient of trial functions
-        std::vector<GlobalVecDim> fieldGradX;
-        (fieldEp -> fEFun()).evaluateGradient( geomEp, xi, fieldGradX );
+        std::vector<GlobalVecDim> trialGradX;
+        (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
+        
+        // number of trial functions
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
 
-        const unsigned numColBlocks = static_cast<unsigned>( fieldGradX.size() );
-
+        // initiate the result with zeros
         result = base::MatrixD::Zero( +doFSize, numColBlocks * doFSize );
 
+        // assemble
         for ( unsigned i = 0; i < numColBlocks; i++ ) {
         
-            const double entry = factor_ * base::dotProduct( normal, fieldGradX[i] );
+            const double entry = factor_ * base::dotProduct( normal, trialGradX[i] );
             
             for ( unsigned d = 0; d < doFSize; d++)
                 result( d, i*doFSize + d) = entry;
@@ -201,7 +199,6 @@ private:
         
         return;
     }
-
 
 private:
     const double factor_; //!< Scalar multiplier (e.g. conductivity)

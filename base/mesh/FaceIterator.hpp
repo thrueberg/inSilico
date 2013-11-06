@@ -11,6 +11,8 @@
 #define base_mesh_faceiterator_hpp
 
 //------------------------------------------------------------------------------
+// std includes
+#include <iterator>
 // boost includes
 #include <boost/array.hpp>
 #include <boost/iterator/iterator_facade.hpp>
@@ -34,7 +36,9 @@ namespace base{
             struct FaceType
             {
                 typedef typename base::TypeReduction<
-                    typename EITER::value_type>::Type       Element;
+                    typename
+                    std::iterator_traits<EITER>::value_type>::Type Element;
+
                 typedef typename ElementFaceTraits<Element::shape,
                                                    NFACE,
                                                    std::size_t>::Type Type;

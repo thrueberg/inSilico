@@ -110,8 +110,8 @@ public:
         (trialEp -> fEFun()).evaluate( geomEp, xi, trialFun );
 
         // Sizes and sanity checks
-        const unsigned numRowBlocks = testFun.size();
-        const unsigned numColBlocks = trialGradX.size();
+        const unsigned numRowBlocks = static_cast<unsigned>( testFun.size()    );
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
         assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * nDoFs );
         assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * nDoFs );
 

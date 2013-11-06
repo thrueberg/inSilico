@@ -1,13 +1,5 @@
 # `-*-mode: Makefile -*-'
 
-#################################################
-#  MAKEFILE variables for openFTL on a Linux 
-#  machine (Debian/Ubuntu) with system default
-#  installations and gcc
-
-# compiler and linker
-CPLUSPLUS    = g++
-
 ########################################
 # system paths
 
@@ -23,13 +15,12 @@ SUPERLU_INC      = /usr/include/superlu
 SUPERLU_LIB_PATH = /usr/lib
 SUPERLU_LIB      = -lsuperlu
 
-########################################
-# flags and defines (DEBUG and RELEASE modes)
+# MKL paths and libraries
+MKL_PATH = /opt/intel/mkl
 
-# compilation flags
-DEBCPPFLAGS = -g3 -Wall -Wextra -ansi -pedantic -Wno-unused-parameter \
-	-Wno-variadic-macros -Wconversion -std=c++0x
-RELCPPFLAGS = -g -O3 
+# UMFPACK
+UMFPACK_INC = /usr/include/suitesparse
+UMFPACK_LIB = -lumfpack
 
 # linking flags
 DEBLDFLAGS  = -g3
@@ -38,3 +29,49 @@ RELLDFLAGS  = -g -O3
 # defines
 DEBDEFINES  = -DDEBUG
 RELDEFINES  = -DNDEBUG
+
+# inclusion of system headers and insilico
+SYSINCLUDES = -I$(INSILICOROOT) -isystem$(EIGEN3_DIR) -I$(BOOST_DIR)
+
+# inclusion of system libraries (always, debug or release)
+SYSLIBS     = 
+DEBSYSLIBS  =
+RELSYSLIBS  = 
+
+#################################################
+#  MAKEFILE variables for inSilico on a Linux 
+#  machine (Debian/Ubuntu) with system default
+#  installations (gcc) or INTEL compiler suite
+
+# compiler and linker
+ifeq ($(COMPENV),INTEL)
+
+  # Compiler: intel c++ compiler
+  CPLUSPLUS = icpc
+
+  # includes for the system
+  SYSINCLUDES += -I$(MKL_PATH)
+
+  # libraries for the system
+  SYSLIBS    += -L$(MKL_PATH)/lib/intel64 -lmkl_core
+  DEBSYSLIBS += -lmkl_sequential
+  RELSYSLIBS += -lmkl_intel_thread
+
+  # compilation flags (debug or release)
+  DEBCPPFLAGS = -g -Wall -ansi -wd383,869,981,1418,1419 -mkl=sequential
+  RELCPPFLAGS = -g -O3 -openmp -wd858 -mkl=parallel
+
+else
+
+  # Default Compiler: system's gnu c++ compiler
+  CPLUSPLUS = g++
+
+  # compilation flags (debug or release)
+  DEBCPPFLAGS = -g3 -Wall -Wextra -ansi -pedantic -Wno-unused-parameter \
+		-Wno-variadic-macros -Wconversion -std=c++0x
+  RELCPPFLAGS = -g -O3 -fopenmp
+
+
+endif
+
+

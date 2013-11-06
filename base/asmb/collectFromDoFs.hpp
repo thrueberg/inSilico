@@ -16,6 +16,8 @@
 #include <iterator>
 #include <algorithm>
 #include <utility>
+// base/dof includes
+#include <base/dof/DegreeOfFreedom.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{

@@ -23,6 +23,12 @@ namespace tools{
         //----------------------------------------------------------------------
         typedef boost::array<double,3> Point;
 
+        Point makePoint( const double x, const double y, const double z )
+        {
+            Point p = {{ x, y, z }};
+            return p;
+        }
+
         void writePoint( const Point& p, std::ostream& out )
         {
             for ( unsigned d = 0; d < 3; d++ )

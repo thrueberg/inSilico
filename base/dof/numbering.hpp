@@ -11,6 +11,8 @@
 #define base_dof_numbering_hpp
 
 //------------------------------------------------------------------------------
+// std includes
+#include <iterator>
 // base includes
 #include <base/types.hpp>
 
@@ -48,7 +50,7 @@ std::size_t base::dof::numberDoFsConsecutively( DOFITER first, DOFITER last,
 
     // size of individual dof object deduced from the iterator type
     static const unsigned size =
-        base::TypeReduction<typename DOFITER::value_type>::Type::size;
+        base::TypeReduction<typename std::iterator_traits<DOFITER>::value_type>::Type::size;
 
     // go through the given range of dof-iterators
     for ( DOFITER dIter = first; dIter != last; ++dIter ) {

@@ -26,7 +26,6 @@
 #include <base/asmb/FieldBinder.hpp>
 
 #include <base/solver/Eigen3.hpp>
-#include <base/post/evaluateAtNodes.hpp>
 #include <base/post/Monitor.hpp>
 
 #include <mat/thermal/IsotropicConstant.hpp>

@@ -38,6 +38,7 @@ namespace base{
                     static std::string apply()
                     {
                         if (base::MatSize<DATUM>::value == 1) return "SCALARS";
+                        if (base::MatSize<DATUM>::value == 4) return "TENSORS";
                         if (base::MatSize<DATUM>::value == 9) return "TENSORS";
 
                         return "VECTORS";
@@ -205,7 +206,7 @@ void base::io::vtk::LegacyWriter::writeStructuredGrid( const GRID& grid )
     vtk_ << "DATASET STRUCTURED_GRID" << "\n"
          << "DIMENSIONS ";
     for ( unsigned d = 0; d < GRID::dim; d++ )
-        vtk_ << gridSizes[d] + 1 << " ";
+        vtk_ << gridResolution_ * gridSizes[d] + 1 << " ";
     for ( unsigned d = GRID::dim; d < 3; d++ )
         vtk_ << "1 "; // 1 point in the orthogonal directions
     vtk_ << "\n";

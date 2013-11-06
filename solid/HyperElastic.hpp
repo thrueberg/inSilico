@@ -16,6 +16,7 @@
 // base includes
 #include <base/geometry.hpp>
 #include <base/linearAlgebra.hpp>
+#include <base/aux/EqualPointers.hpp>
 // mat includes
 #include <mat/TensorAlgebra.hpp>
 // solid includes
@@ -82,10 +83,6 @@ public:
     //! Number of DoFs per vectorial entry
     static const unsigned nDoFs = TestElement::DegreeOfFreedom::size;
 
-    //! Flag for equal test and form functions --> Bubnov-Galerkin
-    static const bool bubnov = boost::is_same<TrialElement,
-                                              TestElement>::value;
-    
     //! Local coordinate
     typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
 
@@ -123,6 +120,11 @@ public:
         const TestElement*  testEp  = fieldTuple.testElementPtr();
         const TrialElement* trialEp = fieldTuple.trialElementPtr();
 
+        // bubnov flag
+        const bool bubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
+        
         // Evaluate gradient of test and trial functions
         std::vector<GlobalVecDim> testGradX, trialGradX;
         const double detJ =
@@ -133,8 +135,8 @@ public:
             (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
 
         // Sizes and sanity checks
-        const unsigned numRowBlocks = testGradX.size();
-        const unsigned numColBlocks = trialGradX.size();
+        const unsigned numRowBlocks = static_cast<unsigned>( testGradX.size() );
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
         assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * nDoFs );
         assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * nDoFs );
 
@@ -223,7 +225,7 @@ public:
         const double detJ =
             (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
 
-        const unsigned numRowBlocks = testGradX.size();
+        const std::size_t numRowBlocks = testGradX.size();
         assert( static_cast<unsigned>( vector.size() ) == numRowBlocks * nDoFs );
 
         // Get deformation gradient of the current state
@@ -239,7 +241,7 @@ public:
         P.noalias() = F * S;
 
         // loop over the test functions
-        for ( unsigned M = 0; M < numRowBlocks; M++ ) { // test functions
+        for ( std::size_t M = 0; M < numRowBlocks; M++ ) { // test functions
 
             // loop over the vector components of trials
             for ( unsigned i = 0; i < nDoFs; i++ ) { // test fun comp
@@ -308,6 +310,135 @@ private:
 
         return result;
     }
+
+public:
+    //--------------------------------------------------------------------------
+    /** The linearised co-normal derivative of field functions.
+     *  In reference configuration, the co-normal derivative becomes
+     *  \f[
+     *        B_N(u) = P(u) \cdot N
+     *  \f]
+     *  with the first Piola-Kirchhoff stress tensor \f$ P \f$ and the normal
+     *  vector in reference configuration \f$ N \f$. Applying a Newton method,
+     *  the directional derivative becomes
+     *  \f[
+     *       (C^{eff}(u^n) : \nabla_X \Delta u) \cdot N
+     *  \f]
+     *  i.e. the effective elasticity tensor evaluated for the current
+     *  deformation state, contracted with the material gradient of the
+     *  displacement increment (the direction of the derivative) and multiplied
+     *  by the normal vector.
+     *  The discrete counter-part gives the matrix
+     *  \f[
+     *      B[i,Md+k] = C^{eff}_{iJkL}(u^n) \phi^M_{,L} N_J
+     *  \f]
+     *  Since the dual co-normal derivative is also frequently needed, the
+     *  implementation is deferred to normalDerivativeHelper_() .
+     *  \param[in]   fieldTuple Tuple of field element pointers
+     *  \param[in]   xi         Local evaluation coordinate
+     *  \param[in]   normal     Normal vector in reference coordinates.
+     *  \param[out]  result     Result container
+     */
+    void coNormalDerivative( const FieldTuple&  fieldTuple,
+                             const LocalVecDim& xi,
+                             const GlobalVecDim& normal,
+                             base::MatrixD& result ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*   geomEp  = fieldTuple.geomElementPtr();
+        const TrialElement*  trialEp = fieldTuple.trialElementPtr();
+
+        // evaluate gradient of trial functions
+        std::vector<GlobalVecDim> trialGradX;
+        (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
+
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
+
+        result = base::MatrixD::Zero( +nDoFs, numColBlocks * nDoFs );
+
+
+        // Get deformation gradient of the current state
+        typename mat::Tensor F;
+        solid::deformationGradient( geomEp, trialEp, xi, F );
+
+        // Material evaluations
+        typename mat::Tensor S;      // 2nd PK
+        typename mat::ElastTensor C; // elasticity tensor
+        material_.secondPiolaKirchhoff( F, S );
+        material_.materialElasticityTensor( F, C );
+
+        // loop over field function gradients (test or trial)
+        for ( unsigned M = 0; M < numColBlocks; M++ ) {
+            // loop over rows
+            for ( unsigned i = 0; i < nDoFs; i++ )  {
+                // loop over column degrees of freedom
+                for ( unsigned k = 0; k < nDoFs; k++ ) {
+                    
+                    double entry = 0.;
+                    // contract effective elastity with gradient and normal
+                    for ( unsigned J = 0; J < nDoFs; J++ ) {
+                        for ( unsigned L = 0; L < nDoFs; L++ ) {
+
+                            entry +=
+                                (this -> effectiveElasticity_(F, S, C, i, J, k, L) ) *
+                                trialGradX[M][L] * normal[J];
+                        }
+                    }
+                    result( i, M * nDoFs + k ) = entry;
+                }
+            }
+        }
+        
+        return;
+    }
+
+public:
+    //--------------------------------------------------------------------------
+    /**
+     */
+    void coNormalDerivativeResidual( const FieldTuple&   fieldTuple,
+                                     const LocalVecDim&  xi,
+                                     const GlobalVecDim& normal,
+                                     base::VectorD&      result ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+        const TestElement*  testEp  = fieldTuple.testElementPtr();
+        const TrialElement* trialEp = fieldTuple.trialElementPtr();
+
+        // Get deformation gradient of the current state
+        typename mat::Tensor F;
+        solid::deformationGradientHistory<0>( geomEp, trialEp, xi, F );
+        
+        // Material evaluations
+        typename mat::Tensor S;      // 2nd PK
+        material_.secondPiolaKirchhoff( F, S );
+
+        // First Piola-Kirchhoff stress tensor P = FS
+        typename mat::Tensor P;
+        P.noalias() = F * S;
+
+        // Evaluate pressure trial functions
+        typename TestElement::FEFun::FunArray testFun;
+        (testEp -> fEFun()).evaluate( geomEp, xi, testFun );
+
+        const std::size_t numRowBlocks = testFun.size();
+
+        result = base::VectorD::Zero( numRowBlocks * nDoFs );
+
+        for ( std::size_t M = 0; M < testFun.size(); M++ ) {
+            for ( unsigned i = 0; i < nDoFs; i++) {
+
+                double entry = 0.;
+                for ( unsigned J = 0; J < nDoFs; J++ )
+                    entry += P(i,J) * normal[J];
+
+                result[ M * nDoFs + i ] = entry;
+            }
+        }
+        
+    }
+
     
 private:
     const Material&    material_;   //!< Material behaviour

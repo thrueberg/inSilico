@@ -46,7 +46,7 @@ void tools::converter::gmsh2smf::writeCoordinates( const std::string& coordFile,
                                                    const std::vector<gmsh2smf::Node>& nodes )
 {
     std::cout << "Found " << nodes.size() << " nodes\n";
-    std::cout << "Writing coordinates to with " << coordFile << " ...\n";
+    std::cout << "Writing coordinates to " << coordFile << " ...\n";
     std::ofstream coord( coordFile.c_str() );
     for ( unsigned n = 0; n < nodes.size(); n ++ ) {
         coord << std::setprecision( std::numeric_limits<double>::digits10 )

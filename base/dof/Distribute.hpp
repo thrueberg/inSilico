@@ -54,6 +54,16 @@ namespace base{
         }
 
         //----------------------------------------------------------------------
+        // Convenience function to clear the current dof values
+        template<typename FIELD>
+        void clearDoFs( FIELD& field )
+        {
+            typename FIELD::DoFPtrIter dIter = field.doFsBegin();
+            typename FIELD::DoFPtrIter dEnd  = field.doFsEnd();
+            for ( ; dIter != dEnd; ++dIter ) (*dIter) -> clearValue();
+        }
+
+        //----------------------------------------------------------------------
         namespace detail_{
 
             //! Type of operation  c = op( a, b )

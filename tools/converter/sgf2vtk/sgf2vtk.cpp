@@ -14,11 +14,8 @@
 #include <string>
 // boost includes
 #include <boost/lexical_cast.hpp>
-// base/mesh includes
-#include <base/mesh/Node.hpp>
-#include <base/mesh/Element.hpp>
-#include <base/mesh/Structured.hpp>
-#include <base/sfun/BSpline.hpp>
+// base includes
+#include <base/Structured.hpp>
 // base/io includes
 #include <base/io/sgf/Reader.hpp>
 #include <base/io/vtk/LegacyWriter.hpp>
@@ -43,11 +40,7 @@ namespace tools{
                                    std::ostream& vtk )
                 {
                     // Typedefs for defining a mesh
-                    typedef base::mesh::Node<DIM>                  Node;
-                    typedef base::sfun::BSpline<DEGREE>            BSpline;
-                    typedef base::sfun::TensorProduct<BSpline,DIM> GeomFun;
-                    typedef base::mesh::Element<Node,GeomFun>      Element;
-                    typedef base::mesh::Structured<Element>        Grid;
+                    typedef base::Structured<DIM,DEGREE>           Grid;
 
                     // Grid object
                     Grid grid;

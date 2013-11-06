@@ -42,6 +42,14 @@ namespace base{
         public:
             typedef typename detail_::FieldTraits<FEBASIS,DOFSIZE,NHIST>::Type Basis;
 
+            void activateAll()
+            {
+                typename Basis::DoFPtrIter doFIter = Basis::doFsBegin();
+                typename Basis::DoFPtrIter doFEnd  = Basis::doFsEnd();
+                for ( ; doFIter != doFEnd; ++doFIter )
+                    (*doFIter) -> activateAll();
+            }
+
             //
             void scaleAndTagBasis( const std::vector<double>& supportAreas,
                                    const double lowerThreshold )

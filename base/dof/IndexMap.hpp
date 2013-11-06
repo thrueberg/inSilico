@@ -246,11 +246,9 @@ public:
               and isContinuous );
 
 
-        // Check if MESH is base::mesh::Structured
+        // Check if the geometry has a shape function with lexicographic ordering
         const bool isStructured =
-            boost::is_same< typename base::TypeReduction<MESH>::Type,
-                            base::mesh::Structured<Element> >::value;
-              
+            (MESH::Element::GeomFun::ordering == base::sfun::LEXICOGRAPHIC);
 
         if ( isoParametric ) {
             // simply copy the node IDs

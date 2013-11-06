@@ -10,6 +10,12 @@
 #ifndef base_asmb_fieldelementpointertuple_hpp
 #define base_asmb_fieldelementpointertuple_hpp
 
+//------------------------------------------------------------------------------
+// std includes
+#include <iterator>
+// boost includes
+#include <boost/tuple/tuple.hpp>
+#include <boost/type_traits/is_same.hpp>
 // base includes
 #include <base/types.hpp>
 
@@ -78,12 +84,13 @@ namespace base{
             struct TupleTypeBinder
             {
                 typedef
-                base::asmb::FieldElementPointerTuple<typename GITER::value_type,
-                                                     typename FITER1::value_type,
-                                                     typename FITER2::value_type,
-                                                     typename FITER3::value_type,
-                                                     typename FITER4::value_type,
-                                                     typename FITER5::value_type>
+                base::asmb::FieldElementPointerTuple<
+                    typename std::iterator_traits<GITER >::value_type,
+                    typename std::iterator_traits<FITER1>::value_type,
+                    typename std::iterator_traits<FITER2>::value_type,
+                    typename std::iterator_traits<FITER3>::value_type,
+                    typename std::iterator_traits<FITER4>::value_type,
+                    typename std::iterator_traits<FITER5>::value_type>
                 Type;
             };
 
@@ -200,12 +207,13 @@ public:
 
     
     //! Constructor with all pointers
-    FieldElementPointerTuple( GeomElementPtr      geomElementPtr,     
-                              TestElementPtr      testElementPtr,  
-                              TrialElementPtr     trialElementPtr     = detail_::makeDummyElementPtr(),
-                              AuxField1ElementPtr auxField1ElementPtr = detail_::makeDummyElementPtr(),
-                              AuxField2ElementPtr auxField2ElementPtr = detail_::makeDummyElementPtr(),
-                              AuxField3ElementPtr auxField3ElementPtr = detail_::makeDummyElementPtr() )
+    FieldElementPointerTuple(
+        GeomElementPtr      geomElementPtr,     
+        TestElementPtr      testElementPtr,  
+        TrialElementPtr     trialElementPtr     = detail_::makeDummyElementPtr(),
+        AuxField1ElementPtr auxField1ElementPtr = detail_::makeDummyElementPtr(),
+        AuxField2ElementPtr auxField2ElementPtr = detail_::makeDummyElementPtr(),
+        AuxField3ElementPtr auxField3ElementPtr = detail_::makeDummyElementPtr() )
         : tuple_( geomElementPtr,      testElementPtr,      trialElementPtr,
                   auxField1ElementPtr, auxField2ElementPtr, auxField3ElementPtr )
     {
@@ -248,7 +256,7 @@ public:
 
         
 private:
-    //! A tuple of element pointers (and dummy place holders
+    //! A tuple of element pointers (and dummy place holders)
     Tuple tuple_;
 };
 

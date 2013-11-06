@@ -21,6 +21,7 @@
 #include <boost/function.hpp>
 // base includes
 #include <base/linearAlgebra.hpp>
+#include <base/aux/EqualPointers.hpp>
 // base/asmb includes
 #include <base/asmb/collectFromDoFs.hpp>
 #include <base/asmb/assembleMatrix.hpp>
@@ -72,6 +73,13 @@ namespace base{
             for ( ; iter != end; ++iter ) {
                 stiffness( FIELDTUPLEBINDER::makeTuple( *iter ) );
             }
+
+            // const std::size_t numElements = std::distance( iter, end );
+            //#pragma omp parallel for
+            //for ( std::size_t e = 0; e < numElements; e++ ) {
+            //    stiffness( FIELDTUPLEBINDER::makeTuple( fieldBinder.elementPtr( e ) ) );
+            //}
+
             
         }
 
@@ -152,7 +160,9 @@ public:
         TrialElement* trialEp = fieldTuple.trialElementPtr();
 
         // if pointers are identical, Galerkin-Bubnov scheme
-        const bool isBubnov = (testEp == trialEp);
+        const bool isBubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
         
         // dof activities
         std::vector<base::dof::DoFStatus> rowDoFStatus, colDoFStatus;

@@ -12,12 +12,15 @@
 
 //------------------------------------------------------------------------------
 // boost includes
-#include <boost/utility.hpp>
 #include <boost/array.hpp>
 // base includes
 #include <base/verify.hpp>
 #include <base/shape.hpp>
+#include <base/linearAlgebra.hpp>
 #include <base/LagrangeShapeFun.hpp>
+// base/mesh includes
+#include <base/mesh/ElementFaces.hpp>
+#include <base/mesh/Element.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{

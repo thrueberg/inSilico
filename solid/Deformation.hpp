@@ -12,6 +12,7 @@
 
 //------------------------------------------------------------------------------
 // base includes
+#include <base/verify.hpp>
 #include <base/linearAlgebra.hpp>
 #include <base/post/evaluateField.hpp>
 // mat includes
@@ -39,6 +40,9 @@ namespace solid{
         
         // Add displacement gradient to tensor (note the transposition)
         F.block( 0, 0, GradU.cols(), GradU.rows() ) += GradU.transpose();
+
+
+        ASSERT_MSG( mat::determinant( F ) > 0., "J=det(F) > 0 is mandatory" );
     }
 
     //--------------------------------------------------------------------------

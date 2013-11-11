@@ -78,8 +78,8 @@ public:
     //! @name Access to the storage of the boundary definition
     //@{
     typedef BoundaryElementContainer::const_iterator BoundConstIter;
-    BoundConstIter boundaryBegin() const { return boundaryElements_.begin(); }
-    BoundConstIter boundaryEnd()   const { return boundaryElements_.end();   }
+    BoundConstIter begin() const { return boundaryElements_.begin(); }
+    BoundConstIter end()   const { return boundaryElements_.end();   }
     //@}
     
 private:

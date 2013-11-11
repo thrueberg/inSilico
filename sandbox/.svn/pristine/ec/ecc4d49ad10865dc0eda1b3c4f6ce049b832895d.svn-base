@@ -1,0 +1,347 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <boost/lexical_cast.hpp>
+
+#include <base/Unstructured.hpp>
+#include <base/mesh/MeshBoundary.hpp>
+#include <base/mesh/CreateBoundaryMesh.hpp>
+#include <base/Quadrature.hpp>
+#include <base/io/smf/Reader.hpp>
+#include <base/io/PropertiesParser.hpp>
+#include <base/io/vtk/LegacyWriter.hpp>
+#include <base/io/Format.hpp>
+
+#include <base/Field.hpp>
+#include <base/dof/numbering.hpp>
+#include <base/dof/Distribute.hpp>
+#include <base/dof/constrainBoundary.hpp>
+#include <base/post/evaluateAtNodes.hpp>
+#include <base/dof/scaleConstraints.hpp>
+#include <base/dof/generate.hpp>
+#include <base/dof/setField.hpp>
+#include <base/fe/Basis.hpp>
+
+#include <base/asmb/StiffnessMatrix.hpp>
+#include <base/asmb/ForceIntegrator.hpp>
+#include <base/asmb/FieldBinder.hpp>
+
+#include <base/solver/Eigen3.hpp>
+
+#include <mat/hypel/StVenant.hpp>
+#include <mat/Lame.hpp>
+
+#include <solid/HyperElastic.hpp>
+#include <fluid/Stokes.hpp>
+#include <heat/Laplace.hpp>
+
+
+#include <base/time/BDF.hpp>
+#include <base/time/AdamsMoulton.hpp>
+#include <base/time/ReactionTerms.hpp>
+#include <base/time/ResidualForceHistory.hpp>
+
+#include <base/post/Monitor.hpp>
+
+#include "Convection.hpp"
+#include "PoroElasticSystem.hpp"
+#include "Solute.hpp"
+#include "Reactor.hpp"
+
+const double coordTol = 1.e-5; // tolerance for coordinate comparison
+
+//------------------------------------------------------------------------------
+template<typename MESH, typename FIELD1, typename FIELD2, typename FIELD3>
+void writeVTK( const MESH& mesh,
+               const FIELD1& displacement,
+               const FIELD2& pressure,
+               const FIELD3& soluteA,
+               const FIELD3& soluteB,
+               const FIELD3& soluteC,
+               const std::string& meshFile,
+               const unsigned numStep )
+{
+    // find base name from mesh file
+    const std::string baseName = base::io::baseName( meshFile, ".smf" );
+    // create file name with step number
+    const std::string vtkFile = baseName + "." +
+        base::io::leadingZeros( numStep ) + ".vtk";
+    std::ofstream vtk( vtkFile.c_str() );
+    base::io::vtk::LegacyWriter vtkWriter( vtk );
+    vtkWriter.writeUnstructuredGrid( mesh );
+
+    base::io::vtk::writePointData( vtkWriter, mesh, displacement, "disp" );
+    base::io::vtk::writePointData( vtkWriter, mesh, pressure,     "pressure" );
+    base::io::vtk::writePointData( vtkWriter, mesh, soluteA,      "[A]" );
+    base::io::vtk::writePointData( vtkWriter, mesh, soluteB,      "[B]" );
+    base::io::vtk::writePointData( vtkWriter, mesh, soluteC,      "[C]" );
+    vtk.close();
+}
+
+//------------------------------------------------------------------------------
+template<unsigned DIM, typename DOF>
+void dirichletU( const typename base::Vector<DIM>::Type& x, DOF* doFPtr )
+{
+    for ( unsigned d = 0; d < DIM; d++ ) {
+
+        if ( (std::abs( x[d] - 0. ) < coordTol) or
+             (std::abs( x[d] - 1. ) < coordTol) ) {
+
+            doFPtr -> constrainValue( d, 0.0 );
+        }
+    }
+    
+}
+
+//------------------------------------------------------------------------------
+template<unsigned DIM, typename DOF>
+void dirichletP( const typename base::Vector<DIM>::Type& x, DOF* doFPtr,
+                 const double p1, const double p2 )
+{
+    if ( std::abs( x[0] - 0. ) < coordTol ) doFPtr -> constrainValue( 0, p1 );
+    if ( std::abs( x[0] - 1. ) < coordTol ) doFPtr -> constrainValue( 0, p2 );
+}
+
+//------------------------------------------------------------------------------
+template<unsigned DIM, typename DOF>
+void dirichletS( const typename base::Vector<DIM>::Type& x, DOF* doFPtr,
+                 const double c0 )
+{
+    if ( std::abs( x[0] - 0. ) < coordTol ) doFPtr -> constrainValue( 0, c0 );
+}
+
+//------------------------------------------------------------------------------
+template<unsigned DIM, typename DOF>
+void setConcentration( const typename base::Vector<DIM>::Type& x, DOF* doFPtr,
+                       const double c )
+{
+    doFPtr -> setValue( 0, c );
+    doFPtr -> pushHistory();
+}
+
+//------------------------------------------------------------------------------
+int main( int argc, char * argv[] )
+{
+    // basic attributes of the computation
+    const unsigned    geomDeg   = 1;
+    const unsigned    fieldDegU = 2;
+    const unsigned    fieldDegP = 1;
+    const unsigned    fieldDegS = 1;
+    const unsigned    tiOrder   = 1;   // order of time integrator
+    const base::Shape shape     = base::QUAD;
+
+    typedef  base::time::BDF<tiOrder> MSM;
+    //typedef base::time::AdamsMoulton<tiOrder> MSM;
+
+    // time stepping method determines the history size
+    const unsigned nHist = MSM::numSteps;
+
+    // usage message
+    if ( argc != 2 ) {
+        std::cout << "Usage:  " << argv[0] << "  input.dat \n";
+        return 0;
+    }
+
+    const std::string inputFile = boost::lexical_cast<std::string>( argv[1] );
+
+    std::string meshFile;
+    double E, nu, k, tMax, phi, p1, p2, cA0, cB0, cC0, D, kF, kB;
+    unsigned numSteps;
+    {
+        base::io::PropertiesParser pp;
+        pp.registerPropertiesVar( "meshFile",  meshFile );
+
+        
+        pp.registerPropertiesVar( "E",     E     );
+        pp.registerPropertiesVar( "nu",    nu    );
+        pp.registerPropertiesVar( "k",     k     );
+        
+        pp.registerPropertiesVar( "phi",   phi   );
+        pp.registerPropertiesVar( "D",     D  );
+
+        pp.registerPropertiesVar( "tMax",         tMax  );
+        pp.registerPropertiesVar( "numSteps",     numSteps );
+
+        pp.registerPropertiesVar( "p1",           p1 );
+        pp.registerPropertiesVar( "p2",           p2 );
+
+        pp.registerPropertiesVar( "cA0",          cA0 );
+        pp.registerPropertiesVar( "cB0",          cB0 );
+        pp.registerPropertiesVar( "cC0",          cC0 );
+
+        pp.registerPropertiesVar( "kF",           kF );
+        pp.registerPropertiesVar( "kB",           kB );
+
+        // Read variables from the input file
+        std::ifstream inp( inputFile.c_str() );
+        VERIFY_MSG( inp.is_open(), "Cannot open input file" );
+        pp.readValues( inp );
+        inp.close( );
+
+    }
+
+    // size of every time step
+    const double deltaT = tMax / static_cast<double>( numSteps );
+
+    // define a mesh
+    typedef base::Unstructured<shape,geomDeg>    Mesh;
+
+    // create a mesh and read from input
+    Mesh mesh;
+    {
+        std::ifstream smf( meshFile.c_str() );
+        base::io::smf::readMesh( smf, mesh );
+        smf.close();
+    }
+
+    // quadrature objects for volume and surface
+    const unsigned kernelDegEstimate = 3;
+    typedef base::Quadrature<kernelDegEstimate,shape> Quadrature;
+    Quadrature quadrature;
+
+    // System of linear poro elasticity
+    typedef PoroElasticSystem<Mesh,fieldDegU,fieldDegP,nHist> PES;
+    PES poro( mesh, E, nu, k );
+
+    // The chemicals
+    const bool withConvection = true;
+    typedef Solute<Mesh,fieldDegS,nHist> Solute;
+    Solute soluteA( mesh, D,   phi,         k );
+    Solute soluteB( mesh, 0.0, 1.0 - phi, 0.0 ); // no diffusion, only solid convection
+    Solute soluteC( mesh, D,   phi,         k );
+    
+    // generate degrees of freedom
+    poro.generateDoFs( );
+    soluteA.generateDoFs();
+    soluteB.generateDoFs();
+    soluteC.generateDoFs();
+
+    // set initial concentration
+    soluteA.setInitialConcentration( boost::bind( &setConcentration<Mesh::Node::dim,
+                                                                    Solute::DoF>, _1, _2, cA0 ) );
+
+    soluteB.setInitialConcentration( boost::bind( &setConcentration<Mesh::Node::dim,
+                                                                    Solute::DoF>, _1, _2, cB0 ) );
+
+    soluteC.setInitialConcentration( boost::bind( &setConcentration<Mesh::Node::dim,
+                                                                    Solute::DoF>, _1, _2, cC0 ) );
+
+    // the reactor
+    typedef Reactor<Solute::Field,3> APlusB2C;
+    boost::array<Solute::Field*,3> solutes = {{
+            &(soluteA.soluteField()), &(soluteB.soluteField()), &(soluteC.soluteField()) }};
+    boost::array<unsigned,3> forward  = {{ 1, 1, 0 }};
+    boost::array<unsigned,3> backward = {{ 0, 0, 1 }};
+
+    APlusB2C aPlusB2C( solutes, forward, backward, phi, kF, kB );
+
+    // Creates a list of <Element,faceNo> pairs along the boundary
+    base::mesh::MeshBoundary meshBoundary;
+    meshBoundary.create( mesh.elementsBegin(), mesh.elementsEnd() );
+
+    // Create a boundary mesh from this list
+    typedef base::mesh::CreateBoundaryMesh<Mesh::Element> CreateBoundaryMesh;
+    typedef CreateBoundaryMesh::BoundaryMesh BoundaryMesh;
+    BoundaryMesh boundaryMesh;
+    {
+        CreateBoundaryMesh::apply( meshBoundary.begin(),
+                                   meshBoundary.end(),
+                                   mesh, boundaryMesh );
+    }
+
+    // set Dirichlet boundary conditions
+    poro.constrainBoundary( meshBoundary,
+                            boost::bind( &dirichletU<Mesh::Node::dim,
+                                                     PES::DoFU>, _1, _2 ),
+                            boost::bind( &dirichletP<Mesh::Node::dim,
+                                                     PES::DoFP>, _1, _2, p1, p2 ) );
+
+    soluteA.constrainBoundary( meshBoundary, 
+                               boost::bind( &dirichletS<Mesh::Node::dim,
+                                                        Solute::DoF>, _1, _2, cA0 ) );
+
+//    soluteB.constrainBoundary( meshBoundary, 
+//                               boost::bind( &dirichletS<Mesh::Node::dim,
+//                                                        Solute::DoF>, _1, _2, c0 ) );
+
+    soluteC.constrainBoundary( meshBoundary, 
+                               boost::bind( &dirichletS<Mesh::Node::dim,
+                                                        Solute::DoF>, _1, _2, cC0 ) );
+
+    // number dofs
+    const std::pair<std::size_t,std::size_t> numDoFs = poro.numberDoFs();
+    const std::size_t                       numDoFsA = soluteA.numberDoFs();
+    const std::size_t                       numDoFsB = soluteB.numberDoFs();
+    const std::size_t                       numDoFsC = soluteC.numberDoFs();    
+    std::cout << "# Number of displacement dofs " << numDoFs.first  << std::endl;
+    std::cout << "# Number of pressure     dofs " << numDoFs.second << std::endl;
+    std::cout << "# Number of solute (A)   dofs " << numDoFsA       << std::endl;
+    std::cout << "# Number of solute (B)   dofs " << numDoFsB       << std::endl;
+    std::cout << "# Number of solute (C)   dofs " << numDoFsC       << std::endl;
+
+    // write VTK file
+    writeVTK( mesh, poro.displacement(), poro.pressure(),
+              soluteA.soluteField(), soluteB.soluteField(), soluteC.soluteField(), 
+              meshFile, 0 );
+
+        // Monitor of solution
+    const std::size_t numElements = std::distance( mesh.elementsBegin(),
+                                                   mesh.elementsEnd() );
+    const std::size_t N = static_cast<std::size_t>( std::sqrt( numElements ) );
+    const std::size_t midElement = (N * N + N) / 2;
+    typedef base::post::Monitor<Mesh::Element,Solute::Field::Element> Monitor;
+    Monitor monitorA( mesh.elementPtr(                  midElement ),
+                      soluteA.soluteField().elementPtr( midElement ),
+                      base::constantVector<Mesh::Node::dim>( 0. ) );
+    Monitor monitorB( mesh.elementPtr(                  midElement ),
+                      soluteB.soluteField().elementPtr( midElement ),
+                      base::constantVector<Mesh::Node::dim>( 0. ) );
+    Monitor monitorC( mesh.elementPtr(                  midElement ),
+                      soluteC.soluteField().elementPtr( midElement ),
+                      base::constantVector<Mesh::Node::dim>( 0. ) );
+
+    const std::string concFile( "concentrations" );
+    std::ofstream conc( concFile.c_str() );
+    
+    
+    for ( unsigned n = 0; n < numSteps; n++ ) {
+
+        const double time = n * deltaT;
+        std::cout << time << "\n";
+
+        // Perform one time step
+        poro.advanceInTime<MSM>( quadrature, deltaT, n );
+
+        conc << time << " ";
+        monitorA.solution( conc );
+        monitorB.solution( conc );
+        monitorC.solution( conc );
+        conc << "\n";
+        
+
+        soluteA.advanceInTime<MSM>( quadrature, poro.displacement(), poro.pressure(),
+                                    boost::bind( &APlusB2C::massProduction<0,Mesh::Element>,
+                                                 boost::ref( aPlusB2C ), _1, _2 ),
+                                    deltaT, n );
+        
+        soluteB.advanceInTime<MSM>( quadrature, poro.displacement(), poro.pressure(),
+                                    boost::bind( &APlusB2C::massProduction<1,Mesh::Element>,
+                                                 boost::ref( aPlusB2C ), _1, _2 ),
+                                    deltaT, n );
+
+        soluteC.advanceInTime<MSM>( quadrature, poro.displacement(), poro.pressure(),
+                                    boost::bind( &APlusB2C::massProduction<2,Mesh::Element>,
+                                                 boost::ref( aPlusB2C ), _1, _2 ),
+                                    deltaT, n );
+        
+        // write VTK file
+        writeVTK( mesh, poro.displacement(), poro.pressure(),
+                  soluteA.soluteField(), soluteB.soluteField(),  soluteC.soluteField(), 
+                  meshFile, n+1 );
+
+    }
+
+    conc.close();
+    
+    return 0;
+}

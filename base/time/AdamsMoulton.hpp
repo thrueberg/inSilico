@@ -29,9 +29,10 @@ namespace base{
             template<unsigned Q>
             struct NumSteps<Q,AdamsMoulton>
             {
-                static const unsigned numLHS = Q+1;
-                static const unsigned numRHS = 1;
-                static const unsigned numSteps = Q-1;
+                static const unsigned numLHS   = Q+1;
+                static const unsigned numRHS   = 1;
+                static const unsigned numSteps =
+                    boost::static_unsigned_max<numLHS,numRHS>::value-1;
             };
         }
 

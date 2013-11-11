@@ -190,8 +190,10 @@ public:
         // Deep copy of basis element
         BasisElement::template deepCopy<SELEMENT,CITER>( other, coeffIter );
 
-        // Pass pointer to domain element
-        domainElementPtr_ = other -> getDomainElementPointer();
+        // Deep copy of the domain element pointer
+        domainElementPtr_ ->template deepCopy<DomainElement,
+                                              CITER>( other -> getDomainElementPointer(),
+                                                      coeffIter );
 
         // copy parametric coordinates one-by-one
         std::copy( other -> parametricBegin(), other -> parametricEnd(),

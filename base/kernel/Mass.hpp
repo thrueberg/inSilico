@@ -19,6 +19,7 @@
 // base/kernel includes
 #include <base/kernel/KernelFun.hpp>
 
+#include <base/post/evaluateField.hpp>
 //------------------------------------------------------------------------------
 namespace base{
     namespace kernel{
@@ -134,12 +135,72 @@ public:
         
     }
 
+    //! For compatibility with the base::asmb::computeStiffnessMatrix routine
     void tangentStiffness( const FieldTuple&  fieldTuple,
                            const LocalVecDim& xi,
                            const double       weight,
                            base::MatrixD&     matrix ) const
     {
         return this -> operator()( fieldTuple, xi, weight, matrix );
+    }
+
+
+    //--------------------------------------------------------------------------
+    void residualForce( const FieldTuple&  fieldTuple,
+                        const LocalVecDim& xi,
+                        const double       weight,
+                        base::VectorD&     vector ) const
+    {
+        this -> residualForceHistory<0>( fieldTuple,
+                                         xi, weight, vector );
+    }
+
+    //--------------------------------------------------------------------------
+    /** Compute the residual forces due to a given temperature field.
+     *  
+     *  \f[
+     *      F[Kd+i] = \int_\Omega alpha \phi^K u_i^{n-s} d x
+     *  \f]
+     *  \tparam   HIST Number of history term to use, \f$ s \f$
+     *  \param[in] fieldTuple   Tuple of element pointers
+     *  \param[in] xi           Evaluation coordinate
+     *  \param[in] weight       Quadrature weight
+     *  \param[in] vector       Result container
+     */
+    template<unsigned HIST>
+    void residualForceHistory( const FieldTuple&   fieldTuple,
+                               const LocalVecDim&  xi,
+                               const double        weight,
+                               base::VectorD&      vector ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+        const TestElement*  testEp  = fieldTuple.testElementPtr();
+        const TrialElement* trialEp = fieldTuple.trialElementPtr();
+
+        // element jacobian
+        const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );
+        
+        // Evaluate trial functions
+        typename TestElement::FEFun::FunArray testFun;
+        (testEp ->  fEFun()).evaluate( geomEp, xi, testFun );
+
+        // Evalute solution
+        const typename base::Vector<doFSize>::Type u
+            = base::post::evaluateFieldHistory<HIST>( geomEp, trialEp, xi );
+        
+        // Assemble to vector
+        for ( unsigned K = 0; K < testFun.size(); K++ ) {
+
+            for ( unsigned i = 0; i < doFSize; i++ ) {
+
+                vector[K*doFSize + i]
+                    += factor_ * u[i] * testFun[K] * detJ * weight;
+            }
+            
+        }
+        
+        return;
     }
 
 

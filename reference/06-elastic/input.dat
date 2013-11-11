@@ -1,0 +1,10 @@
+meshFile       quad.020.smf
+E              1000.
+nu             0.3
+maxIter        30
+loadSteps      20
+pull           .5
+traction       1000.0
+dispControlled 1
+tolerance      1.e-6
+isIncompressible 0

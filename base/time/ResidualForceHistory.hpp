@@ -121,6 +121,9 @@ namespace base{
             // End-of-recursion object
             template<typename KERNEL>
             struct CollectResidualForces<KERNEL,-1>
+                : public boost::function<void( const typename KERNEL::FieldTuple&,
+                                               const typename KERNEL::LocalVecDim&,
+                                               const double, base::VectorD& ) >
             {
                 CollectResidualForces( const KERNEL&              kernel,
                                        const std::vector<double>& weights )

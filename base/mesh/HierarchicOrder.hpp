@@ -132,7 +132,7 @@ template<unsigned DEGREE>
 struct base::mesh::detail_::BuildHierarchicLookUpTable<DEGREE,1,true>
 {
     //! Number of total nodes along the LINE
-    static const unsigned numTotal = DEGREE + 1;
+    static const int numTotal = DEGREE + 1;
 
     //--------------------------------------------------------------------------
     static boost::array<unsigned,numTotal> apply()
@@ -143,10 +143,10 @@ struct base::mesh::detail_::BuildHierarchicLookUpTable<DEGREE,1,true>
         lookUpTable[0] = 0;
 
         //! In-between nodes along the only edge
-        for ( unsigned i = 1; i < numTotal-1; i++ ) lookUpTable[i] = i+1;
+        for ( int i = 1; i < numTotal-1; i++ ) lookUpTable[i] = i+1;
 
         //! Second vertex
-        lookUpTable[ numTotal-1 ] = 1;
+        if ( DEGREE > 0 ) lookUpTable[ numTotal-1 ] = 1;
 
         return lookUpTable;
     }

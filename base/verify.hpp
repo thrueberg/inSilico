@@ -12,13 +12,14 @@
 
 //------------------------------------------------------------------------------
 // std   includes
+#include <cassert>
 #include <iostream>
 // boost includes
 #include <boost/current_function.hpp>
 #include <boost/static_assert.hpp>
+#include <boost/assert.hpp>
 
 //------------------------------------------------------------------------------
-// declaration
 namespace detail_
 {
     void assertion_failed( char const * expr, char const * function, 
@@ -40,25 +41,55 @@ namespace detail_
  *  fundamental insight in case of a runtime error. For this reasone,
  *  this macro is alwasy active and can be used by
  *  \code{.cpp}
- *  VERIFY( condition );
+ *  VERIFY( expression );
  *  \endcode
- *  In case `condition` evaluates to false, the program aborts with a message
+ *  In case `expression` evaluates to false, the program aborts with a message
  *  in which file and line the verificiation has failed.
  */
-#define VERIFY(expr) ((expr)? ((void)0): ::detail_::assertion_failed(#expr, BOOST_CURRENT_FUNCTION, __FILE__, __LINE__ ))
+#define VERIFY(expr) \
+    ((expr)? ((void)0): \
+     ::detail_::assertion_failed(#expr, BOOST_CURRENT_FUNCTION, __FILE__, __LINE__ ))
 
 //------------------------------------------------------------------------------
 /** Macro for permanent assertion with user-provided message.
  *  This macro is functionally identical to VERIFY, but has an additional
  *  argument which contains a message from the user of the macro. Therefore,
  *  \code{.cpp}
- *  VERIFY_MSG( condition, message )
+ *  VERIFY_MSG( expression, message );
  *  \endcode
- *  does the same as `VERIFY( condition )` but in case of a false assertion an
+ *  does the same as `VERIFY( expression )` but in case of a false assertion an
  *  additional message is written to the output.
  */
-#define VERIFY_MSG(expr,message) ((expr)? ((void)0): ::detail_::assertion_failed_msg(#expr, BOOST_CURRENT_FUNCTION, __FILE__, __LINE__, message ))
+#define VERIFY_MSG(expr,message) \
+    ((expr)? ((void)0): \
+     ::detail_::assertion_failed_msg(#expr, BOOST_CURRENT_FUNCTION, __FILE__, __LINE__, message ))
 
+//------------------------------------------------------------------------------
+/** Macro for assertion that is just a renaming of the classic c-assert.
+ *  This renaming is for beauty reasons only as the upper-case writing clarifies
+ *  the macro character of this tool
+ *  (see http://www.cplusplus.com/reference/cassert/ for its documentation).
+ *  It's usage is clearly
+ *  \code{.cpp}
+ *  ASSERT( expression );
+ *  \endcode
+ *  and causes a run-time error if `expression` is false.
+ *  \note This macro is disabled with the NDEBUG compilation flag.
+ */
+#define ASSERT(expr) assert( expr )
+
+//------------------------------------------------------------------------------
+/** Macro similar to the ASSERT but with a message.
+ *  This tool is just a renaming of boost's assert with message
+ *  (see http://www.boost.org/doc/libs/1_54_0/libs/utility/assert.html)
+ *  The usage is
+ *  \code{.cpp}
+ *  ASSERT_MSG( expression, message );
+ *  \endcode
+ *  and causes a run-time error with the message if the expression is false
+ *  \note This macro is disabled with the NDEBUG compilation flag.
+ */
+#define ASSERT_MSG(expr,message) BOOST_ASSERT_MSG(expr,message)
 
 //------------------------------------------------------------------------------
 /** Macro for compile time assertion.
@@ -91,6 +122,7 @@ void detail_::assertion_failed( char const * expr, char const * function,
     abort( );  
 }
 
+//------------------------------------------------------------------------------
 /** Output to std::cerr with custom error message
  * 
  *  \param[in]  expr        Boolean expression which is verified to be true.

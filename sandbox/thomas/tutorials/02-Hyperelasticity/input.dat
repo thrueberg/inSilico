@@ -1,0 +1,18 @@
+meshFile       quad.020.smf
+
+# material parameter
+E              100000.
+nu             0.3
+
+pull           1.0
+
+# for non-linear elasticity
+maxIter        30
+loadSteps      10
+tolerance      1.e-8
+
+
+# for dynamic runs
+density        1000.
+numSteps       100
+stepSize       0.002

@@ -213,7 +213,7 @@ namespace base{
             return
                 detail_::ContraVariantBasisComputation<GT::globalDim,
                                                        GT::localDim>::
-                compute( J, contraVariant  );
+                apply( J, contraVariant  );
         }
        
     };
@@ -244,7 +244,7 @@ namespace base{
 
             // result = | J |
             return detail_::MetricComputation<GT::globalDim,
-                                              GT::localDim>::compute( J );
+                                              GT::localDim>::apply( J );
         }
        
     };
@@ -370,8 +370,8 @@ namespace base{
              *  \return     Jacobian
              */
             static double
-            compute( const typename base::Matrix<DIM,LDIM>::Type& coVariant,
-                     typename base::Matrix<DIM,LDIM>::Type& contraVariant )
+            apply( const typename base::Matrix<DIM,LDIM>::Type& coVariant,
+                   typename base::Matrix<DIM,LDIM>::Type& contraVariant )
             {
                 // - Co-variant metric coefficients:
                 //   \f$ G_{\alpha\beta} = <g_\alpha, g_\beta> \f$
@@ -426,8 +426,8 @@ namespace base{
              *  \return     Jacobian
              */
             static double
-            compute( const typename base::Matrix<DIM,DIM>::Type& coVariant,
-                     typename base::Matrix<DIM,DIM>::Type& contraVariant )
+            apply( const typename base::Matrix<DIM,DIM>::Type& coVariant,
+                   typename base::Matrix<DIM,DIM>::Type& contraVariant )
             {
                 // - Co-variante basis gives a square matrix, simply transpose and invert:
                 //   \f$  (g^\alpha [i] ) = (g_\alpha [i])^{-T} \f$
@@ -457,7 +457,7 @@ namespace base{
         struct MetricComputation
         {
             static double
-            compute( const typename base::Matrix<DIM,LDIM>::Type& coVariant )
+            apply( const typename base::Matrix<DIM,LDIM>::Type& coVariant )
             {
                 // Metric tensor
                 typename base::Matrix<LDIM,LDIM>::Type metricTens;
@@ -480,7 +480,7 @@ namespace base{
         struct MetricComputation<DIM,DIM>
         {
             static double
-            compute( const typename base::Matrix<DIM,DIM>::Type& coVariant )
+            apply( const typename base::Matrix<DIM,DIM>::Type& coVariant )
             {
                 return coVariant.determinant();
             }

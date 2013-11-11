@@ -1,0 +1,27 @@
+
+* Programming
+- Use of BOOST Graph library for Matrix reordering
+- Fast level set computation based on e.g. kd-trees
+- Non-linear cut-cell constructions
+- QT lib: a simple line draw tool, Android app
+- mesh-refinement (i) h-refinement, (ii) p-refinement
+
+* Element types
+- Beam element (2D) based on B-Splines or on Hermite polynomials
+- Beam element (3D)
+- Non-nodal finite elements
+- Inf-Sup stable B-Spline elements
+
+* Parametric Optimisation of Microfluidic devices
+
+* Inf-Sup stabilisation techniques
+
+* Sloshing
+
+
+
+
+
+
+
+

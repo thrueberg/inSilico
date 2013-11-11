@@ -290,6 +290,76 @@ namespace base{
                         detail_::HyperCubeRefSize<ShapeDim<SHAPE>::value> >::Type
     {};
 
+
+    //--------------------------------------------------------------------------
+    namespace detail_{
+
+        /** Check if coordinate is inside the reference Simplex.
+         *  The bounds are that all coordinate components have to be
+         *  positive
+         *  \f[
+         *        \xi_i \geq 0
+         *  \f]
+         *  and that upper bounds can be expressed as
+         *  \f[
+         *        \xi_i \leq 1 - \sum_{j < i} \xi_j
+         *  \f]
+         *  \tparam DIM Spatial dimension of the simplex
+         */
+        template<unsigned DIM>
+        struct InsideSimplex
+        {
+            static bool apply( const typename base::Vector<DIM>::Type& xi )
+            {
+                // lower bounds
+                for ( unsigned d = 0; d < DIM; d++ ) {
+                    if ( xi[d] < 0. ) return false;
+                }
+
+                // upper bounds
+                double rhs = 1.;
+                for ( unsigned d = 0; d < DIM; d++ ) {
+                    if ( xi[d] > rhs ) return false;
+                    rhs -= xi[d];
+                }
+                return true;
+            }
+        };
+
+        /** Check if given coordinate is inside the hypercube reference domain.
+         *  The test is simply
+         *  \f[
+         *        0 \leq \xi_i \leq 1
+         *  \f]
+         *  for all coordinate components.
+         *  \tparam DIM Spatial dimension of the simplex
+         */
+        template<unsigned DIM>
+        struct InsideHyperCube
+        {
+            static bool apply( const typename base::Vector<DIM>::Type& xi )
+            {
+                // lower bounds
+                for ( unsigned d = 0; d < DIM; d++ ) {
+                    if ( xi[d] < 0. ) return false;
+                    if ( xi[d] > 1. ) return false;
+                }
+
+                return true;
+            }
+        };
+        
+    }
+
+    /** Check if a given coordinate is inside the reference domain of a shape.
+     *  \tparam SHAPE  Shape of reference domain
+     */
+    template<base::Shape SHAPE>
+    struct InsideShape
+        : base::IfElse< SHAPE == SimplexShape<ShapeDim<SHAPE>::value>::value,
+                        detail_::InsideSimplex<  ShapeDim<SHAPE>::value>,
+                        detail_::InsideHyperCube<ShapeDim<SHAPE>::value> >::Type
+    {};
 }
 
 #endif

@@ -270,10 +270,10 @@ public:
                       const std::string& pre, 
                       const std::string& sep ) const
     {    
-        TableType_::const_iterator item( table_.begin() );
+        TableType_::const_iterator item = table_.begin();
         // go through all items in the table
         for( ; item != table_.end(); ++ item ) {
-            (*item).second -> print( out, pre + (*item).first + sep );
+            (*item).second -> print( out, pre + (item -> first) + sep );
             out << "\n";
         }
     }
@@ -315,7 +315,19 @@ public:
         }
     }
     
-        
+    //! Read variables and check if things have been read
+    bool readValuesAndCheck( std::istream& in, std::ostream& out = std::cerr )
+    {
+        this -> readValues( in );
+        const bool success = this -> isEverythingRead();
+        if ( not success ) {
+            out << "(EE) Could not find these values: \n";
+            this -> writeUnread( out );
+        }
+
+        return success;
+    }
+    
 private:
     //! Type of the list of unrecognized variables
     typedef std::list<std::string> UnrecognizedList_;

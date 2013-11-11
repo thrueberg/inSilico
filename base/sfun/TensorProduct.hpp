@@ -161,7 +161,9 @@ public:
     static void supportPoints( boost::array<VecDim, numFun> & supportPoints )
     {
         boost::array<VecDim,numFun> lexi;
+
         TPEvaluator::supportPoints( lexi );
+
         // This line does not compile with g++ 4.7.2-2ubuntu1 ??
         //Reordering::template apply< boost::array<VecDim,numFun> >::apply( lexi, supportPoints );
         //Using ADL instead:
@@ -190,8 +192,8 @@ namespace base{
                 
                 
                 static void fun( const SFUN& shapeFun1D,
-                                      const typename SFRA::VecDim& xi,
-                                      typename SFRA::FunArray& values )
+                                 const typename SFRA::VecDim& xi,
+                                 typename SFRA::FunArray& values )
                 {
                     shapeFun1D.fun( xi, values );
                 }

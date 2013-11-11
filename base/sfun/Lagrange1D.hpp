@@ -67,11 +67,13 @@ public:
     //! Provide the support points of the functions
     static void supportPoints( boost::array< VecDim, numFun > & supportPoints )
     {
-        const double oneOverDegree = 1. / static_cast<double>( DEGREE );
+        const double firstValue = (DEGREE == 0 ? 0.5 : 0.);
+        supportPoints[0] = base::constantVector<1>( firstValue );
         
-        for ( unsigned i = 0; i < numFun; i ++ ) {
+        for ( unsigned i = 1; i < numFun; i ++ ) {
             supportPoints[i] =
-                base::constantVector<1>( static_cast<double>(i) * oneOverDegree );
+                base::constantVector<1>( static_cast<double>(i) /
+                                         static_cast<double>( DEGREE ) );
         }
     }
     

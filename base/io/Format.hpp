@@ -177,6 +177,8 @@ public:
         for ( unsigned w = ctr_; w < width; w++ ) formatter_ % "";
         // Write self to stream
         out << formatter_;
+        // Flush
+        out << std::flush;
         
         ctr_ = 0;
     }

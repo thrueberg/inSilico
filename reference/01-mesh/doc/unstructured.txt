@@ -1,0 +1,83 @@
+= Tutorial 1 -- Unstructured Meshes =
+:doctype: article
+
+:numbered:
+
+[[struct]]
+== The structurre of the program ==
+
+
+[[header]]
+=== Header inclusion ===
+
+At first, several system and library headers will be included to provide the
+necessary functionality for the program. In general, +inSilico+ makes
+substantial use of the +STL+ and +boost+ template libraries. In this program,
+we will need the libraries for in- and output methods, string objects, and the
+conversion between objects.
+
+[source,cpp]
+----
+include::unstructured_std.cpp[]
+include::unstructured_boost.cpp[]
+----
+
+Now, a number of headers from +base+ and +base/mesh+ are included which give
+rise to the definition of an unstructured mesh object. Moreover, the concept
+of a mesh boundary and boundary mesh will be used in this program and the
+corresponding header files are needed too.
+
+[source,cpp]
+----
+include::unstructured_headerMesh.cpp[]
+----
+
+Finally, we want to read a mesh from a file (in the SMF format) and write vtk
+and +smf+ files as output. This is provided by the headers taken from +base/io+.
+
+[source,cpp]
+----
+include::unstructured_headerIO.cpp[]
+----
+
+[latex]
+$y = \int_0^\infty \gamma^2 \cos(x) dx$
+
+See <<struct,blub>>
+and link:/home/thomas/src/inSilico/docs/doxygen/index.html[Doxygen]
+
+
+[[mesh]]
+=== Definition and creation of a mesh object ===
+
+[source,cpp]
+----
+include::unstructured_attributes.cpp[]
+----
+
+[source,cpp]
+----
+include::unstructured_mesh.cpp[]
+----
+
+
+[[smfIO]]
+=== Reading a mesh from a file ===
+
+[source,cpp]
+----
+include::unstructured_headerIO.cpp[]
+----
+
+
+== The complete program ==
+
+Below follows the complete program code of this tutorial.
+
+[source,cpp]
+----
+include::unstructured_plain.cpp[]
+----
+
+
+

@@ -1,7 +1,7 @@
 # determine mode of compilation
 DEBUG  = NO
 # name the compilation targets
-TARGET = smf2smf
+TARGET = smf2smf smfClean
 # destination folder of binaries
 BIN=$(INSILICOROOT)/tools/bin
 

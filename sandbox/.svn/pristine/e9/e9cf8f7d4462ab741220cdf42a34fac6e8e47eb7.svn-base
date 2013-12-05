@@ -1,0 +1,23 @@
+# mesh data
+L1   0.2
+L2   1.0
+N1   20
+N2   20
+
+# time integration data
+numSteps 1000
+stepSize 0.01
+
+# initial state
+u0   1.0
+
+# diffusion constants
+D1    0.01
+D2   20.0
+
+# reaction rate
+rate  0.1
+
+# base name of output files
+outFile test123
+

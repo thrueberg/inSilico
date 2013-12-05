@@ -1,0 +1,158 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   CompNeoHookean.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef mat_hypel_compneohookean_hpp
+#define mat_hypel_compneohookean_hpp
+
+
+//------------------------------------------------------------------------------
+namespace mat{
+    namespace hypel{
+
+        class CompNeoHookean;
+    }
+}
+
+//------------------------------------------------------------------------------
+/** A compressible Neo-Hookean material.
+ */
+class mat::hypel::CompNeoHookean
+{
+public:
+    
+    //! @name Types of tensors used
+    //@{
+    typedef mat::Tensor                     Tensor;
+    typedef mat::ElastTensor                ElastTensor;
+    //@}
+    
+    //! Construct with Lame parameters
+    CompNeoHookean( const double lambda, const double mu )
+        : lambda_( lambda ), mu_(     mu )
+    { }
+
+    //--------------------------------------------------------------------------
+    /** Strain energy density function.
+     *  \f[
+     *    \psi(F) = \frac{\lambda}{2} (\log J)^2 - \mu \log J
+     *            + \frac{\mu}{2}( tr C - 3 ), 
+     *            J  = \det F, C = F^T F
+     *  \f]
+     *  \param[in]  F  Deformation gradient
+     *  \returns       Elastic energy
+     */
+    double energy( const Tensor& F ) const
+    {
+        // compute Right Cauchy-Green deformation tensor
+        Tensor C;
+        mat::rightCauchyGreen( F, C );
+
+        // compute trace of which
+        const double trC = mat::trace( C );
+
+        // compute determinant of F and its logarithm
+        const double J = mat::determinant( F );
+        const double logJ = std::log( J );
+
+        // return energy
+        return lambda_/2. * (logJ * logJ) - mu_ * logJ + mu_/2. * (trC - 3.);
+    }
+
+    //--------------------------------------------------------------------------
+    /** The second Piola-Kirchhoff stress tensor S.
+     *  The definition \f$ S = \partial \psi / \partial E \f$ yields
+     *  \f[
+     *         S = (\lambda \log J - \mu) C^{-1} + \mu I
+     *  \f]
+     *  \param[in]  F  Deformation gradient
+     *  \param[out] S  2nd Piola-Kirchhoff stress tensor
+     */
+    void secondPiolaKirchhoff( const Tensor& F, Tensor& S ) const
+    {
+        // compute Right Cauchy-Green deformation tensor
+        Tensor C;
+        mat::rightCauchyGreen( F, C );
+
+        // compute inverse of Cauchy-Green tensor
+        Tensor Cinv;
+        mat::inverse( C, Cinv );
+
+        // compute determinant of F and its logarithm
+        const double J = mat::determinant( F );
+        const double logJ = std::log( J );
+
+        // evaluate the second Piola-Kirchhoff stress tensor
+        S.noalias() = (lambda_ * logJ - mu_) * Cinv + mu_ * Tensor::Identity();
+    }
+
+    //--------------------------------------------------------------------------
+    /** The elasticity tensor in material description.
+     *  \f[
+     *       C_{ABCD} = \lambda C^{-1}_{AB} C^{-1}_{CD} +
+     *          (\mu-\log J) (C^{-1}_{AC} C^{-1}_{BD} + C^{-1}_{AD} C^{-1}_{BC})
+     *  \f]
+     *  Note: The storage is based on the minor symmetries.
+     *  \param[in]  F    Deformation gradient
+     *  \param[out] elC  Elasticity tensor
+     */
+    void materialElasticityTensor( const Tensor& F, ElastTensor& elC ) const
+    {
+        // compute Right Cauchy-Green deformation tensor
+        Tensor CG;
+        mat::rightCauchyGreen( F, CG );
+
+        // compute inverse of Cauchy-Green tensor
+        Tensor Cinv;
+        mat::inverse( CG, Cinv );
+
+        // compute determinant of F 
+        const double J = mat::determinant( F );
+
+        // factor of second term
+        const double fac2 = mu_ - std::log( J );
+
+        // go through all indices
+        for ( unsigned A = 0; A < 3; A++ ) {
+            for ( unsigned B = A; B < 3; B++ ) {
+
+                // Voigt-Index I
+                const unsigned voigtI = mat::Voigt::apply( A, B );
+                
+                for ( unsigned C = 0; C < 3; C++ ) {
+                    for ( unsigned D = C; D < 3; D++ ) {
+
+                        // compute C_{ABCD}
+                        const double cEntry =
+                            lambda_ * Cinv(A,B) * Cinv(C,D) +
+                            fac2 * ( Cinv(A,C) * Cinv(B,D) + Cinv(A,D) * Cinv(B,C) );
+                        
+                        // Voigt-Index J 
+                        const unsigned voigtJ = mat::Voigt::apply( C, D );
+
+                        // insert to elasticity tensor
+                        elC( voigtI, voigtJ ) = cEntry;
+                        
+                    } // D
+                } // C
+                
+            } // B
+        } // A
+        
+    }
+    
+    
+private:
+    //! @name Lame parameters
+    //@{
+    const double lambda_;
+    const double mu_;
+    //@}
+};
+
+#endif

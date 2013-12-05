@@ -1,0 +1,40 @@
+# `-*-mode: Makefile -*-'
+
+#################################################
+#  MAKEFILE variables for openFTL on a Linux 
+#  machine (Debian/Ubuntu) with system default
+#  installations and gcc
+
+# compiler and linker
+CPLUSPLUS    = g++
+
+########################################
+# system paths
+
+# boost header
+BOOST_DIR        = /usr/include
+BOOST_LIB_PATH   = /usr/lib
+
+# eigen3 header
+EIGEN3_DIR = /usr/include/eigen3
+
+# superlu header and library path and library name 
+SUPERLU_INC      = /usr/include/superlu 
+SUPERLU_LIB_PATH = /usr/lib
+SUPERLU_LIB      = -lsuperlu
+
+########################################
+# flags and defines (DEBUG and RELEASE modes)
+
+# compilation flags
+DEBCPPFLAGS = -g3 -Wall -Wextra -ansi -pedantic -Wno-unused-parameter \
+	-Wno-variadic-macros -Wconversion -std=c++0x
+RELCPPFLAGS = -g -O3 
+
+# linking flags
+DEBLDFLAGS  = -g3
+RELLDFLAGS  = -g -O3
+
+# defines
+DEBDEFINES  = -DDEBUG
+RELDEFINES  = -DNDEBUG

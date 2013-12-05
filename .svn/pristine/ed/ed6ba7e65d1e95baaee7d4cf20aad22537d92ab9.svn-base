@@ -1,0 +1,38 @@
+#-*- mode: org -*-
+#+STARTUP: showall
+
+* base [0/0]
+- [ ] Newton Method class
+- [ ] Nitsche Method
+
+** base/mesh [1/1]
+- [X] Structured Grid
+
+** base/sfun [1/1]
+- [X] B-Splines <degree, alpha>  with regularity 
+
+** base/dof [0/2]
+- [ ] IndexMap::generateFromGrid
+- [ ] 'structured-ness' dependent call in dof::generate
+
+** base/time [0/2]
+- [ ] Mass lumping and Adams-Bashforth methods
+- [ ] HHT Time stepper + DOF with velocity and acceleration
+
+* solid [0/0]
+
+* fluid [0/1]
+- [ ] Stokes stabilisation
+
+* mat [0/1]
+- [ ] Test Ogden material
+
+* tutorials [0/3]
+- [ ] rename to references
+- [ ] test app for incompressible material
+- [ ] test apps with compilability and reference results
+
+* other [0/2]
+- [ ] Level Set Tool
+- [ ] Poro elasticity with coupled advection diffusion equation
+

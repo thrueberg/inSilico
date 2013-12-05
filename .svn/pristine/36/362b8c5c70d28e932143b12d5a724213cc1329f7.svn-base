@@ -1,0 +1,169 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   TensorAlgebra.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef mat_tensoralgebra_hpp
+#define mat_tensoralgebra_hpp
+
+//------------------------------------------------------------------------------
+// base includes
+#include <base/verify.hpp>
+#include <base/linearAlgebra.hpp>
+
+
+//------------------------------------------------------------------------------
+namespace mat{
+
+    //--------------------------------------------------------------------------
+    //! @name Types for 1st-, 2nd- and 4th-order tensors
+    //@{
+    //! A 3x1 matrix represents a 1st order tensor
+    typedef base::Vector<3>::Type    Vector;
+    
+    //! A 3x3 matrix represents a 2nd order tensor
+    typedef base::Matrix<3,3>::Type  Tensor;
+
+    //! A 6x6 matrix represents the 4-th order elasticity tensor (symmetries!!)
+    typedef base::Matrix<6,6>::Type  ElastTensor;
+    //@}
+
+    //--------------------------------------------------------------------------
+    //! @name Reductions
+    //@{
+
+    //! Tensor trace
+    inline double trace( const Tensor& A )
+    {
+        return A(0,0) + A(1,1) + A(2,2);
+    }
+
+    //! Double contraction of two tensors
+    inline double doubleContraction( const Tensor& A, const Tensor& B )
+    {
+        return ( A(0,0) * B(0,0) + A(0,1) * B(0,1) + A(0,2) * B(0,2) +
+                 A(1,0) * B(1,0) + A(1,1) * B(1,1) + A(1,2) * B(1,2) +
+                 A(2,0) * B(2,0) + A(2,1) * B(2,1) + A(2,2) * B(2,2) );
+    }
+
+    //! Determinant of the tensor's coefficient matrix
+    inline double determinant( const Tensor& A )
+    {
+        return ( A(0, 0) * A(1, 1) * A(2, 2) + A(0, 1) * A(1, 2) * A(2, 0) +
+                 A(0, 2) * A(1, 0) * A(2, 1) - A(0, 0) * A(1, 2) * A(2, 1) -
+                 A(0, 1) * A(1, 0) * A(2, 2) - A(0, 2) * A(1, 1) * A(2, 0) );
+    }
+    //@}
+
+    //--------------------------------------------------------------------------
+    //! @name Matrix inverse computations
+    //@{
+
+    //! Compute inverse of matrix
+    inline void inverse( const Tensor& A, Tensor& Ainv )
+    {
+        Ainv = A.inverse();
+    }
+
+    //! Compute inverse of matrix and return determinant
+    inline double inverseAndDet( const Tensor& A, Tensor& Ainv )
+    {
+        double detA;
+        bool dummy;
+        A.computeInverseAndDetWithCheck( Ainv, detA, dummy );
+        return detA;
+    }
+    //@}
+
+    //--------------------------------------------------------------------------
+    //! @name Deformation tensors
+    //@{
+    
+    //! Right Cauchy-Green tensor: \f$ C = F^T * F \f$
+    inline void rightCauchyGreen( const Tensor& F, Tensor& C )
+    {
+        // enforce lazy evaluation
+        C.noalias() = F.transpose() * F;
+    }
+
+    //! Left Cauchy-Green tensor: \f$ b = F * F^T \f$
+    inline void leftCauchyGreen( const Tensor& F, Tensor& b )
+    {
+        // enforce lazy evaluation
+        b.noalias() = F *  F.transpose();
+    }
+    //@}
+
+    //--------------------------------------------------------------------------
+    //! @name Strain measures
+    //@{
+
+    inline void greenLagrange( const Tensor& F, Tensor& E )
+    {
+        E.noalias() = 0.5 * ( F.transpose() * F - Tensor::Identity() );
+    }
+
+    inline void eulerAlmansi( const Tensor& F, Tensor& e )
+    {
+        Tensor Finv;
+        mat::inverse( F, Finv );
+        e.noalias() = 0.5 * ( Tensor::Identity() - Finv.transpose() * Finv );
+    }
+
+    //@}
+
+    //--------------------------------------------------------------------------
+    /** Index mapping according to Voigt.
+     *  Symmetric 2nd-order tensors can be reduced to a vector representation
+     *  by ordering the 6 independent coefficients accordingly:
+     *
+     *      pair i,j     | Voigt index V(i,j)  | Lookup index d = i*j
+     *     --------------|---------------------|-------------------
+     *           1, 1    |      1              |  1
+     *           2, 2    |      2              |  4
+     *           3, 3    |      3              |  9
+     *        1,2 / 2,1  |      4              |  2
+     *        1,3 / 3,1  |      5              |  3
+     *        2,3 / 3,2  |      6              |  6
+     *
+     *  All indices in this table are 1-based and thus need to be converted
+     *  to 0-based inidces in the implementation. In order to avoid costly
+     *  if- or switch-statements, the index conversion is carried out by a
+     *  lookup table. Observation shows that the product of i and j gives a
+     *  unique number (considering the ranges 1 <= i,j <= 3) between 1 and 9.
+     *  Hence, this number d=i*j is used as the index to a an array storing
+     *  the corresponding Voigt index V(i,j) at the d-th position.
+     */
+    class Voigt
+    {
+    public:
+
+        /** Return the Voigt index V(i,j) for the index pair i,j
+         *  \param[in] i,j  0-based (!!) index pair
+         *  \returns        V(i,j) (again 0-based)
+         */
+        static unsigned apply( const unsigned i, const unsigned j )
+        {
+            const unsigned d = (i+1) * (j+1);
+            return indexMap_[ d - 1];
+        }
+        
+    private:
+        //! The d-th entry (d = (i+1)*(j+1) ) gives the Voigt index
+        const static boost::array<unsigned,9> indexMap_;
+    };
+
+    //! Initialise the index map between the product and the Voigt index
+    const boost::array<unsigned,9> Voigt::indexMap_ = {{
+            0, 3, 4, 1, base::invalidInt,             // 1, 2, 3, 4, 5,
+            5, base::invalidInt, base::invalidInt,    // 6, 7, 8,
+            2 }};                                     // 9
+
+}
+
+
+#endif

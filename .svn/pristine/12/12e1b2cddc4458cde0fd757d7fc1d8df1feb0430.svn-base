@@ -1,0 +1,212 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   kernel/Laplace.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_kernel_laplace_hpp
+#define base_kernel_laplace_hpp
+
+//------------------------------------------------------------------------------
+// boost includes
+#include <boost/function.hpp>
+// base includes
+#include <base/geometry.hpp>
+#include <base/linearAlgebra.hpp>
+// base/aux includes
+#include <base/aux/functions.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace kernel{
+
+        template<typename FIELDTUPLE>
+        class Laplace;
+    }
+}
+
+//------------------------------------------------------------------------------
+/** Representation of the bilinear form for the (vector) Laplace operator.
+ *  The negative \f$ d \f$-dimensional Laplce operator applied to a function
+ *  \f$ f(x) \f$ reads
+ *  \f[
+ *      - \nabla^2 f = \sum_{i=1}^d \frac{\partial^2 f}{\partial x_i^2}
+ *  \f]
+ *  In general, \f$ f \f$ can be the \f$ i \f$-th compenent \f$ u_i \f$ of some
+ *  vector field. Here, the domain part of the bilinear form obtained from
+ *  integration by parts is implemented
+ *  \f[
+ *      \int_\Omega (-\kappa \nabla^2 u) v dx =
+ *      \int_\Gamma (-\kappa \nabla u) \cdot n v ds +
+ *      \int_\Omega \kappa (\nabla u) \cdot (\nabla v) dx
+ *  \f]
+ *  where \f$ \kappa \f$ is some scalar material parameter.
+ *  Note that \f$ u \f$ and \f$ v \f$ can be vectors. In that case, the
+ *  dot-product above has to be replaced the double contraction
+ *  \f$ \nabla u : \nabla v = \sum_{i,j} u_{i,j} v_{i,j} \f$.
+ *
+ *  \tparam  FIELDTUPLE   Tuple of field elements
+ */
+template<typename FIELDTUPLE>
+class base::kernel::Laplace
+{
+public:
+    //! Template parameter
+    typedef FIELDTUPLE FieldTuple;
+
+    //! @name Extract element types from pointers
+    //@{
+    typedef typename FieldTuple::GeomElement  GeomElement;
+    typedef typename FieldTuple::TestElement  TestElement;
+    typedef typename FieldTuple::TrialElement TrialElement;
+    //@}
+
+    //! Flag for equal test and form functions --> Bubnov-Galerkin
+    static const bool bubnov = boost::is_same<TrialElement,
+                                              TestElement>::value;
+    
+    //! Local coordinate
+    typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
+
+    //! Type of global vector
+    typedef typename base::GeomTraits<GeomElement>::GlobalVecDim GlobalVecDim;
+
+    //! Global space dimension
+    static const unsigned globalDim = base::GeomTraits<GeomElement>::globalDim;
+
+    //! Size of DOFs
+    static const unsigned doFSize   = TrialElement::DegreeOfFreedom::size;
+
+    //! Constructor with form and test functions 
+    Laplace( const double factor )
+    : factor_( factor )
+    { }
+
+    //--------------------------------------------------------------------------
+    /**  Contribution to the element stiffness matrix in a quadrature rule
+     *   The element stiffness matrix for the Laplace operator reads
+     *   \f[
+     *       K[M*d+i,N*d+i] =
+     *         \int_\Omega \mu \nabla \phi^M \cdot \nabla \phi^N dx
+     *   \f]
+     *   This object adds the weighted integrand evaluated at a local coordinate
+     *   \f$\xi\f$ to a provided storage.
+     *   \param[in]  fieldTuple Tuple of field element pointers
+     *   \param[in]  xi       Local coordinate: quadrature point
+     *   \param[in]  weight   Weight corresponding to the quadrature point
+     *   \param[out] matrix   Result storage
+     */
+    void tangentStiffness( const FieldTuple&  fieldTuple,
+                           const LocalVecDim& xi,
+                           const double       weight,
+                           base::MatrixD&     matrix ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+        const TestElement*  testEp  = fieldTuple.testElementPtr();
+        const TrialElement* trialEp = fieldTuple.trialElementPtr();
+
+        // Evaluate gradient of test and trial functions
+        std::vector<GlobalVecDim> testGradX, trialGradX;
+        const double detJ =
+            (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
+
+        if ( bubnov ) trialGradX = testGradX;
+        else
+            (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
+
+        // Sizes and sanity checks
+        const unsigned numRowBlocks = static_cast<unsigned>( testGradX.size()  );
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
+        assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * doFSize );
+        assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * doFSize );
+
+        // scalar multiplier
+        const double scalar = factor_ * detJ * weight;
+        
+        //matrix += scalar * (testGradX.transpose() * formGradX);
+        for ( unsigned M = 0; M < numRowBlocks; M ++ ) {
+            for ( unsigned N = 0; N < numColBlocks; N ++ ) {
+
+                double entry = 0.;
+                // dot-product of function gradients
+                for ( unsigned k = 0; k < globalDim; k ++ )
+                    entry += testGradX[M][k] * trialGradX[N][k];
+                // multiply with weight and material
+                entry *= scalar;
+
+                // add to matrix block's diagonal entries
+                for ( unsigned d = 0; d < doFSize; d++ )
+                    matrix( M*doFSize + d, N*doFSize + d ) += entry;
+            }
+        }
+
+        return;
+    }
+
+    //--------------------------------------------------------------------------
+    void coNormalDerivative( const FieldTuple&  fieldTuple,
+                             const LocalVecDim& xi,
+                             const GlobalVecDim& normal,
+                             base::MatrixD& result ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*   geomEp  = fieldTuple.geomElementPtr();
+        const TrialElement*  trialEp = fieldTuple.trialElementPtr();
+
+        this -> normalDerivativeHelper_( geomEp, trialEp, xi,
+                                         normal, result );
+    }
+
+    //--------------------------------------------------------------------------
+    void dualCoNormalDerivative( const FieldTuple&  fieldTuple,
+                                 const LocalVecDim& xi,
+                                 const GlobalVecDim& normal,
+                                 base::MatrixD& result ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp = fieldTuple.geomElementPtr();
+        const TestElement*  testEp = fieldTuple.testElementPtr();
+
+        this -> normalDerivativeHelper_( geomEp, testEp, xi,
+                                         normal, result );
+    }
+
+private:
+
+    template<typename FIELDELEMENT>
+    void normalDerivativeHelper_( const GeomElement*  geomEp,
+                                  const FIELDELEMENT* fieldEp,
+                                  const LocalVecDim&  xi,
+                                  const GlobalVecDim& normal,
+                                  base::MatrixD& result ) const
+    {
+        // evaluate gradient of trial functions
+        std::vector<GlobalVecDim> fieldGradX;
+        (fieldEp -> fEFun()).evaluateGradient( geomEp, xi, fieldGradX );
+
+        const unsigned numColBlocks = fieldGradX.size();
+
+        result = base::MatrixD::Zero( +doFSize, numColBlocks * doFSize );
+
+        for ( unsigned i = 0; i < numColBlocks; i++ ) {
+        
+            const double entry = factor_ * base::dotProduct( normal, fieldGradX[i] );
+            
+            for ( unsigned d = 0; d < doFSize; d++)
+                result( d, i*doFSize + d) = entry;
+
+        }
+        
+        return;
+    }
+
+
+private:
+    const double factor_; //!< Scalar multiplier (e.g. conductivity)
+};
+
+#endif

@@ -1,0 +1,159 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   Eigen3.hpp
+//! @author Thomas Rueberg
+//! @date   2012
+
+#ifndef base_solver_eigen3_hpp
+#define base_solver_eigen3_hpp
+
+//------------------------------------------------------------------------------
+// std   includes
+#include <ostream>
+
+// Eigen includes
+#include <Eigen/Sparse>
+#include <Eigen/Core>
+#ifdef USE_SUPERLU
+#include <Eigen/SuperLUSupport>
+#endif
+
+// base includes
+#include <base/linearAlgebra.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace solver{
+
+        class Eigen3;
+
+    }
+}
+
+//------------------------------------------------------------------------------
+class base::solver::Eigen3
+{
+public:
+    typedef Eigen::Triplet<number> Triplet;
+
+    Eigen3( const std::size_t size )
+    {
+        rhs_.resize( size );
+        rhs_.fill( 0. );
+        lhs_.resize( size, size );
+    }
+
+    //--------------------------------------------------------------------------
+    template<typename MATRIX, typename RDOFS, typename CDOFS>
+    void insertToLHS( const MATRIX & matrix, 
+                      const RDOFS  & rowDofs,
+                      const CDOFS  & colDofs )
+    {
+        const unsigned numRowDofs = rowDofs.size();
+        const unsigned numColDofs = colDofs.size();
+
+        for ( unsigned i = 0; i < numRowDofs; i ++ ) {
+            for ( unsigned j = 0; j < numColDofs; j ++ ) {
+                triplets_.push_back( Triplet( rowDofs[i], colDofs[j], matrix(i,j) ) );
+            }
+        }
+
+    }
+
+
+    //--------------------------------------------------------------------------
+    template<typename VECTOR, typename DOFS>
+    void insertToRHS( const VECTOR & vector,
+                      const DOFS   & dofs )
+    {
+        const unsigned numDofs = dofs.size();
+
+        assert( static_cast<int>(numDofs) == vector.size() );
+
+        for ( unsigned i = 0; i < numDofs; i ++ ) {
+
+            rhs_[ dofs[i] ] += vector[i];
+        }
+
+    }
+
+    //--------------------------------------------------------------------------
+    double norm() const
+    {
+        return ( rhs_.norm() / static_cast<double>( rhs_.size() ) );
+    }
+
+    //--------------------------------------------------------------------------
+    void finishAssembly()
+    {
+        lhs_.setFromTriplets( triplets_.begin(), triplets_.end() );
+        
+        // make sure that the triplet dies
+        triplets_.clear();
+        std::vector< Triplet >().swap( triplets_ );
+    }
+
+    //--------------------------------------------------------------------------
+    void choleskySolve()
+    {
+        // create a LLT-decomposition from the system matrix
+        Eigen::SimplicialLLT< Eigen::SparseMatrix<number> > chol( lhs_ );
+
+        /* This is the version, which should always work, but does not give
+         * access to the factorisation, as needed in the block solver:
+         *
+         * const VectorD x = chol.solve( rhs_ );
+         * rhs_ = x;
+         *
+         */
+        
+        /** Note that in this version, the individual steps in the solve process
+         *  are made explicit. It appears that the latest (not yet installed)
+         *  version of Eigen has an inverse notion of P and Pinv. Therefore
+         *  in future, in the following the first and forth lines shall be
+         *  swapped in position.
+         */
+        rhs_  = chol.permutationPinv() * rhs_;
+        chol.matrixL().solveInPlace( rhs_ );
+        chol.matrixU().solveInPlace( rhs_ );
+        rhs_ = chol.permutationP() * rhs_;
+    }
+
+    //--------------------------------------------------------------------------
+#ifdef USE_SUPERLU
+    void superLUSolve()
+    {
+        Eigen::SuperLU< Eigen::SparseMatrix<number> >  superLU( lhs_ );
+        VectorD x = superLU.solve( rhs_ );
+        rhs_ = x;
+    }
+#endif
+
+    //--------------------------------------------------------------------------
+    number getValue( const std::size_t index ) const
+    {
+        return rhs_[ index ];
+    }
+
+    //--------------------------------------------------------------------------
+    void debug( std::ostream & out) const
+    {
+        for ( int k=0; k < lhs_.outerSize(); k++ ) {
+            for ( Eigen::SparseMatrix<number>::InnerIterator it(lhs_,k); it; ++it) {
+
+                out << it.row() << " " << it.col() << " " << it.value() << "\n";
+            }
+        }
+    }
+
+    
+private:
+    std::vector< Triplet > triplets_;
+    VectorD                     rhs_;
+    Eigen::SparseMatrix<number> lhs_;
+};
+
+#endif

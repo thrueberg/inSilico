@@ -1,0 +1,837 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   Incompressible.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef solid_incompressible_hpp
+#define solid_incompressible_hpp
+
+//------------------------------------------------------------------------------
+// boost includes
+#include <boost/function.hpp>
+// base includes
+#include <base/geometry.hpp>
+#include <base/linearAlgebra.hpp>
+// mat includes
+#include <mat/TensorAlgebra.hpp>
+// solid includes
+#include <solid/Stress.hpp>
+#include <solid/Deformation.hpp>
+#include <solid/HyperElastic.hpp>
+
+//------------------------------------------------------------------------------
+namespace solid{
+
+    template<typename T>
+    class Incompressible; //!< Documentation class
+
+    template<typename MATERIAL,typename FIELDTUPLE> class IncompressibleUU;
+    template<typename FIELDTUPLE>                   class IncompressibleUP;
+    template<typename MATERIAL,typename FIELDTUPLE> class IncompressiblePU;
+    template<typename MATERIAL,typename FIELDTUPLE> class IncompressiblePP;
+
+}
+
+//------------------------------------------------------------------------------
+/** Implementation of the linearised variation of strain energy in a mixed
+ *  formulation.
+ *  Take the strain energy function in decoupled form
+ *  \f[
+ *        \psi(F) = \psi_{vol}( J ) + \psi_{iso}(C)
+ *  \f]
+ *  Here, \f$ J = \det F \f$ and \f$ C = F^T F \f$ as usual.
+ *  The first variation of the corresponding internal strain energy
+ *  \f$ W_{int}(u) = \int_{\Omega_0} \psi(F) d X \f$ in direction \f$ v \f$ reads
+ *  \f[
+ *      \delta W_{int}(u,p)(v) =
+ *      \delta W_{vol}(u,p)(v) + \delta W_{iso}(u)(v) =
+ *      \int_{\Omega_0} p J(u) (\nabla_x \cdot v) dX +
+ *      \int_{\Omega_0} S_{iso} : (F^T \nabla_X v) dX
+ *  \f]
+ *  where the pressure and iso-choric 2nd Piola-Kirchhoff stress tensor have
+ *  been identified
+ *  \f[
+ *       p       = \frac{ \partial \psi_{vol} }{\partial J} \qquad
+ *       S_{iso} = 2 \frac{\partial \psi_{iso}}{\partial C}
+ *  \f]
+ *  In order to establish a mixed finite element method, the weak form of the
+ *  pressure definition is added as a second equation
+ *  \f[
+ *      P(u,p)(q) = \int_{\Omega_0} q
+ *                 \left( \frac{\partial \psi_{iso}}{\partial J} - p \right) dX = 0
+ *  \f]
+ *  Using a Newton method, the linearisation of these equations in the
+ *  directions \f$ \Delta u \f$ and \f$ \Delta p \f$ yields the system
+ *  \f[
+ *    \left(\matrix{ D_u(\delta W_{int}(u^n,p^n)(v))[\Delta u]
+ *                 & D_p(\delta W_{int}(u^n,p^n)(v))[\Delta p] \cr
+ *                   D_u( P(u^n,p^n)(q) )[\Delta u]
+ *                 & D_u( P(u^n,p^n)(q) )[\Delta p] } \right)
+ *   = \left( \matrix{ -\delta W_{int}(u^n,p^n)(v) + F^{ext}(v) \cr
+ *                      -P(u^n,p^n)(v) } \right)
+ *  \f]
+ *  Note that this system is not symmetric. But it will be symmetrised by
+ *  dividing the second equation by \f$ \partial^2 \psi_{vol} / \partial J^2\f$.
+ *
+ *  \note The class solid::Incompressible is only used for this documentation.
+ *        The 2x2 system above is implemented in the classes
+ *        solid::IncompressibleUU, solid::IncompressibleUP,
+ *        solid::IncompressiblePU, and solid::IncompressiblePP together with
+ *        corresponding residual force terms.
+ */
+template<typename T>
+class solid::Incompressible
+{
+    STATIC_ASSERT_MSG( (sizeof(T) == 0), 
+                       "This class exists for documentation purpose only" );
+};
+
+//------------------------------------------------------------------------------
+/** Displacement-linearised variation of the internal energy.
+ *  The class implements the discretisation of the term
+ *  \f[
+ *      D_u(\delta W_{int}(u,p)(v))[\Delta u] =
+ *      \int_{\Omega_0} p J(u) (\nabla_x \cdot v)(\nabla_x \cdot \Delta u) d X
+ *    + \int_{\Omega_0} \nabla_X v : C_{iso}^{eff} : \nabla_X (\Delta u) d X
+ *  \f]
+ *  in tangentStiffness()  and the term
+ *  \f[
+ *      \delta W_{int}(u,p)(v) = \delta W_{vol} + \delta W_{iso} =
+ *      \int_{\Omega_0} p J(u) (\nabla_x \cdot v)  d X +
+ *      \int_{\Omega_0} S_{iso} : (F^T \nabla_X v) d X
+ *  \f]
+ *  in residualForce(), or rather this term with \f$ p^{n+1-s} \f$ and
+ *  \f$ u^{n+1-s} \f$ in residualForceHistory<NHIST>().
+ *  \tparam MATERIAL    Type of (almost) incompressible material
+ *  \tparam FIELDTUPLE  Type of tuple with the field elements
+ */ 
+template<typename MATERIAL, typename FIELDTUPLE>
+class solid::IncompressibleUU
+{
+public:
+    //! @name Template parameter
+    //@{
+    typedef MATERIAL   Material;
+    typedef FIELDTUPLE FieldTuple;
+    //@}
+
+    //! Sanity check: enough fields available
+    STATIC_ASSERT_MSG( FieldTuple::numFields >= 3,
+                       "Minimum number of fields violated" );
+
+    //! @name Extract element types from pointers
+    //@{
+    typedef typename FieldTuple::GeomElement      GeomElement;
+    typedef typename FieldTuple::TestElement      TestElement;
+    typedef typename FieldTuple::TrialElement     TrialElement;
+    typedef typename FieldTuple::AuxField1Element PressElement;
+    //@}
+
+    //! Compressible hyperelasticity terms
+    typedef solid::HyperElastic<Material,FieldTuple> HyperElastic;
+
+    //! Number of DoFs per vectorial entry
+    static const unsigned nDoFs = TrialElement::DegreeOfFreedom::size;
+
+    //! Sanity check: dof-size of PressElement = 1
+    STATIC_ASSERT_MSG( PressElement::DegreeOfFreedom::size==1,
+                       "No pressure element provided" );
+
+    //! Local coordinate
+    typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
+
+    //! Type of global vector
+    typedef typename base::GeomTraits<GeomElement>::GlobalVecDim GlobalVecDim;
+
+    //! Global space dimension
+    static const unsigned globalDim = base::GeomTraits<GeomElement>::globalDim;
+
+    //! Constructor with form and test functions 
+    IncompressibleUU( const Material&   material )
+    : hyperElastic_( material )
+    { }
+    
+    //--------------------------------------------------------------------------
+    /**  Contribution to the element stiffness matrix in a quadrature rule.
+     *   The element stiffness matrix for the 
+     *   \f[
+     *     K[M d+i, N d+k] =
+     *           \int_{\Omega_0} p J(u)
+     *                (\phi^M_{,A} F_{Ai}^{-1}) (\phi^N_{,B} F_{Bk}^{-1}) dX +
+     *        \int_{\Omega_0} \phi^M_{,A} C^{iso,eff}_{iAkB}  \phi^N_{,B} dX
+     *   \f]
+     *   The first integral is computed by delegation to HyperElastic.
+     *   This object adds the weighted integrand evaluated at a local coordinate
+     *   \f$\xi\f$ to a provided storage.
+     *   \param[in]  fieldTuple Tuple of element pointers
+     *   \param[in]  xi         Local coordinate: quadrature point
+     *   \param[in]  weight     Weight corresponding to the quadrature point
+     *   \param[out] matrix     Result storage
+     */
+    void tangentStiffness( const FieldTuple&          fieldTuple,
+                           const LocalVecDim&         xi,
+                           const double               weight,
+                           base::MatrixD&             matrix ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp   = fieldTuple.geomElementPtr();
+        const TestElement*  testEp   = fieldTuple.testElementPtr();
+        const TrialElement* trialEp  = fieldTuple.trialElementPtr();
+        const PressElement* pressEp  = fieldTuple.auxField1ElementPtr();
+
+        // bubnov flag
+        const bool bubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
+
+        // call hyperElastic object which does the iso-choric part
+        hyperElastic_.tangentStiffness( fieldTuple, xi, weight, matrix );
+
+        // Evaluate gradient of test and trial functions
+        std::vector<GlobalVecDim> testGradX, trialGradX;
+        const double detJ =
+            (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
+        
+        if ( bubnov ) trialGradX = testGradX;
+        else
+            (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
+    
+        // Sizes and sanity checks
+        const unsigned numRowBlocks = static_cast<unsigned>( testGradX.size()  );
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
+        assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * nDoFs );
+        assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * nDoFs );
+
+        // Get deformation gradient of the current state
+        typename mat::Tensor F;
+        solid::deformationGradient( geomEp, trialEp, xi, F );
+
+        // get inverse and determinant of the deformation gradient
+        typename mat::Tensor Finv;
+        const double detF = mat::inverseAndDet( F, Finv );
+
+        // evaluate the pressure field
+        const double p = solid::pressure( geomEp, pressEp, xi );
+
+        // loop over the test and trial functions
+        for ( unsigned M = 0; M < numRowBlocks; M++ ) { // test functions
+            for ( unsigned N = 0; N < numColBlocks; N++ ) { // trial functions
+
+                // loop over the vector components of test and trials
+                for ( unsigned i = 0; i < nDoFs; i++ ) { // test fun comp
+                    for ( unsigned k = 0; k < nDoFs; k++ ) { // trial fun comp
+
+                        // spatial divergences of test and trial functions
+                        double divTest = 0., divTrial = 0.;
+                        for ( unsigned J = 0; J < nDoFs; J++ ) {
+                            divTest  += Finv( J, i ) *  testGradX[M][J];
+                            divTrial += Finv( J, k ) * trialGradX[N][J];
+                        }
+
+                        const double entry =
+                            p * detF * divTest * divTrial * detJ * weight;
+
+                        matrix( M * nDoFs + i, N * nDoFs + k ) += entry;
+                        
+                    } // k
+                }// i
+            } // N
+        } // M
+
+        return;
+    }
+
+    //--------------------------------------------------------------------------
+    /** Residual forces for latest fields.
+     *  Delegates call to residualForceHistoryU() with HIST = 0
+     */
+    void residualForce( const FieldTuple&          fieldTuple,
+                        const LocalVecDim&         xi,
+                        const double               weight,
+                        base::VectorD&             vector ) const
+    {
+        this ->template residualForceHistory<0>( fieldTuple, xi, weight, vector );
+    }
+
+    //--------------------------------------------------------------------------
+    /** This function computes the residual forces for given fields.
+     *  The negative variation of the internal strain energy becomes
+     *  \f[
+     *      F_1[Md+i] =   \int_{\Omega_0} p J(u) (\phi^M_{,A} F_{Ai}^{-1}) dX 
+     *                  + \int_{\Omega_0} S^{iso}_{KJ} F_{iK} \phi^M_{,J}  dX
+     *  \f]
+     *  The second of these integrals is computed by delegation to HyperElastic.
+     *   \param[in]  fieldTuple Tuple of element pointers
+     *   \param[in]  xi       Local coordinate: quadrature point
+     *   \param[in]  weight   Weight corresponding to the quadrature point
+     *   \param[out] vector   Result storage
+     */
+    template<unsigned HIST>
+    void residualForceHistory( const FieldTuple&          fieldTuple,
+                               const LocalVecDim&         xi,
+                               const double               weight,
+                               base::VectorD&             vector ) const
+    {
+        // delegate iso-choric part to
+        // solid::HyperElastic<MATERIAL,FIELDTUPLE>::residualForceHistory<NHIST>()
+        hyperElastic_.template residualForceHistory<HIST>( fieldTuple, xi,
+                                                           weight, vector );
+
+        // Extract element pointer from tuple
+        const GeomElement*   geomEp  = fieldTuple.geomElementPtr();
+        const TestElement*   testEp  = fieldTuple.testElementPtr();
+        const TrialElement*  trialEp = fieldTuple.trialElementPtr();
+        const PressElement*  pressEp = fieldTuple.auxField1ElementPtr();
+        
+        // Evaluate gradient of test and trial functions
+        std::vector<GlobalVecDim> testGradX;
+        const double detJ =
+            (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
+
+        const std::size_t numRowBlocks = testGradX.size();
+        assert( static_cast<unsigned>( vector.size() ) == numRowBlocks * nDoFs );
+
+        // Get deformation gradient of the current state
+        typename mat::Tensor F;
+        solid::deformationGradientHistory<HIST>( geomEp, trialEp, xi, F );
+
+        // Inverse deformation gradient
+        typename mat::Tensor Finv;
+        const double detF = mat::inverseAndDet( F, Finv );
+        
+        // evaluate the pressure field
+        const double p = solid::pressureHistory<HIST>( geomEp, pressEp, xi );
+
+        // loop over the test functions
+        for ( std::size_t M = 0; M < numRowBlocks; M++ ) { // test functions
+
+            // loop over the vector components of trials
+            for ( unsigned i = 0; i < nDoFs; i++ ) { // test fun comp
+
+                // spatial divergence of test function
+                double divTest = 0.;
+                for ( unsigned J = 0; J < nDoFs; J++ ) {
+                    divTest  += Finv( J, i ) * testGradX[M][J];
+                }
+                
+                const double entry = p * divTest * detF * detJ * weight;
+                vector[ M * nDoFs + i ] += entry;
+            }
+        }
+
+    }
+private:
+    const HyperElastic hyperElastic_; //<! 'Compressible' terms
+};
+
+
+//------------------------------------------------------------------------------
+/** Linearisation in pressure-direction of the variation of the internal energy.
+ *  This class implements the term
+ *  \f[
+ *       D_p (\delta W_{int}(u,p)(v) )[\Delta p] =
+ *       D_p (\delta W_{vol}(u,p)(v) )[\Delta p] =
+ *     \int_{\Omega_0} J(u) \Delta p (\nabla_x \cdot v) d X
+ *  \f]
+ *  Note that the residual force term is completely implemented in
+ *  solid::IncompressibleUU.
+ *  \tparam FIELDTUPLE   Type of field tuple
+ */
+template<typename FIELDTUPLE>
+class solid::IncompressibleUP
+{
+public:
+    //! Template parameter
+    typedef FIELDTUPLE FieldTuple;
+
+    //! Sanity check
+    STATIC_ASSERT_MSG( FieldTuple::numFields >= 3,
+                       "Minimum number of fields violated" );
+
+    //! @name Extract element types from pointers
+    //@{
+    typedef typename FieldTuple::GeomElement      GeomElement;
+    typedef typename FieldTuple::TestElement      TestElement;
+    typedef typename FieldTuple::TrialElement     TrialElement;
+    typedef typename FieldTuple::AuxField1Element DispElement;
+    //@}
+
+    //! Number of DoFs per vectorial entry
+    static const unsigned nDoFs = TestElement::DegreeOfFreedom::size;
+
+    //! Local coordinate
+    typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
+
+    //! Type of global vector
+    typedef typename base::GeomTraits<GeomElement>::GlobalVecDim GlobalVecDim;
+
+    //! Global space dimension
+    static const unsigned globalDim = base::GeomTraits<GeomElement>::globalDim;
+
+    //! Constructor with form and test functions 
+    IncompressibleUP( ) { }
+    
+    //--------------------------------------------------------------------------
+    /**  Contribution to the element stiffness matrix in a quadrature rule.
+     *   The element stiffness matrix for the 
+     *   \f[
+     *        B[Md+i,N] = \int_{\Omega_0} J(u) \psi^N (\phi^M_{,A} F_{Ai}^{-1}) dX
+     *   \f]
+     *   The first integral is computed by delegation to HyperElastic.
+     *   This object adds the weighted integrand evaluated at a local coordinate
+     *   \f$\xi\f$ to a provided storage.
+     *   \param[in]  fieldTuple Tuple of element pointers
+     *   \param[in]  xi         Local coordinate: quadrature point
+     *   \param[in]  weight     Weight corresponding to the quadrature point
+     *   \param[out] matrix     Result storage
+     */
+    void tangentStiffness( const FieldTuple&          fieldTuple,
+                           const LocalVecDim&         xi,
+                           const double               weight,
+                           base::MatrixD&             matrix ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp   = fieldTuple.geomElementPtr();
+        const TestElement*  testEp   = fieldTuple.testElementPtr();
+        const TrialElement* trialEp  = fieldTuple.trialElementPtr();
+        const DispElement*  dispEp   = fieldTuple.auxField1ElementPtr();
+
+        // Evaluate gradient of test and trial functions
+        std::vector<GlobalVecDim> testGradX;
+        const double detJ =
+            (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
+
+        // Evaluate pressure trial functions
+        typename TrialElement::FEFun::FunArray trialFun;
+        (trialEp -> fEFun()).evaluate( geomEp, xi, trialFun );
+        
+        // Sizes and sanity checks
+        const unsigned numRowBlocks = static_cast<unsigned>( testGradX.size() );
+        const unsigned numCols      = static_cast<unsigned>( trialFun.size()  );
+        assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * nDoFs );
+        assert( static_cast<unsigned>( matrix.cols() ) == numCols  );
+
+        // Get deformation gradient of the current state
+        typename mat::Tensor F;
+        solid::deformationGradient( geomEp, dispEp, xi, F );
+
+        // get inverse and determinant of the deformation gradient
+        typename mat::Tensor Finv;
+        const double detF = mat::inverseAndDet( F, Finv );
+
+        // loop over the test and trial functions
+        for ( unsigned M = 0; M < numRowBlocks; M++ ) { // test functions
+            for ( unsigned N = 0; N < numCols; N++ ) {    // trial functions
+
+                // loop over the vector components of test and trials
+                for ( unsigned i = 0; i < nDoFs; i++ ) { // test fun comp
+
+                    // spatial divergences of test and trial functions
+                    double divTest = 0.;
+                    for ( unsigned J = 0; J < nDoFs; J++ ) {
+                        divTest  += Finv( J, i ) * testGradX[ M][J];
+                    }
+
+                    const double entry =
+                        detF * divTest * trialFun[N] * detJ * weight;
+
+                    matrix( M * nDoFs + i, N ) += entry;
+                        
+                }// i
+            } // N
+        } // M
+
+        return;
+    }
+
+
+    //--------------------------------------------------------------------------
+    /** Residual force terms.
+     *  Dummy function, the complete residual force terms are in
+     *  solid::IncompressibleUU<MATERIAL,FIELDTUPLE>::residualForce()
+     */
+    void residualForce( const FieldTuple&          fieldTuple,
+                        const LocalVecDim&         xi,
+                        const double               weight,
+                        base::VectorD&             vector ) const
+    {
+        return;
+        //this -> residualForceHistory<0>( fieldTuple, xi, weight, vector );
+    }
+
+    //--------------------------------------------------------------------------
+    /** Residual force terms.
+     *  Dummy function, the complete residual force terms are in
+     *  solid::IncompressibleUU<MATERIAL,FIELDTUPLE>::residualForceHistory<NHIST>()
+     */
+    template<unsigned HIST>
+    void residualForceHistory( const FieldTuple&          fieldTuple,
+                               const LocalVecDim&         xi,
+                               const double               weight,
+                               base::VectorD&             vector ) const
+    {
+        return;
+    }
+
+};
+
+//------------------------------------------------------------------------------
+/** Linearisation of the pressure definition in displacement direction.
+ *  This class should implement the term
+ *  \f[
+ *      D_u (P(u,p)(q))[\Delta u] =
+ *      \int_{\Omega_0} \frac{\partial^2 \psi_{vol}}{\partial J^2} q
+ *                        (\nabla_x \cdot \Delta u) d X
+ *  \f]
+ *  But it turns out that a multiplication by the term
+ *  \f[
+ *      \left( \frac{\partial^2 \psi_{vol}}{\partial J^2} \right)^{-1} J(u)
+ *  \f]
+ *  would symmetrise the final block system. Therefore, this class implements
+ *  \f[
+ *      \int_{\Omega_0} J(u) q (\nabla_x \cdot \Delta u) d X
+ *  \f]
+ *  which is the transposed of the term implemented by
+ *  solid::IncompressibleUP<FIELDTUPLE>::tangentStiffness(). Therefore, this
+ *  class delegates the call that function.
+ *  Moreover, the corresponding force term is after symmetrisation
+ *  \f[
+ *       P_u(u,p)(q) = \int_{\Omega_0} 
+ *      \left( \frac{\partial^2 \psi_{vol}}{\partial J^2} \right)^{-1}
+ *      \frac{ \partial \psi_{vol}}{\partial J} d X
+ *  \f]
+ *  and implmented in residualForce().
+ *    
+ */
+template<typename MATERIAL, typename FIELDTUPLE>
+class solid::IncompressiblePU
+{
+public:
+    //! Template parameter
+    //@{
+    typedef MATERIAL   Material;
+    typedef FIELDTUPLE FieldTuple;
+    //@}
+
+    //! Sanity check 
+    STATIC_ASSERT_MSG( FieldTuple::numFields >= 3,
+                       "Minimum number of fields violated" );
+
+    //! @name Extract element types from pointers
+    //@{
+    typedef typename FieldTuple::GeomElement      GeomElement;
+    typedef typename FieldTuple::TestElement      TestElement;
+    typedef typename FieldTuple::TrialElement     TrialElement;
+    //@}
+
+    //! Local coordinate
+    typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
+
+    //! Type of global vector
+    typedef typename base::GeomTraits<GeomElement>::GlobalVecDim GlobalVecDim;
+
+    //! Global space dimension
+    static const unsigned globalDim = base::GeomTraits<GeomElement>::globalDim;
+
+    //! Constructor with form and test functions 
+    IncompressiblePU( Material& material)
+    : material_( material )
+    { }
+    
+    //--------------------------------------------------------------------------
+    /**  Contribution to the pressure-displacement coupling term.
+     *   Linearisation of the pressure defintion \f$ P(u,p)(q) \f$ in direction
+     *   \f$\Delta p\f$ and dividing by \f$\kappa(J) = d^2 \psi_{vol} / dJ^2\f$
+     *   yields the transpose of tangentStiffnessUP(). Therefore this function
+     *   simply calls the other with a transposed setting.
+     *   \f$\xi\f$ to a provided storage.
+     *   \param[in]  fieldTuple Tuple of element pointers
+     *   \param[in]  xi         Local coordinate: quadrature point
+     *   \param[in]  weight     Weight corresponding to the quadrature point
+     *   \param[out] matrix     Result storage
+     */
+    void tangentStiffness( const FieldTuple&          fieldTuple,
+                           const LocalVecDim&         xi,
+                           const double               weight,
+                           base::MatrixD&             matrix ) const
+    {
+        base::MatrixD aux( matrix.cols(), matrix.rows() );
+        aux = base::MatrixD::Zero( matrix.cols(), matrix.rows() );
+
+        // call pressure gradient term with transposed setting
+        solid::IncompressibleUP<typename FieldTuple::TransposedTuple>().tangentStiffness(
+            fieldTuple.transpose(), xi, weight, aux );
+        
+        matrix += aux.transpose();
+    }
+
+    //--------------------------------------------------------------------------
+    void residualForce( const FieldTuple&          fieldTuple,
+                        const LocalVecDim&         xi,
+                        const double               weight,
+                        base::VectorD&             vector ) const
+    {
+        this ->template residualForceHistory<0>( fieldTuple, xi, weight, vector );
+    }
+
+    //--------------------------------------------------------------------------
+    /** This function computes the residual or internal forces.
+     *  The negative definition of the pressure variable leads to
+     *  \f[
+     *      F[M] = \int_{\Omega_0} \psi^M
+     *              \left( \frac{d^2 \psi_{vol}}{d J^2} \right)^{-1}
+     *              \frac{d \psi_{vol}}{d J} d X
+     *  \f]
+     *  which has the multiplier due the symmetrisation of the system.
+     *   \param[in]  fieldTuple Tuple of field elements
+     *   \param[in]  xi         Local coordinate: quadrature point
+     *   \param[in]  weight     Weight corresponding to the quadrature point
+     *   \param[out] vector     Result storage
+     */
+    template<unsigned HIST>
+    void residualForceHistory( const FieldTuple&          fieldTuple,
+                               const LocalVecDim&         xi,
+                               const double               weight,
+                               base::VectorD&             vector ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp   = fieldTuple.geomElementPtr();
+        const TestElement*  testEp   = fieldTuple.testElementPtr();
+        const TrialElement* trialEp  = fieldTuple.trialElementPtr();
+
+        // Evaluate test functions
+        typename TestElement::FEFun::FunArray testFun;
+        (testEp -> fEFun()).evaluate( geomEp, xi, testFun );
+
+        // 
+        const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );        
+
+        //
+        const std::size_t numRows = testFun.size();
+        assert( static_cast<unsigned>( vector.size() ) == numRows );
+
+        // Get deformation gradient of the current state
+        typename mat::Tensor F;
+        solid::deformationGradientHistory<HIST>( geomEp, trialEp, xi, F );
+
+        const double detF = mat::determinant( F );
+
+        // material evaluations
+        const double ratio         = material_.giveBulkRatio( F );
+
+        // loop over the test functions
+        for ( std::size_t M = 0; M < numRows; M++ ) { // test functions
+
+            const double entry =
+                ratio * detF* testFun[M] * detJ * weight;
+                
+            vector[ M ] += entry;
+        }
+        return;
+    }
+
+private:
+    Material& material_;
+};
+
+//------------------------------------------------------------------------------
+/** Linearisation in pressure-direction of the pressure equation.
+ *  Implements the term (after symmetrisation, as explained in
+ *  solid::IncompressiblePU) of the form
+ *  \f[
+ *     \int_{\Omega_0} J(u)
+ *      \left( \frac{\partial^2 \psi}{\partial J^2} \right)^{-1} q \Delta p d X
+ *  \f]
+ *  in tangentStiffness() and the second part of the pressure definition
+ *  \f[
+ *       P_p(u,p)(q) = - \int_{\Omega_0} J(u)
+ *        \left( \frac{\partial^2 \psi}{\partial J^2} \right)^{-1} q p d X
+ *  \f]
+ *  in residualForce().
+ */
+template<typename MATERIAL, typename FIELDTUPLE>
+class solid::IncompressiblePP
+{
+public:
+    //! @name Template parameter
+    //@{
+    typedef MATERIAL   Material;
+    typedef FIELDTUPLE FieldTuple;
+    //@}
+
+    //! Sanity check
+    STATIC_ASSERT_MSG( FieldTuple::numFields >= 3,
+                       "Minimum number of fields violated" );
+
+    //! @name Extract element types from pointers
+    //@{
+    typedef typename FieldTuple::GeomElement      GeomElement;
+    typedef typename FieldTuple::TestElement      TestElement;
+    typedef typename FieldTuple::TrialElement     TrialElement;
+    typedef typename FieldTuple::AuxField1Element DispElement;
+    //@}
+
+    //! Local coordinate
+    typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
+
+    //! Type of global vector
+    typedef typename base::GeomTraits<GeomElement>::GlobalVecDim GlobalVecDim;
+
+    //! Global space dimension
+    static const unsigned globalDim = base::GeomTraits<GeomElement>::globalDim;
+
+    //! Constructor with form and test functions 
+    IncompressiblePP( const Material&   material )
+    : material_( material )
+    { }
+    
+    //--------------------------------------------------------------------------
+    /**  Contribution to the element stiffness matrix in a quadrature rule.
+     *   The element stiffness matrix for the 
+     *   \f[
+     *     C[M,N] = - \int_{\Omega_0} J(u)
+     *       \left( \frac{d^2 \psi_{vol}}{d J^2} \right)^{-1} \psi^N \psi^M dX
+     *   \f]
+     *   \f$\xi\f$ to a provided storage.
+     *   \param[in]  fieldTuple Tuple of element pointers
+     *   \param[in]  xi         Local coordinate: quadrature point
+     *   \param[in]  weight     Weight corresponding to the quadrature point
+     *   \param[out] matrix     Result storage
+     */
+    void tangentStiffness( const FieldTuple&          fieldTuple,
+                           const LocalVecDim&         xi,
+                           const double               weight,
+                           base::MatrixD&             matrix ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+        const TestElement*  testEp  = fieldTuple.testElementPtr();
+        const TrialElement* trialEp = fieldTuple.trialElementPtr();
+        const DispElement*  dispEp  = fieldTuple.auxField1ElementPtr();
+
+        // bubnov flag
+        const bool bubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
+
+        //
+        const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );
+
+        // Evaluate pressure trial functions
+        typename TestElement::FEFun::FunArray testFun;
+        (testEp -> fEFun()).evaluate( geomEp, xi, testFun );
+
+        typename TrialElement::FEFun::FunArray trialFun;
+        if ( bubnov ) trialFun = testFun;
+        else 
+            (trialEp -> fEFun()).evaluate( geomEp, xi, trialFun );
+        
+        // Sizes and sanity checks
+        const unsigned numRows = static_cast<unsigned>( testFun.size() );
+        const unsigned numCols = static_cast<unsigned>( trialFun.size() );
+        assert( static_cast<unsigned>( matrix.rows() ) == numRows );
+        assert( static_cast<unsigned>( matrix.cols() ) == numCols );
+
+        // Get deformation gradient of the current state
+        typename mat::Tensor F;
+        solid::deformationGradient( geomEp, dispEp, xi, F );
+
+        const double detF = mat::determinant( F );
+
+        // get inverse bulk from material
+        const double oneOverKappa = material_.giveInverseBulk( F );
+
+        // loop over the test and trial functions
+        for ( unsigned M = 0; M < numRows; M++ ) { // test functions
+            for ( unsigned N = 0; N < numCols; N++ ) {    // trial functions
+
+                const double entry = -1.0 * oneOverKappa * detF *
+                    testFun[M] * trialFun[N] * detJ * weight;
+
+                matrix( M, N ) += entry;
+                        
+            } // N
+        } // M
+        
+        return;
+    }
+
+
+
+    //--------------------------------------------------------------------------
+    void residualForce( const FieldTuple&          fieldTuple,
+                        const LocalVecDim&         xi,
+                        const double               weight,
+                        base::VectorD&             vector ) const
+    {
+        this ->template residualForceHistory<0>( fieldTuple, xi, weight, vector );
+    }
+
+    //--------------------------------------------------------------------------
+    /** This function computes the residual or internal forces.
+     *  The negative definition of the pressure variable leads to
+     *  \f[
+     *      F[M] = - \int_{\Omega_0} \psi^M J(u)
+     *               \left( \frac{d^2 \psi_{vol}}{d J^2} \right)^{-1} p d X
+     *  \f]
+     *  which has the multiplier due the symmetrisation of the system.
+     *   \param[in]  fieldTuple Tuple of element pointers
+     *   \param[in]  xi       Local coordinate: quadrature point
+     *   \param[in]  weight   Weight corresponding to the quadrature point
+     *   \param[out] vector   Result storage
+     */
+    template<unsigned HIST>
+    void residualForceHistory( const FieldTuple&          fieldTuple,
+                               const LocalVecDim&         xi,
+                               const double               weight,
+                               base::VectorD&             vector ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+        const TestElement*  testEp  = fieldTuple.testElementPtr();
+        const TrialElement* trialEp = fieldTuple.trialElementPtr();
+        const DispElement*  dispEp  = fieldTuple.auxField1ElementPtr();
+
+        // Evaluate test functions
+        typename TestElement::FEFun::FunArray testFun;
+        (testEp -> fEFun()).evaluate( geomEp, xi, testFun );
+
+        //
+        const double detJ = base::Jacobian<GeomElement>()( geomEp, xi );        
+
+        //
+        const std::size_t numRows = testFun.size();
+        assert( static_cast<unsigned>( vector.size() ) == numRows );
+
+        // Get deformation gradient of the current state
+        typename mat::Tensor F;
+        solid::deformationGradientHistory<HIST>( geomEp, dispEp, xi, F );
+
+        const double detF = mat::determinant( F );
+
+        // evaluate the pressure field
+        const double p = solid::pressureHistory<HIST>( geomEp, trialEp, xi );
+
+        // material evaluation
+        const double oneOverKappa  = material_.giveInverseBulk( F );
+
+        // loop over the test functions
+        for ( std::size_t M = 0; M < numRows; M++ ) { // test functions
+
+            const double entry =
+                -detF * oneOverKappa * p * testFun[M] * detJ * weight;
+                
+            vector[ M ] += entry;
+        }
+        return;
+    }
+    
+private:
+    const Material&    material_;     //!< Material behaviour
+};
+
+#endif

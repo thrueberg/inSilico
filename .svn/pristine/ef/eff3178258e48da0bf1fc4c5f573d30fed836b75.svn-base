@@ -1,0 +1,220 @@
+\documentclass{standalone}
+
+\usepackage{tikz}
+\usepackage{tikz-3dplot}
+\usetikzlibrary{calc}
+
+\def\tikzscale{5}
+
+\begin{document}
+
+\tdplotsetmaincoords{60}{120}
+\begin{tikzpicture}[tdplot_main_coords,scale=\tikzscale]
+
+  \def\Rad{0.25mm}
+
+
+  \tikzstyle{every node}=[font=\small]
+
+  % ----------------------------------------------------------------------
+  % draw tetrahedra
+  \newcommand*{\DrawTet}[5]{%
+    \draw[#1] 
+    (#2) -- (#3) -- (#4) -- (#2) -- (#5) -- (#3)(#5) -- (#4);
+  }
+
+  \newcommand*{\DrawTri}[5]{%
+    \draw[#1,fill=#2] (#3) -- (#4) -- (#5) -- cycle;
+  }
+
+  %% The original situation
+  \begin{scope}[xshift=0,yshift=0]
+
+    % corner points of main TET
+    \coordinate (0) at (0, 0, 0);
+    \coordinate (1) at (1, 0, 0);
+    \coordinate (2) at (0, 1, 0);
+    \coordinate (3) at (0, 0, 1);
+
+    % intersection points
+    \coordinate (c1) at  ($0.5*(0)+0.5*(3)$);
+    \coordinate (c2) at  ($0.5*(1)+0.5*(3)$);
+    \coordinate (c3) at  ($0.5*(2)+0.5*(3)$);
+
+    \DrawTet{gray}{c1}{c2}{c3}{3}
+    \DrawTet{black}{0}{1}{2}{3}
+
+    % vertices
+    \draw[fill=red] (3) circle (\Rad) node[above]{$V_3$};
+
+    \draw[fill=blue] (0) circle (\Rad) node[left ]{$V_0$};
+    \draw[fill=blue] (1) circle (\Rad) node[left ]{$V_1$};
+    \draw[fill=blue] (2) circle (\Rad) node[right]{$V_2$};
+
+    % cut points
+    \draw[fill=green] (c1) circle (\Rad) node[above right]{$C_0$};
+    \draw[fill=green] (c2) circle (\Rad) node[left ]{$C_1$};
+    \draw[fill=green] (c3) circle (\Rad) node[right]{$C_2$};
+
+  \end{scope}
+
+  %% The top TET
+  \begin{scope}[xshift=50,yshift=0]
+
+    % corner points of main TET
+    \coordinate (0) at (0, 0, 0);
+    \coordinate (1) at (1, 0, 0);
+    \coordinate (2) at (0, 1, 0);
+    \coordinate (3) at (0, 0, 1);
+
+    % intersection points
+    \coordinate (c1) at  ($0.5*(0)+0.5*(3)$);
+    \coordinate (c2) at  ($0.5*(1)+0.5*(3)$);
+    \coordinate (c3) at  ($0.5*(2)+0.5*(3)$);
+
+    \DrawTet{black}{c1}{c2}{c3}{3}
+
+    % vertex
+    \draw[fill=red] (3) circle (\Rad) node[above]{$V_3$};
+
+    % cut points
+    \draw[fill=green] (c1) circle (\Rad) node[above right ]{$C_0$};
+    \draw[fill=green] (c2) circle (\Rad) node[left ]{$C_1$};
+    \draw[fill=green] (c3) circle (\Rad) node[right]{$C_2$};
+
+  \end{scope}
+
+  %% The surface
+  \begin{scope}[xshift=50,yshift=-15]
+
+    % corner points of main TET
+    \coordinate (0) at (0, 0, 0);
+    \coordinate (1) at (1, 0, 0);
+    \coordinate (2) at (0, 1, 0);
+    \coordinate (3) at (0, 0, 1);
+
+    % intersection points
+    \coordinate (c1) at  ($0.5*(0)+0.5*(3)$);
+    \coordinate (c2) at  ($0.5*(1)+0.5*(3)$);
+    \coordinate (c3) at  ($0.5*(2)+0.5*(3)$);
+
+    \DrawTri{black}{none}{c1}{c2}{c3}
+
+    % cut points
+    \draw[fill=green] (c1) circle (\Rad) node[left ]{$C_0$};
+    \draw[fill=green] (c2) circle (\Rad) node[left ]{$C_1$};
+    \draw[fill=green] (c3) circle (\Rad) node[right]{$C_2$};
+
+  \end{scope}
+
+  %% The bottom wedge
+  \begin{scope}[xshift=-10,yshift=-35]
+
+    % corner points of main TET
+    \coordinate (0) at (0, 0, 0);
+    \coordinate (1) at (1, 0, 0);
+    \coordinate (2) at (0, 1, 0);
+    \coordinate (3) at (0, 0, 1);
+
+    % intersection points
+    \coordinate (c1) at  ($0.5*(0)+0.5*(3)$);
+    \coordinate (c2) at  ($0.5*(1)+0.5*(3)$);
+    \coordinate (c3) at  ($0.5*(2)+0.5*(3)$);
+
+    \DrawTet{gray}{c3}{2}{c2}{c1}
+    \DrawTet{gray}{2}{1}{c2}{c1}
+    \DrawTet{gray}{0}{1}{2}{c1}
+
+    % draw wedge
+    \draw[black] (0) -- (1) -- (2) -- (0) -- (c1) -- (c2) -- (c3) -- (c1)(1)
+    -- (c2)(2) -- (c3);
+
+    % cut points
+    \draw[fill=green] (c1) circle (\Rad) node[left ]{$C_0$};
+    \draw[fill=green] (c2) circle (\Rad) node[left ]{$C_1$};
+    \draw[fill=green] (c3) circle (\Rad) node[right]{$C_2$};
+
+    % vertices
+    \draw[fill=blue] (0) circle (\Rad) node[left ]{$V_0$};
+    \draw[fill=blue] (1) circle (\Rad) node[left ]{$V_1$};
+    \draw[fill=blue] (2) circle (\Rad) node[right]{$V_2$};
+
+  \end{scope}
+
+  %% The tetrahedrons of the wedge
+  \begin{scope}[xshift=40,yshift=-40,scale=0.6]
+
+    % corner points of main TET
+    \coordinate (0) at (0, 0, 0);
+    \coordinate (1) at (1, 0, 0);
+    \coordinate (2) at (0, 1, 0);
+    \coordinate (3) at (0, 0, 1);
+
+    % intersection points
+    \coordinate (c1) at  ($0.5*(0)+0.5*(3)$);
+    \coordinate (c2) at  ($0.5*(1)+0.5*(3)$);
+    \coordinate (c3) at  ($0.5*(2)+0.5*(3)$);
+
+    \DrawTet{black}{c2}{2}{c3}{c1}
+
+    \draw[fill=green] (c1) circle (\Rad) node[left ]{$C_0$};
+    \draw[fill=green] (c2) circle (\Rad) node[left ]{$C_1$};
+    \draw[fill=green] (c3) circle (\Rad) node[right]{$C_2$};
+
+    \draw[fill=blue] (2) circle (\Rad) node[right]{$V_2$};
+
+  \end{scope}
+
+  \begin{scope}[xshift=40,yshift=-60,scale=0.6]
+
+    % corner points of main TET
+    \coordinate (0) at (0, 0, 0);
+    \coordinate (1) at (1, 0, 0);
+    \coordinate (2) at (0, 1, 0);
+    \coordinate (3) at (0, 0, 1);
+
+    % intersection points
+    \coordinate (c1) at  ($0.5*(0)+0.5*(3)$);
+    \coordinate (c2) at  ($0.5*(1)+0.5*(3)$);
+    \coordinate (c3) at  ($0.5*(2)+0.5*(3)$);
+
+    \DrawTet{black}{2}{1}{c2}{c1}
+
+    \draw[fill=green] (c1) circle (\Rad) node[left ]{$C_0$};
+    \draw[fill=green] (c2) circle (\Rad) node[left]{$C_1$};
+
+    \draw[fill=blue] (1) circle (\Rad) node[left ]{$V_1$};
+    \draw[fill=blue] (2) circle (\Rad) node[right]{$V_2$};
+
+  \end{scope}
+
+  \begin{scope}[xshift=0,yshift=-60,scale=0.6]
+
+    % corner points of main TET
+    \coordinate (0) at (0, 0, 0);
+    \coordinate (1) at (1, 0, 0);
+    \coordinate (2) at (0, 1, 0);
+    \coordinate (3) at (0, 0, 1);
+
+    % intersection points
+    \coordinate (c1) at  ($0.5*(0)+0.5*(3)$);
+    \coordinate (c2) at  ($0.5*(1)+0.5*(3)$);
+    \coordinate (c3) at  ($0.5*(2)+0.5*(3)$);
+
+    \DrawTet{black}{0}{1}{2}{c1}
+
+    \draw[fill=green] (c1) circle (\Rad) node[left ]{$C_0$};
+    \draw[fill=blue] (0) circle (\Rad) node[above right ]{$V_0$};
+    \draw[fill=blue] (1) circle (\Rad) node[left ]{$V_1$};
+    \draw[fill=blue] (2) circle (\Rad) node[right]{$V_2$};
+
+  \end{scope}
+
+\end{tikzpicture}
+\end{document}
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 

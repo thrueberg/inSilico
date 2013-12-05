@@ -1,0 +1,172 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   SurfaceFieldBinder.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_surfacefieldbinder_hpp
+#define base_surfacefieldbinder_hpp
+
+//------------------------------------------------------------------------------
+// std includes
+#include <vector>
+// boost includes
+#include <boost/tuple/tuple.hpp>
+#include <boost/utility.hpp>
+// base  includes
+#include <base/verify.hpp>
+// base/asmb includes
+#include <base/asmb/FieldElementPointerTuple.hpp>
+#include <base/asmb/FieldBinder.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace asmb{
+
+
+        //----------------------------------------------------------------------
+        template<typename SURFMESH,
+                 typename FIELD1,
+                 typename FIELD2 = const detail_::DummyField,
+                 typename FIELD3 = const detail_::DummyField,
+                 typename FIELD4 = const detail_::DummyField,
+                 typename FIELD5 = const detail_::DummyField>
+        class SurfaceFieldBinder;
+
+        //----------------------------------------------------------------------
+        namespace detail_{
+
+            //------------------------------------------------------------------
+            // Element pointer iterator types in dependence of a const qualifier
+            template<typename FIELD>
+            struct ElementPtrType
+            {
+                typedef typename FIELD::Element* Type;
+            };
+
+            // The type is the dummy iterator
+            template<>
+            struct ElementPtrType<const DummyField>
+            {
+                typedef detail_::DummyElementPtr Type;
+            };
+
+        } // namespace detail_
+        
+    } // namespace asmb
+} // namespace base
+
+
+//------------------------------------------------------------------------------
+/** Bind a mesh with up to five different fields.
+ *
+ *  \tparam SURFMESH        Type of surface mesh to which a field is/fields are bound
+ *  \tparam FIELD1          Type of field bound to the mesh
+ *  \tparam FIELD2, FIELD3,
+ *          FIELD4, FIELD5  Optional fields bound to the mesh
+ */
+template<typename SURFMESH, typename FIELD1,
+         typename FIELD2,   typename FIELD3,
+         typename FIELD4,   typename FIELD5>
+class base::asmb::SurfaceFieldBinder
+    : public boost::noncopyable
+{
+public:
+    //! For introspection
+    typedef SURFMESH Mesh;
+
+    //! Directly define the element pointer tuple
+    typedef FieldElementPointerTuple<typename Mesh::Element*,
+                                     typename detail_::ElementPtrType<FIELD1>::Type,
+                                     typename detail_::ElementPtrType<FIELD2>::Type,
+                                     typename detail_::ElementPtrType<FIELD3>::Type,
+                                     typename detail_::ElementPtrType<FIELD4>::Type,
+                                     typename detail_::ElementPtrType<FIELD5>::Type>
+    ElementPtrTuple;
+
+    //--------------------------------------------------------------------------
+    //! For convenience, delegate the type specification from here
+    template<int I, int J=-1, int K=-1, int L=-1, int M=-1>
+    struct TupleBinder
+    {
+        // Define the type of the tuple-binder
+        typedef typename
+        base::asmb::FieldTupleBinder<ElementPtrTuple,I,J,K,L,M> Type;
+    };
+
+
+    //! Iterator of local container
+    typedef typename std::vector<ElementPtrTuple>::const_iterator FieldIterator;
+    
+
+    //! Constructor with mesh, a field and four optional fields
+    SurfaceFieldBinder( Mesh& surfMesh,
+                        FIELD1& field1,
+                        FIELD2& field2 = detail_::makeDummyField(),
+                        FIELD3& field3 = detail_::makeDummyField(),
+                        FIELD4& field4 = detail_::makeDummyField(),
+                        FIELD5& field5 = detail_::makeDummyField() )
+    {
+        // iterate over the surface mesh
+        for ( typename Mesh::ElementPtrConstIter bElemIter =
+                  surfMesh.elementsBegin();
+              bElemIter != surfMesh.elementsEnd(); ++bElemIter ) {
+
+            const std::size_t elemID = (*bElemIter) -> getID();
+
+            ElementPtrTuple ept =
+                ElementPtrTuple( *bElemIter,
+                                 field1.elementPtr( elemID ),
+                                 field2.elementPtr( elemID ),
+                                 field3.elementPtr( elemID ),
+                                 field4.elementPtr( elemID ),
+                                 field5.elementPtr( elemID ) );
+                                 
+
+            elementPtrs_.push_back( ept );
+        }
+
+    }
+
+    //! Begin of elements of compound
+    FieldIterator elementsBegin() const
+    {
+        return elementPtrs_.begin();
+    }
+
+    //! End of elements of compound
+    FieldIterator elementsEnd() const
+    {
+        return elementPtrs_.end();
+    }
+
+    /** ´Random-access´ to the pointer tuples
+     *  The local storage contains element-pointer tuples which belong
+     *  the surface (boundary or immersed) of the domain. Consequently
+     *  they are not sorted by their ID. The parameter #e is the ID of
+     *  a volume element and all stored elements will be check in order
+     *  to find this value.
+     *  \param[in] e  ID of volume element to search among surface elements
+     */
+    ElementPtrTuple elementPtr( const std::size_t& e ) const
+    {
+        FieldIterator iter = this -> elementsBegin();
+        while ( ( (*iter).geomElementPtr() -> getID() ) != e )
+            ++iter;
+
+        VERIFY_MSG( iter != (this -> elementsEnd() ),
+                    "Cannot find surface element with that ID" );
+
+        return *iter;
+    }
+
+private:
+    //! Container of element pointer tuples
+    std::vector<ElementPtrTuple> elementPtrs_;
+
+};
+
+#endif

@@ -1,0 +1,163 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   plotOverLine.cpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+//------------------------------------------------------------------------------
+// std includes
+#include <cmath>
+// boost includes
+#include <boost/lexical_cast.hpp>
+#include <boost/format.hpp>
+// vtk includes
+#include <vtkSmartPointer.h>
+#include <vtkDataReader.h>
+#include <vtkXMLDataReader.h>
+#include <vtkXMLUnstructuredGridReader.h>
+#include <vtkXMLStructuredGridReader.h>
+#include <vtkUnstructuredGrid.h>
+#include <vtkStructuredGrid.h>
+#include <vtkPointData.h>
+#include <vtkLineSource.h>
+#include <vtkProbeFilter.h>
+#include <vtkPointSet.h>
+// base/io  includes
+#include <base/io/Format.hpp>
+
+//------------------------------------------------------------------------------
+/** Small tool to plot a solution quantity along a pre-defined line.
+ *  This tool is given a vtu or vts file, the start and end coordinates of a
+ *  line segement in 3D and the resolution along that line.
+ *  It queries the user for the field (and in case of vectors component) to
+ *  extract and produces a simple ascii file with the coordinate along the line
+ *  and the extracted field values. 
+ */
+int main( int argc, char * argv[] )
+{
+    if( argc != 9 ) {
+
+        std::cerr << "Usage: " << argv[0]
+                  << " filename " 
+                  << " x1  y1  z1 "
+                  << " x2  y2  z2 "
+                  << " resolution "
+                  << std::endl; 
+
+        return 1;
+    }
+
+    // User input
+    const std::string filename  = boost::lexical_cast<std::string>( argv[1] );
+    const double      x1        = boost::lexical_cast<double>(      argv[2] );
+    const double      y1        = boost::lexical_cast<double>(      argv[3] );
+    const double      z1        = boost::lexical_cast<double>(      argv[4] );
+    const double      x2        = boost::lexical_cast<double>(      argv[5] );
+    const double      y2        = boost::lexical_cast<double>(      argv[6] );
+    const double      z2        = boost::lexical_cast<double>(      argv[7] );
+    const unsigned    res       = boost::lexical_cast<unsigned>(    argv[8] );
+
+    // check input type
+    bool isVTS;
+    if (      filename.find( ".vts" ) != std::string::npos ) isVTS = true;
+    else if ( filename.find( ".vtu" ) != std::string::npos ) isVTS = false;
+    else {
+        std::cerr << filename << " does not have the right suffix " << std::endl;
+        return 0;
+    }
+
+    // basename
+    const std::string suffix = ( isVTS ? ".vts" : ".vtu" );
+    const std::string baseName = base::io::baseName( filename, suffix );
+
+    //read XML vtk file
+    vtkSmartPointer<vtkXMLDataReader> reader;
+    if ( isVTS ) {
+        reader = vtkSmartPointer<vtkXMLStructuredGridReader>::New();
+    }
+    else {
+        reader = vtkSmartPointer<vtkXMLUnstructuredGridReader>::New();
+    }
+    reader -> SetFileName( filename.c_str() );
+    reader -> Update();
+
+    // line source
+    vtkSmartPointer<vtkLineSource> line = vtkSmartPointer<vtkLineSource>::New();
+    line -> SetPoint1( x1, y1, z1 );
+    line -> SetPoint2( x2, y2, z2 );
+    line -> SetResolution( res );
+    
+    // Set up a probe filter
+    vtkSmartPointer<vtkProbeFilter> probeFilter = vtkSmartPointer<vtkProbeFilter>::New();
+    probeFilter -> SetInputConnection(  line -> GetOutputPort() );
+    probeFilter -> SetSourceConnection( reader -> GetOutputPort() );
+    probeFilter -> Update();
+
+    // get output from probe
+    vtkSmartPointer<vtkPolyData> probeData = probeFilter -> GetPolyDataOutput();
+
+    // point data
+    vtkSmartPointer<vtkPointData> pointData =  probeData -> GetPointData();
+
+    // choose datum
+    unsigned pointDatum;
+    std::cout << "Choose point datum from " << std::endl;
+    const unsigned numPointDataArrays = pointData -> GetNumberOfArrays();
+    for ( unsigned na = 0; na < numPointDataArrays; na ++ ) {
+        const std::string dataName = ( pointData -> GetArray( na ) ) -> GetName();
+        std::cout << "  " << na << ": " << dataName << std::endl;
+    }
+    std::cin >> pointDatum;
+
+    // choose component
+    unsigned datumComponent;
+    const unsigned numArrayComponents =
+        ( pointData -> GetArray( pointDatum ) ) -> GetNumberOfComponents();
+    if ( numArrayComponents > 1 ) {
+        std::cout << " Choose component from 0 to " << numArrayComponents - 1 
+                  << " or magnitude (" << numArrayComponents << ")  : ";
+        std::cin  >> datumComponent;
+    }
+    else datumComponent = 0;
+
+            
+    const std::string dataName = ( pointData -> GetArray( pointDatum ) ) -> GetName();
+    const std::string outFileName = baseName + ".dat";
+    std::ofstream out( outFileName.c_str() );
+
+    out << "# Generated by " << argv[0] << "  " << argv[1] << std::endl
+        << "# along line from (" << x1 << ", " << y1 << ", " << z1 << ") to (" 
+        << x2 << ", " << y2 << ", " << z2 << ") with resolution " << res << std::endl
+        << "# showing "
+        << (datumComponent < numArrayComponents ? "component "   : "magnitude" )
+        << (datumComponent < numArrayComponents ?
+            base::io::leadingZeros( datumComponent, 1 ) : " " )
+        << " of " << dataName << std::endl;
+            
+
+    // write point data
+    for ( unsigned p = 0; p < probeData -> GetNumberOfPoints(); p ++ ) {
+        // write coordinates
+        double * point = probeData -> GetPoint( p );
+        const double arcLength = std::sqrt( (point[0] - x1)*(point[0] - x1) +
+                                            (point[1] - y1)*(point[1] - y1) +
+                                            (point[2] - z1)*(point[2] - z1) );
+        // value
+        double * tuple = (pointData -> GetArray( pointDatum ) ) -> GetTuple( p );
+        const double value = ( datumComponent < numArrayComponents ?  
+                               tuple[ datumComponent ] :
+                               std::sqrt( tuple[0] * tuple[0] + 
+                                          tuple[1] * tuple[1] + 
+                                          tuple[2] * tuple[2] ) );
+
+        // write data
+        out << boost::format( "%1% %|15t|%2% \n" ) 
+            % arcLength % value;
+    }
+    out.close();
+        
+    return 0;
+}

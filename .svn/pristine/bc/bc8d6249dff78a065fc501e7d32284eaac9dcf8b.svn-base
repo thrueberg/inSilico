@@ -1,0 +1,408 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   distanceToElement.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_cut_distanceToElement_hpp
+#define base_cut_distanceToElement_hpp
+//------------------------------------------------------------------------------
+#include <boost/array.hpp>
+
+#include <base/geometry.hpp>
+#include <base/fe/LagrangeElement.hpp>
+#include <base/cut/LevelSet.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace cut{
+
+        template<typename SELEMENT>
+        void distanceToElement( const SELEMENT* surfEp,
+                                const bool isSigned, 
+                                base::cut::LevelSet<SELEMENT::Node::dim>& ls );
+
+        //----------------------------------------------------------------------
+        template<typename VECDIM>
+        VECDIM closestPointToLine( const VECDIM& x1, const VECDIM& x2,
+                                   const VECDIM& x );
+
+        base::Vector<3,double>::Type
+        closestPointToTriangle( const base::Vector<3,double>::Type& x1,
+                                const base::Vector<3,double>::Type& x2,
+                                const base::Vector<3,double>::Type& x3,
+                                const base::Vector<3,double>::Type& x  );
+        
+        base::Vector<3,double>::Type
+        closestPointToQuadrilateral( const base::Vector<3,double>::Type& x1,
+                                     const base::Vector<3,double>::Type& x2,
+                                     const base::Vector<3,double>::Type& x3,
+                                     const base::Vector<3,double>::Type& x4,
+                                     const base::Vector<3,double>::Type& x  );
+
+        //----------------------------------------------------------------------
+        namespace detail_{
+
+            //------------------------------------------------------------------
+            template<unsigned DIM, base::Shape SHAPE> struct ComputeClosestPoint;
+
+            template<unsigned DIM>
+            struct ComputeClosestPoint<DIM,base::LINE>
+            {
+                typedef typename base::Vector<DIM,double>::Type VecDim;
+                    
+                template<typename ARRAY>
+                static VecDim apply( const ARRAY& array, const VecDim& x )
+                {
+                    return base::cut::closestPointToLine( array[0], array[1], x );
+                }
+            };
+
+            template<unsigned DIM>
+            struct ComputeClosestPoint<DIM,base::TRI>
+            {
+                typedef typename base::Vector<DIM,double>::Type VecDim;
+                    
+                template<typename ARRAY>
+                static VecDim apply( const ARRAY& array, const VecDim& x )
+                {
+                    return base::cut::closestPointToTriangle( array[0], array[1],
+                                                              array[2], x );
+                }
+            };
+
+            template<unsigned DIM>
+            struct ComputeClosestPoint<DIM,base::QUAD>
+            {
+                typedef typename base::Vector<DIM,double>::Type VecDim;
+                    
+                template<typename ARRAY>
+                static VecDim apply( const ARRAY& array, const VecDim& x )
+                {
+                    return base::cut::closestPointToQuadrilateral( array[0], array[1],
+                                                                   array[2], array[3],
+                                                                   x );
+                }
+            };
+
+            //------------------------------------------------------------------
+            template<unsigned DIM> struct ComputeSide;
+            template<> struct ComputeSide<2>;
+            template<> struct ComputeSide<3>;
+            
+        } // namespace detail_
+
+        
+    }
+}
+
+//------------------------------------------------------------------------------
+/** Compute the distance between a point and an element.
+ *
+ */
+template<typename SELEMENT>
+void base::cut::distanceToElement( const SELEMENT* surfEp,
+                                   const bool isSigned, 
+                                   base::cut::LevelSet<SELEMENT::Node::dim>& ls )
+{
+    typedef base::cut::LevelSet<SELEMENT::Node::dim> LevelSet;
+        
+    // type of an equivalent lagrange element
+    typedef base::fe::LagrangeElement<SELEMENT::shape,
+                                      SELEMENT::GeomFun::degree> LagrangeElement;
+
+    // get interpolation support points of the lagrange element
+    static const unsigned numPoints = LagrangeElement::ShapeFun::numFun;
+    boost::array<typename LagrangeElement::ShapeFun::VecDim,
+                 numPoints> supportPoints;
+    LagrangeElement::ShapeFun::supportPoints( supportPoints );
+
+    // compute the corresponding global coordinates
+    boost::array<typename SELEMENT::Node::VecDim, numPoints> globalX;
+    for ( unsigned p = 0; p < numPoints; p++ ) {
+
+        globalX[p] =
+            base::Geometry<SELEMENT>()( surfEp, supportPoints[p] );
+    }
+
+    // compute the closest point
+    const typename LevelSet::VecDim x = ls.getX();
+    const typename LevelSet::VecDim closestPoint =
+        detail_::ComputeClosestPoint<LevelSet::dim,
+                                     SELEMENT::shape>::apply( globalX, x );
+                                                                        
+    // distances
+    const double oldDistance = ls.getUnsignedDistance();
+    const double newDistance = base::norm(x - closestPoint);
+
+    // if new distances is shorter, update the level set data
+    if ( newDistance < oldDistance ) {
+
+        // set closest point and element
+        ls.setClosestPoint( closestPoint );
+        ls.setClosestElement( surfEp -> getID() );
+
+        // for signed distances, check the side of point
+        if ( isSigned ) {
+            const bool isInside
+                = detail_::ComputeSide<LevelSet::dim>::apply( globalX, x );
+            if ( isInside ) ls.setInterior();
+            else            ls.setExterior();
+        }
+    }
+    
+    
+    return;
+}
+
+//------------------------------------------------------------------------------
+/** Compute the point on a line element closest to a given point.
+ *  With the line element's parameterisation, any point in space can be
+ *  expressed as 
+ *  \f[
+ *         x(\xi,\eta) = a + (b - a) \xi + n \eta
+ *  \f]
+ *  with \f$ n \f$ a vector orthogonal to the line element. Now a dot-product
+ *  of this representation with a the tangent \f$ t = x_2 - x_1 \f$ gives
+ *  in case of a give point \f$ x \f$
+ *  \f[
+ *         (t, t) \xi = (p - a, t)
+ *  \f]
+ *  The code makes use of Ericson's (Real-time collision detection, 5.1.2)
+ *  optimised version which defers the division until really necessary.
+ *  The code is copied from the book and adapted to this code's conventions.
+ *  \tparam VECDIM Type of vector (should be 2D or 3D)
+ *  \param[in] a, b  Begin and end points of the line segment
+ *  \param[in] p     Point to which the closest point is sought
+ *  \return          Cloeset point on the segment (a,b) to p
+ */
+template<typename VECDIM>
+VECDIM base::cut::closestPointToLine( const VECDIM& a, const VECDIM& b,
+                                      const VECDIM& p )
+{
+    // tangent vector
+    const VECDIM t = b - a;
+    
+    // Project c onto ab, but deferring divide by Dot(ab, ab)
+    const VECDIM pa = p - a;
+    double xi = base::dotProduct( pa, t);
+
+    if (xi <= 0.0) {
+        // c projects outside the [a,b] interval, on the a side; clamp to a
+        // t = 0.0;
+        return a;
+    }
+    else {
+        const double denom = base::dotProduct(t, t);
+        // Always nonnegative since denom = |ab|^2
+        if (xi >= denom) {
+            // c projects outside the [a,b] interval, on the b side; clamp to b
+            //t = 1.0;
+            return b;
+        }
+        else {
+            // c projects inside the [a,b] interval; must do deferred divide now
+            xi /= denom;
+        }
+    }
+    
+    return a + xi * t;
+    
+}
+
+//------------------------------------------------------------------------------
+/** Compute the point in a triangle closest to a given point.
+ *  Given a point \f$ p \f$ and a triangle spanned by \f$ a \f$, \f$ b \f$ and
+ *  \f$ c \f$, this point can be represented as
+ *  \f[
+ *      p = p(s,t) = a + (b-a) s + (c-a) t + n w
+ *                 = a (1-s-t) + b s + c t + n w
+ *  \f]
+ *  with the bary-centric coordiantes \f$ u = 1 - s - t \f$, \f$ s \f$ and
+ *  \f$ t \f$. \f$ s \f$ and \f$ t \f$ can be computed by taking the dot-
+ *  products of this representation with the tangent vectors \f$ b-a \f$ and
+ *  \f$ c-a \f$ respectively. But if the resulting projection
+ *  \f[
+ *      p^\prime = a + (b-a) s + (c-a) t
+ *  \f]
+ *  is not inside the triangle, vertices and edges have to be tested in order
+ *  to find the true point inside the triangle closest to \f$ p \f$.
+ *  The following code does this in an optimised fashion and is copied and
+ *  adapted from Ericson's book Real-time collision detection, chapter 5.1.5.
+ *  \param[in] a, b, c  The vertices of the triangle
+ *  \param[in] p        The point whose closest point is sought
+ *  \return             Closest point inside the triangle to p
+ */
+base::Vector<3,double>::Type
+base::cut::closestPointToTriangle( const base::Vector<3,double>::Type& a,
+                                   const base::Vector<3,double>::Type& b,
+                                   const base::Vector<3,double>::Type& c,
+                                   const base::Vector<3,double>::Type& p  )
+{
+    typedef base::Vector<3,double>::Type Vec3;
+    
+    // Check if P in vertex region outside A
+    const Vec3 ab = b - a;
+    const Vec3 ac = c - a;
+    const Vec3 ap = p - a;
+    const double d1 = base::dotProduct(ab, ap);
+    const double d2 = base::dotProduct(ac, ap);
+    if ( (d1 <= 0.0) and (d2 <= 0.0) ) return a; // barycentric coordinates (1,0,0)
+    
+    // Check if P in vertex region outside B
+    const Vec3 bp = p - b;
+    const double d3 = base::dotProduct(ab, bp);
+    const double d4 = base::dotProduct(ac, bp);
+    if ( (d3 >= 0.0) and (d4 <= d3) ) return b; // barycentric coordinates (0,1,0)
+    
+    // Check if P in edge region of AB, if so return projection of P onto AB
+    const double vc = d1 * d4 - d3 * d2;
+    if ( (vc <= 0.0) and (d1 >= 0.0) and (d3 <= 0.0)) {
+        const double v = d1 / (d1 - d3);
+        return a + v * ab; // barycentric coordinates (1-v,v,0)
+    }
+    
+    // Check if P in vertex region outside C
+    const Vec3   cp = p - c;
+    const double d5 = base::dotProduct(ab, cp);
+    const double d6 = base::dotProduct(ac, cp);
+    if ( (d6 >= 0.0) and (d5 <= d6)) return c; // barycentric coordinates (0,0,1)
+
+    // Check if P in edge region of AC, if so return projection of P onto AC
+    const double vb = d5 * d2 - d1 * d6;
+    if ( (vb <= 0.0) and (d2 >= 0.0) and (d6 <= 0.0) ) {
+        const double w = d2 / (d2 - d6);
+        return a + w * ac; // barycentric coordinates (1-w,0,w)
+    }
+    
+    // Check if P in edge region of BC, if so return projection of P onto BC
+    const double va = d3 * d6 - d5 * d4;
+    if ( (va <= 0.0) and ((d4 - d3) >= 0.0) and ((d5 - d6) >= 0.0)) {
+        const double w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        return b + w * (c - b); // barycentric coordinates (0,1-w,w)
+    }
+    
+    // P inside face region. Compute Q through its barycentric coordinates (u,v,w)
+    const double denom = 1.0 / (va + vb + vc);
+    const double v = vb * denom;
+    const double w = vc * denom;
+    return a + ab * v + ac * w; // = u*a + v*b + w*c, u = va * denom = 1.0-v-w
+}
+
+//------------------------------------------------------------------------------
+/** Compute the point closest inside a quadrilateral to a given point.
+ *  For simplicity the given quadrilateral is subdivided into two triangles,
+ *  the closest points w.r.t. each triangle are computed and the closer one
+ *  is returned.
+ *  \param[in] x1, x2, x3, x4  The four vertices of the quadrilateral
+ *  \param[in] x               Point of interest
+ *  \return                    Cloesest point to p inside the quadrilateral
+ */
+base::Vector<3,double>::Type
+base::cut::closestPointToQuadrilateral( const base::Vector<3,double>::Type& x1,
+                                        const base::Vector<3,double>::Type& x2,
+                                        const base::Vector<3,double>::Type& x3,
+                                        const base::Vector<3,double>::Type& x4,
+                                        const base::Vector<3,double>::Type& x  )
+{
+    typedef base::Vector<3,double>::Type Vec3;
+
+    // First triangle
+    const Vec3 cp1 = closestPointToTriangle( x1, x2, x3, x );
+    // Second triangle
+    const Vec3 cp2 = closestPointToTriangle( x1, x3, x4, x );
+
+    // distances squared
+    const double dist1 = base::dotProduct( cp1 - x, cp1 - x );
+    const double dist2 = base::dotProduct( cp2 - x, cp2 - x );
+
+    // return the closer point
+    if ( dist1 < dist2 ) return cp1;
+
+    return cp2;
+    
+}
+
+//------------------------------------------------------------------------------
+template<>
+struct base::cut::detail_::ComputeSide<2>
+{
+    /** Compute the side of the line on which a point lies.
+     *  Check the sign of the dot-product of the normal vector with the
+     *  distance vector. Let \f$ a \f$ and \f$ b \f$ be the lines end vertices,
+     *  then we have \f$ t = b - a \f$ as the tangent vector and by convention
+     *  \f[
+     *       n_0 = (b_1 - a_1)  \quad n_1 = -(b_0 - a_0)
+     *  \f]
+     *  the components of the normal vector. This vector is obviously
+     *  perpendicular. Moreover, moving from \f$ a \f$ to \f$ b \f$ it points
+     *  to the right. Imagine a circular domain composed of line segments. It
+     *  is common to define the surface orientation as positive if it 'moves'
+     *  counter clockwise around the center. A positive normal vector points
+     *  to the outside of the domain and thus to the right if one moves in
+     *  positive direction along the circle. Here, we test the sign of the
+     *  dot-product of the normal with the vector pointing from \f$ a \f$ to
+     *  \f$ p \f$.  If the sign is positive, the point lies on the side where
+     *  the normal vector points and thus outside of the domain.  Otherwise it
+     *  is inside the domain.
+     *  Convention: inside the domain -> return true
+     *              outside           -> return false
+     *  \tparam ARRAY Type of arry with element vertices
+     *  \param[in] array Element's vertices
+     *  \param[in] p     Point to check
+     *  \return          Boolean indicating the side
+     */
+    template<typename ARRAY>
+    static bool apply( const ARRAY& array,
+                       const base::Vector<2,double>::Type& p )
+    {
+        const double crit =
+            (array[1][1] - array[0][1])*(p[0] - array[0][0]) -
+            (array[1][0] - array[0][0])*(p[1] - array[0][1]);
+                    
+        return  (crit <= 0.);
+    }
+};
+
+//------------------------------------------------------------------------------
+template<>
+struct base::cut::detail_::ComputeSide<3>
+{
+    /** Compute the side of a triangle on which a given point lies.
+     *  By constructing the normal vector as the cross product of the two
+     *  vectors spanning the triangle, the sign of the dot-product of this
+     *  normal with the vector pointing from the triangles origin point to the
+     *  point of interest reveals the side of the point.
+     *  If this product is positive, the point lies in direction of the normal
+     *  and thus outside of the domain (assuming a positive surface
+     *  orientation), otherwise it is inside.
+     *  \tparam ARRAY Type of arry with element vertices
+     *  Convention: inside the domain -> return true
+     *              outside           -> return false
+     *  \param[in] array Element's vertices
+     *  \param[in] p     Point to check
+     *  \return          Boolean indicating the side
+     */
+    template<typename ARRAY>
+    static bool apply( const ARRAY& array,
+                       const base::Vector<3,double>::Type& p )
+    {
+        const base::Vector<3,double>::Type
+            normal = base::crossProduct( array[1] - array[0],
+                                         array[2] - array[0] );
+        const base::Vector<3,double>::Type aux = p - array[0];
+        const double crit   = base::dotProduct( normal, aux ); 
+
+        return (crit <= 0.);
+    }
+    
+};
+
+
+            
+
+
+#endif

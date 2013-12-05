@@ -1,0 +1,237 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   sampleStructured.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_samplestructured_hpp
+#define base_samplestructured_hpp
+
+//------------------------------------------------------------------------------
+// std includes
+#include <bitset>
+// boost includes
+#include <boost/function.hpp>
+#include <boost/bind.hpp>
+// base includes
+#include <base/MultiIndex.hpp>
+// base/mesh includes
+#include <base/mesh/Structured.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace mesh{
+
+        template<unsigned DIM, typename SAMPLINGACTION>
+        void sampleStructured( const typename base::MultiIndex<DIM>::Type& gridSizes,
+                               SAMPLINGACTION& samplingAction,
+                               const unsigned resolution = 1,
+                               const bool     discont = false );
+
+        //----------------------------------------------------------------------
+        namespace detail_{
+
+            //! Define sampling function
+            template<typename ELEMENT>
+            struct GridSampler
+            {
+                typedef
+                boost::function<void( const std::size_t,
+                                      const typename
+                                      base::GeomTraits<ELEMENT>::LocalVecDim& )>
+                Type;
+            };
+
+            //! Sample the geometry of the grid
+            template<typename GRID, typename OUTITER>
+            struct GeometrySampling
+            {
+                typedef typename GRID::Element Element;
+                
+                static void apply( const std::size_t eIndex,
+                                   const typename base::GeomTraits<Element>::LocalVecDim& xi,
+                                   const GRID& grid, OUTITER outIter )
+                {
+                    const Element* const ep = grid.elementPtr( eIndex );
+
+                    *outIter++ = base::Geometry<Element>()( ep, xi );
+                }
+            };
+
+        }
+
+        //! Special case: Field=Grid and sampling of geometry
+        template<typename GRID, typename OUTITER>
+        void sampleGridGeometry( const GRID& grid,
+                                 OUTITER        outputIter,
+                                 const unsigned resolution = 1 )
+        {
+            typename detail_::GridSampler<typename GRID::Element>::Type
+                sampler =
+                boost::bind( &detail_::GeometrySampling<GRID,OUTITER>::apply,
+                             _1, _2, boost::ref( grid ), outputIter );
+
+            sampleStructured<GRID::dim>( grid.gridSizes(), sampler,
+                                         resolution, false );
+        }
+
+    }
+}
+
+//------------------------------------------------------------------------------
+/** Sample a structured grid with a given operation.
+ *  Given the dimensions of a structured grid and a resolution, this function
+ *  generates a sampling grid by generating pairs of element numbers and local
+ *  evaluation coordinates. These pairs are passed onwards to a sampling
+ *  operation which is provided by the caller.
+ *  Consider for example a 2x2 grid in 2D with resolution equal to two. In this
+ *  case the sampling grid looks like
+ *  \code{.txt}
+ *
+ *        (*)---*---(*)---*---(*)
+ *         |         |         |
+ *         |         |         |
+ *         *    *    *    *    *           ( )  original grid point
+ *         |         |         |
+ *         |         |         |            *   sampling point
+ *        (*)---*---(*)---*---(*)
+ *         |         |         |
+ *         |         |         |
+ *         *    *    *    *    * <------ Example: 
+ *         |         |         |           Element number:    1
+ *         |         |         |           Local coordinate: (1,0.5)
+ *        (*)---*---(*)---*---(*)
+ *
+ *  \endcode
+ *  Furthermore, if the a discontinuity flag is set to true (default false),
+ *  sampling will take place for every element without considering continuity
+ *  across elements. This can be used to sample cell data.
+ *  Moreover, if the resolution is set to zero the convention is to only sample
+ *  at element mid points.
+ *
+ *  \tparam DIM               Dimension of the grid (manifold dimension)
+ *  \tparam SAMPLINGACTION    Type of sampling action (void( elemIndex, xi ) )
+ *  \param[in] gridSizes      Dimensions of the grid
+ *  \param[in] samplingAction Operation to apply to the pair element No and xi
+ *  \param[in] resolution     Sub-sampling resolution
+ *  \param[in] discont        Flag for discontinuous sampling
+ */
+template<unsigned DIM, typename SAMPLINGACTION>
+void base::mesh::sampleStructured( const typename base::MultiIndex<DIM>::Type& gridSizes,
+                                   SAMPLINGACTION& samplingAction,
+                                   const unsigned resolution,
+                                   const bool     discont  )
+{
+    // Local space dimension
+    static const unsigned dim = DIM; 
+
+    // Multi-index structures
+    typedef base::MultiIndex<dim>          MultiIndex;
+    typedef typename MultiIndex::Type      MultiIndexType;
+
+    // Vector of local coordinates
+    typedef typename base::VectorType<dim,double>::Type LocalVecDim;
+
+    // number of sampling points per direction
+    const unsigned numSamplesPerDir = ( resolution == 0 ? 1 : resolution );
+
+    // Samples multi-index
+    MultiIndexType samples = MultiIndexType::Constant( numSamplesPerDir );
+
+    // Subsample sizes
+    const LocalVecDim subSizes =  1. / samples.template cast<double>();
+
+    // increase the local sampling to capture right boundary
+    if ( resolution > 0 ) samples += 1;
+
+    // For mid-point sampling, shift the values
+    const LocalVecDim shift = ( resolution == 0 ?
+                                LocalVecDim::Constant( 0.5 ) :
+                                LocalVecDim::Constant( 0.  ) );
+
+    // Sub-sampled grid size
+    const MultiIndexType gridSamples = samples * gridSizes;
+
+    // Total number of sampling points
+    const std::size_t numTotal = MultiIndex::length( gridSamples );
+
+    // go through all elements and sampling points
+    for ( std::size_t es = 0; es < numTotal; es ++ ) {
+
+        // Wrap global counter back to global multi-index
+        const MultiIndexType gM = MultiIndex::wrap( es, gridSamples );
+
+        // Compute element counter by division
+        const MultiIndexType eM = gM / samples;
+
+        // Compute sampling counter by subtraction
+        const MultiIndexType sM = gM - (samples * eM );
+
+        //------------------------------------------------------------------
+        // Check if point is to be sampled
+        bool sampleValue = false;
+            
+        // In case of a discontinous field, always sample
+        if ( discont or ( resolution == 0 ) ) sampleValue = true;
+
+        // If this is not the case check if the point is
+        // an interior sampling point or on the right edge
+        // of a right-most element
+        if ( not sampleValue ) {
+
+
+            // Flags for last element and sample points per direction
+            std::bitset<dim> lastElement;
+            std::bitset<dim> lastSample;
+            for ( unsigned d = 0; d < dim; d ++ ) {
+                if ( eM[d] == gridSizes[d]-1 ) lastElement.set(d);
+                if ( sM[d] == samples[d]  -1 ) lastSample.set(d);
+            }
+
+            // for interior sampling, always perform
+            if ( lastSample.none() ) sampleValue = true;
+            else {
+                // In the very last (corner) element, evaluate all points
+                if ( lastElement.count() == dim ) sampleValue = true;
+
+                // If the flags are identical, evaluate
+                if ( lastElement == lastSample ) sampleValue = true;
+
+                // A serious hack for having the right sampling in 3D
+                if ( ( lastSample & lastElement ).count() ) {
+                    
+                    if ( ( lastElement.count() == 2 ) and
+                         ( lastSample.count() == 1 ) ) {
+                        sampleValue = true;
+                    }
+                }
+                
+            }
+            
+        }
+
+        // Sample
+        if ( sampleValue ) {
+
+            // Generate a local coordinate from multi-index
+            LocalVecDim xi;
+            for ( unsigned d = 0; d < dim; d++ )
+                xi[d] =  static_cast<double>( sM[d] ) * subSizes[d];
+            xi += shift;
+
+            // linear index
+            const std::size_t linearIndex = MultiIndex::unwrap( eM, gridSizes );
+            
+            // sample operation
+            samplingAction( linearIndex, xi );
+        }
+           
+    }// end loop over sampling points
+
+    return;
+}
+
+#endif

@@ -1,0 +1,535 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   sgf/Reader.hpp
+//! @author Thomas Rueberg
+//! @date   2012
+
+#ifndef base_io_sgf_reader_hpp
+#define base_io_sgf_reader_hpp
+
+//------------------------------------------------------------------------------
+// std   includes
+#include <istream>
+#include <limits>
+#include <vector>
+// boost includes
+#include <boost/array.hpp>
+// base includes
+#include <base/verify.hpp>
+#include <base/MultiIndex.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace io{
+        namespace sgf{
+
+            template<typename GRID>
+            class Reader;
+
+            namespace detail_{
+
+                //! Copy in- to output
+                template<unsigned DIM>
+                struct PlainNodeCopy;
+
+                //! Create grid nodes for B-Spline geometry fun
+                template<unsigned DIM, unsigned DEGREE>
+                struct CreateGridNodesFromBSplines;
+
+                //! Linear case: just copy
+                template<unsigned DIM>
+                struct CreateGridNodesFromBSplines<DIM,1>
+                    : public PlainNodeCopy<DIM>
+                { };
+
+                //! Create grid nodes for Lagrangian geometry fun
+                template<unsigned DIM, unsigned DEGREE>
+                struct CreateGridNodesFromLagrangian;
+
+                //! Linear case: just copy
+                template<unsigned DIM>
+                struct CreateGridNodesFromLagrangian<DIM,1>
+                    : public PlainNodeCopy<DIM>
+                { };
+
+            }
+
+        }
+    }
+}
+
+//------------------------------------------------------------------------------
+/** Read a structured mesh (i.e. Grid) from an SGF file.
+ *  The sgf file format (base::io::sgf) defines a structured mesh by providing
+ *  the node coordinates in a lexicographic ordering which implicitly defines
+ *  the element connectivity. This class reads such a file and fills the grid
+ *  container with node coordinates and assigns the node pointers to the
+ *  elements.
+ *
+ *  ### B-Spline grid ###
+ *  In case of B-Spline geometry shape functions of degree larger than one,
+ *  auxiliary nodes have to be constructed in order to represent the given grid.
+ *  Consider the following 1D example of 3x 0 x 0 grid:
+ *  \code{.txt}
+ *
+ *          0 ----- 1 ----- 2 ----- 3
+ *  \endcode
+ *  In case of linear shape functions, the above nodes are directly used for
+ *  the grid geometry. In general, we have 
+ *  \f[
+ *         x(\xi) = \sum_{i}  B^p_i(\xi) x_i
+ *  \f]
+ *  for a B-Spline representation of the geometry. For spline degrees
+ *  \f$ p > 1 \f$ the given node coordinates are not sufficient for the above
+ *  represenation and therefore auxiliary nodes have to be created.
+ *
+ *  #### Auxiliary grid ####
+ *  The first step in this procedure is to create an auxiliary grid which
+ *  embeds the given grid with a sufficient frame. The auxiliary nodes are
+ *  outside of the given grid and constructed by mirroring the interior grid
+ *  points. The frame around the given grid has the size \f$ p /2 \f$ (integer
+ *  division!). Assume in this example that either \f$ p = 4 \f$ or
+ *  \f$ p = 5 \f$. In both cases, the size is \f$ p /2 = 2 \f$ and we
+ *  construct
+ *  \code{.txt}
+ *
+ *     2' ~~~~~ 1' ~~~~~ 0 ----- 1 ----- 2 ----- 3 ----- 4 ~~~~~ 3' ~~~~~ 2'
+ *
+ *  \endcode
+ *  The auxiliary nodes \f$ x^\prime_j \f$ are constructed such that
+ *  \f[
+ *       x^\prime_j  + x_j = 2 x^*
+ *  \f]
+ *  with \f$ x^* = x_{min} = x_0 \f$ at the left and
+ *  \f$ x^* = x_{max} = x_4 \f$ at the right end. In spatial dimensions
+ *  larger than one, the same formula is used but the points \f$ x^* \f$ are
+ *  then the closest boundary points to \f$ x^\prime_j \f$.
+ *
+ *  #### %Geometry coefficients ####
+ *  The next step is to identify the geometry coefficients \f$ x_i \f$ of the
+ *  representation. In case of odd spline degrees, hence in our example for
+ *  the case of \f$ p = 5 \f$, the auxiliary grid including the given grid
+ *  provides the set of nodes which are used for the geometry representation.
+ *  In the case of even splines, e.g. \f$ p = 4 \f$, the midpoints of every
+ *  grid cell (auxiliary and given) are used for the geometry representation.
+ *  In our example with \f$ p = 4 \f$ we get
+ *  \code{.txt}
+ *
+ *         (0)      (1)     (2)     (3)     (4)     (5)     (6)      (8)
+ *     2' ~~x~~ 1' ~~x~~ 0 --x-- 1 --x-- 2 --x-- 3 --x-- 4 ~~x~~ 3' ~~x~~ 2'
+ *
+ *  \endcode
+ *  and the crosses denote the locations of the \f$ x_i \f$ with the numbering
+ *  given in parenthesis, i.e. \f$ (i) \f$.
+ *
+ *  #### Element Connectivity ####
+ *  The element connectivity is implied by the node ordering and not given
+ *  explicity in the sgf file. In case of the B-Spline representation as above,
+ *  every element has an array of dimension \f$ (p+1)^d \f$, \f$ d \f$ beign
+ *  the spatial dimension, of B-Splines which are non-zero on it. For our
+ *  \f$ d = 1 \f$ example we get \f$ [j, j+1, ..., j+p] \f$ as the indices
+ *  of non-zero splines on the element with index \f$ j \f$. The extension to
+ *  \f$ d > 1 \f$ is straightforward with the help of multi-indices.
+ *
+ *  \tparam GRID Type of Grid container
+ */
+template<typename GRID>
+class base::io::sgf::Reader
+{
+public:
+    //! Template parameter: Type of grid
+    typedef GRID Grid;
+
+    //! Some useful attributes
+    //@{
+    static const unsigned gridDim  = Grid::dim;
+    static const unsigned coordDim = Grid::Node::dim;
+    static const unsigned degree   = Grid::degree;
+    //@}
+
+    //! Structure for creating grid nodes
+    typedef typename
+    base::IfElse< Grid::isLagrangeFun,
+                  detail_::CreateGridNodesFromLagrangian<gridDim,degree>,
+                  detail_::CreateGridNodesFromBSplines<  gridDim,degree> >::Type
+    CreateGridNodes;
+
+    // Sanity checks due to limitation of this implementation
+    STATIC_ASSERT_MSG( not Grid::isLagrangeFun, "Lagrangian grid not implemented" );
+    STATIC_ASSERT_MSG( (Grid::ShapeFun1D::continuity == degree-1),
+                       "Only maximally continuous B-Splines are implemented here" );
+
+    //! @name Multi-index related typedefs
+    //@{
+    typedef typename Grid::MultiIndex       MI;
+    typedef typename Grid::MultiIndexType   MIT;
+    //@}xs
+
+    void operator()( Grid & grid, std::istream & sgf ) const
+    {
+        // Read grid dimensions from stream
+        const MIT gridSize = this -> readGridSize( sgf );
+
+        // Allocate grid
+        grid.allocate( gridSize );
+
+        // Read coordinates and set grid nodes
+        this -> readAndSetNodes_( grid, sgf );
+
+        // Pass node pointers to elements
+        this -> setElements_( grid );
+        
+    }
+
+private:
+    // Read the first three numbers of the grid file for grid sizes
+    MIT readGridSize( std::istream & sgf ) const
+    {
+        // Skip comment lines
+        const char commentChar = '#';
+        while ( sgf.peek() == commentChar )
+            sgf.ignore( std::numeric_limits<std::streamsize>::max(), '\n' );
+
+        // Read the following line
+        boost::array<unsigned,3> gridSize;
+        for ( unsigned s = 0; s < 3; s ++ ) {
+            sgf >> gridSize[s];
+            if ( gridDim > s ) 
+                VERIFY_MSG( (gridSize[s] > 0 ),
+                            "Grid dimensions are incorrect" );
+                    
+        }
+
+        sgf.ignore( std::numeric_limits<std::streamsize>::max(), '\n' );
+
+        // Convert to return type
+        MIT result;
+        for ( unsigned d = 0; d < gridDim; d ++ )
+            result[d] = gridSize[d];
+
+        return result;
+    }
+
+    // Read the nodes from the grid file
+    void readAndSetNodes_( Grid & grid, std::istream & sgf ) const
+    {
+        // The sizes of the grid -> determines the number of points in the file
+        const typename Grid::MultiIndexType gridSizes = grid.gridSizes();
+
+        // The node numbers in the grid
+        const typename Grid::MultiIndexType nodeNumbers = gridSizes + 1;
+
+        // The total number of nodes in this grid
+        const std::size_t numNodes = Grid::MultiIndex::length( nodeNumbers );
+
+        // Vector of nodes to be read from file
+        std::vector<typename Grid::Node::VecDim> nodesFromFile( numNodes );
+
+        // Read from file
+        for ( unsigned n = 0; n < numNodes; n ++ ) {
+
+            typename Grid::Node::VecDim x;
+            for ( unsigned d = 0; d < coordDim; d ++ )
+                sgf >> x[d];
+
+            sgf.ignore( std::numeric_limits<std::streamsize>::max(), '\n' );
+
+            nodesFromFile[n] = x;
+        }
+
+        // Grid's node accessor
+        typename Grid::NodePtrIter nodeIter = grid.nodesBegin();
+        typename Grid::NodePtrIter nodeEnd  = grid.nodesEnd();
+
+        // Container for grid nodes
+        std::vector<typename Grid::Node::VecDim> gridNodes;//( numGridNodes );
+
+        // Create proper set of nodes which determines the grid
+        CreateGridNodes::apply( nodesFromFile, gridNodes, gridSizes );
+
+        //
+        const MIT nNodesPerDir = gridSizes + degree;
+
+        // Set grid nodes
+        std::size_t ctr = 0;
+        for ( ; nodeIter != nodeEnd; ++nodeIter, ctr++ ) {
+
+            // copy to temporary
+            std::vector<double> xTemp;
+            for ( unsigned d = 0; d < coordDim; d ++ )
+                xTemp.push_back( gridNodes[ctr][d] );
+
+            (*nodeIter) -> setID( ctr );
+            (*nodeIter) -> setX( xTemp.begin() );
+            
+        }
+
+        return;
+    }
+
+    //--------------------------------------------------------------------------
+    void setElements_( Grid & grid ) const
+    {
+        // The sizes of the grid -> determines the number of points in the file
+        const MIT gridSizes = grid.gridSizes();
+
+        // Go through all elements of the grid
+        typename Grid::ElementPtrIter elem = grid.elementsBegin();
+        typename Grid::ElementPtrIter last = grid.elementsEnd();
+        for ( unsigned e = 0; elem != last; ++elem, e++ ) {
+
+            // multi-index of the element
+            const MIT eM = MI::wrap( e, gridSizes );
+
+            // lowest node index of considered element
+            const MIT nLowest =  eM;
+
+            // Go through all nodes per element
+            const MIT nNodesPerDir         = MIT::Constant( degree + 1 );
+            const unsigned nNodePerElement = MI::length( nNodesPerDir );
+
+            typename Grid::Element::NodePtrIter eNode = (*elem) -> nodesBegin();
+            for ( unsigned n = 0; n < nNodePerElement; n++, ++eNode ) {
+
+                // Local node multi-index
+                const MIT nLocal = MI::wrap( n, nNodesPerDir );
+
+                // Global node multi-index
+                const MIT nGlobal = nLowest + nLocal;
+
+                // Pass node pointer to element
+                (*eNode) = grid.nodePtr( nGlobal );
+            }
+
+            // pass linear ID to element
+            (*elem) -> setID( e );
+
+        }
+    }
+
+};
+
+//------------------------------------------------------------------------------
+/**  Copy contents of input vector of coordinates to the output vector
+ *   \tparam DIM Spatial dimension of the nodal coordinates
+ */
+template<unsigned DIM>
+struct base::io::sgf::detail_::PlainNodeCopy
+{
+    typedef typename base::VectorType<DIM>::Type VecDim;
+    typedef typename base::MultiIndex<DIM>::Type MIT;
+
+    static void apply( std::vector<VecDim> & in,
+                       std::vector<VecDim> & out,
+                       const  MIT & dummy )
+    {
+        // Copy input
+        out = in;
+        // Destroy input
+        std::vector<VecDim>().swap( in );
+    }
+
+};
+
+//------------------------------------------------------------------------------
+template<unsigned DIM, unsigned DEGREE>
+struct base::io::sgf::detail_::CreateGridNodesFromBSplines
+{
+    typedef typename base::VectorType<DIM>::Type VecDim;
+    typedef base::MultiIndex<DIM>                MI;
+    typedef typename MI::Type                    MIT;
+
+    typedef CreateGridNodesFromBSplines<DIM,DEGREE> SelfType;
+
+    static void apply( std::vector<VecDim> & in,
+                       std::vector<VecDim> & out,
+                       const MIT & gridSizes ) 
+    {
+        // dimensions of auxiliary grid
+        const MIT dimAux = gridSizes + (2 * (DEGREE/2) + 1);
+
+        // total number of auxiliary grid
+        const std::size_t numAuxNodes = MI::length( dimAux );
+            
+        // array of auxiliary grid nodes (initialised with invalid ones)
+        const VecDim invalid = base::invalidVector<DIM>();
+        std::vector<VecDim> auxNodes( numAuxNodes, invalid );
+
+        // fill array of auxiliary nodes with nodes from input
+        SelfType::copyInputNodesToAuxGrid_( in, auxNodes, gridSizes );
+
+        // destroy storage of input nodes
+        std::vector<VecDim>().swap( in );
+
+        // fill the surrounding patches
+        SelfType::patchAuxGrid_( auxNodes, gridSizes );
+
+        // create control point grid in function of the degree
+        if ( DEGREE % 2 == 1 ) { // odd degree -> simply copy
+            base::io::sgf::detail_::PlainNodeCopy<DIM>::apply( auxNodes, out, gridSizes );
+        }
+        else { // even degree create grid from midpoints
+
+            // dimensions of node array
+            const MIT dimNodes = dimAux - 1;
+
+            // total number of nodes
+            const std::size_t numNodes = MI::length( dimNodes );
+
+            // provide storage
+            out.resize( numNodes );
+            
+            // go through all new nodes
+            for ( unsigned n = 0; n < numNodes; n ++ ) {
+
+                // Make multi-index from linear node index
+                const MIT nM = MI::wrap( n, dimNodes );
+
+                // number of surrounding auxiliary nodes
+                const MIT nSurroundM = MIT::Constant( 2 );
+
+                // linearised
+                const unsigned nSurround = MI::length( nSurroundM );
+
+                // storage of new coordinate
+                VecDim midPoint = base::constantVector<DIM>( 0. );
+
+                // averaging factor
+                const double factor = 1. / static_cast<double>( nSurround );
+
+                // go through surrounding nodes
+                for ( unsigned s = 0; s < nSurround; s ++ ) {
+
+                    // local multi-index
+                    const MIT localM = MI::wrap( s, nSurroundM );
+
+                    // global aux node index
+                    const MIT globalM = nM + localM;
+
+                    // linearise
+                    const std::size_t global = MI::unwrap( globalM, dimAux );
+
+                    midPoint += factor * auxNodes[global];
+                }
+
+                // Store new coordinate
+                out[n] = midPoint;
+            }
+        }
+    }
+
+private:
+    //--------------------------------------------------------------------------
+    static void copyInputNodesToAuxGrid_( const std::vector<VecDim> & in,
+                                          std::vector<VecDim> & aux,
+                                          const MIT & gridSizes )
+    {
+        // Patch size
+        const unsigned patchSize = DEGREE/2;
+
+        // dimensions of auxiliary grid
+        const MIT auxDim = gridSizes + (2* patchSize + 1);
+
+        // go through input nodes
+        for ( std::size_t i = 0; i < in.size(); i ++ ) {
+
+            // make multi-index from linear index
+            const MIT iM = MI::wrap( i, gridSizes + 1 );
+
+            // make shifted index for aux grid
+            const MIT jM = iM + patchSize;
+
+            // make linear index in aux grid from shifted multi-index
+            const std::size_t j = MI::unwrap( jM, auxDim );
+
+            // copy node
+            aux[ j ] = in[ i ];
+        }
+    }
+
+    //--------------------------------------------------------------------------
+    static void patchAuxGrid_( std::vector<VecDim> & auxNodes,
+                               const MIT & gridSizes ) 
+    {
+        // Patch size
+        const int patchSize = DEGREE/2;
+
+        // dimensions of auxiliary grid
+        const MIT auxDim = gridSizes + (2* patchSize + 1);
+
+        // go through all auxiliary nodes
+        for ( std::size_t i = 0; i < auxNodes.size(); i ++ ) {
+
+            // make multi-index from linear index
+            const MIT iM = MI::wrap( i, auxDim );
+
+            // helpers
+            MIT distFromGrid = MIT::Constant( 0 );
+            MIT closest      = MIT::Constant( base::invalidInt );
+            bool inPatch = false;
+
+            // go through the individual components
+            for ( unsigned d = 0; d < DIM; d ++ ) {
+
+                if ( iM[d] < patchSize ) {
+                    closest[d]      = patchSize;
+                    distFromGrid[d] = iM[d] - patchSize;
+                    inPatch = true;
+                }
+                else if ( iM[d] >= auxDim[d] - patchSize ) {
+                    closest[d]      = auxDim[d] - patchSize - 1;
+                    distFromGrid[d] = iM[d] - (auxDim[d] - patchSize) + 1;
+                    inPatch = true;
+                }
+                else {
+                    closest[d]      = iM[d];
+                    distFromGrid[d] = 0;
+                }
+
+            }
+
+            //------------------------------------------------------------------
+            // The auxiliary nodes in the patch are constructed by mirroring
+            // interior points of the given grid to the outside. 
+            if ( inPatch ) {
+
+                // get linear indices of two closest points
+                const std::size_t iClosest = MI::unwrap( closest, auxDim );
+                const std::size_t iMirror  = MI::unwrap( closest - distFromGrid, auxDim );
+
+                // construct new point by mirroring the corresponding interior point
+                auxNodes[i] = auxNodes[iClosest] -
+                    (auxNodes[iMirror] - auxNodes[iClosest]);
+
+            }
+            
+
+        }
+    }
+    
+};
+
+//------------------------------------------------------------------------------
+template<unsigned DIM, unsigned DEGREE>
+struct base::io::sgf::detail_::CreateGridNodesFromLagrangian
+{
+    typedef typename base::VectorType<DIM>::Type VecDim;
+    typedef typename base::MultiIndex<DIM>::Type MIT;
+
+    static void apply( std::vector<VecDim> & in,
+                       std::vector<VecDim> & out,
+                       const MIT & gridSizes )
+    {
+        // Idea:
+        // - collect nodes that form a cell
+        // - take the linear Dim-tensor-product lagrangian
+        //   and evaluate it at the support points of the
+        //   higher-order version
+    }
+};
+
+
+#endif

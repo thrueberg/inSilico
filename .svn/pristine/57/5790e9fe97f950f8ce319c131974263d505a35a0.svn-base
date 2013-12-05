@@ -1,0 +1,107 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   createBoundaryFromUnstructured.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_mesh_createboundaryfromunstructured_hpp
+#define base_mesh_createboundaryfromunstructured_hpp
+
+//------------------------------------------------------------------------------
+// std  includes
+#include <map>
+#include <vector>
+// boost includes
+#include <boost/utility.hpp>
+// base includes
+#include <base/shape.hpp>
+#include <base/types.hpp>
+// base/aux
+#include <base/aux/SortArray.hpp>
+// base/mesh includes
+#include <base/mesh/ElementFaces.hpp>
+#include <base/mesh/FaceIterator.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace mesh{
+
+        template<typename EITER>
+        void createBoundaryFromUnstructured( EITER first, EITER last,
+                                             std::vector< std::pair<std::size_t,unsigned> >&
+                                             boundaryElementContainer );
+    }
+}
+
+
+//------------------------------------------------------------------------------
+/** Generate pairs of element and face numbers which form a boundary.
+ *  For the given range of elements, the faces of one dimension lower are
+ *  detected which only appear once among the elements. Since faces which are
+ *  interior to the mesh appear twice, these must form a boundary.
+ *  \tparam EITER                Type of element iterator
+ *  \param[in]  first, last      Range of elements
+ *  \param[out] boundaryElements Container of (elemNum,faceNum) pairs
+ */
+template<typename EITER>
+void base::mesh::createBoundaryFromUnstructured( EITER first, EITER last,
+                                                 std::vector< std::pair<std::size_t,unsigned> >&
+                                                 boundaryElements )
+{
+    // Template parameter: type of element
+    typedef typename base::TypeReduction<typename EITER::value_type>::Type Element;
+
+    // Deduction of geometric entities
+    static const base::Shape elemShape = Element::shape;
+    static const base::NFace surface   = base::ShapeSurface<elemShape>::value;
+
+    // Iterator over all faces of the element range
+    typedef base::mesh::FaceIterator<EITER,surface> FaceIter;
+
+    // Type of face
+    typedef typename FaceIter::Face Face;
+
+    // Temporary map for storage of the boundary faces
+    typedef std::map< Face, std::pair<std::size_t, unsigned> > BoundaryMap;
+    BoundaryMap boundaryMap;
+
+    // Go through all faces of the range
+    FaceIter faceIter = FaceIter( first );
+    FaceIter faceEnd  = FaceIter( last  );
+
+    for ( ; faceIter != faceEnd; ++faceIter ) {
+
+        // Get face be dereferencing the iterator
+        Face faceSorted = *faceIter;
+
+        // Sort face array in order to have a unique key
+        base::aux::SortArray<Face>::apply( faceSorted );
+
+        // Try to find sorted face in the map
+        typename BoundaryMap::iterator check = boundaryMap.find( faceSorted );
+
+        // If not found, insert new pair of Element pointer and face number
+        if ( check == boundaryMap.end() ) {
+            const std::size_t elemID = (*(faceIter.elementIterator() )) -> getID();
+            const unsigned nf = faceIter.faceNum();
+            boundaryMap.insert( std::make_pair( faceSorted,
+                                                std::make_pair( elemID, nf ) ) );
+        }
+        else // Otherwise, face is interior to mesh and to be removed
+            boundaryMap.erase( check );
+    }
+
+    // Pass element,faceNumber pairs to storage
+    typename BoundaryMap::iterator bMapIter = boundaryMap.begin();
+    typename BoundaryMap::iterator bMapEnd  = boundaryMap.end();
+    for( ; bMapIter != bMapEnd; ++bMapIter )
+        boundaryElements.push_back( bMapIter -> second );
+        
+
+    return;
+}
+
+#endif

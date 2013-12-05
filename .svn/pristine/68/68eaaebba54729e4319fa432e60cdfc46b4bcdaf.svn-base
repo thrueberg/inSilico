@@ -1,0 +1,171 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   LaplaceBeltrami.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef surf_laplacebeltrami_hpp
+#define surf_laplacebeltrami_hpp
+
+//------------------------------------------------------------------------------
+// boost includes
+#include <boost/function.hpp>
+// base includes
+#include <base/geometry.hpp>
+#include <base/linearAlgebra.hpp>
+// base/aux includes
+#include <base/aux/EqualPointers.hpp>
+
+//------------------------------------------------------------------------------
+namespace surf{
+        
+    template<typename FIELDTUPLE>
+    class LaplaceBeltrami;
+}
+
+
+//------------------------------------------------------------------------------
+/** Representation of the bilinear form of (vector) Laplace-Beltrami operator.
+ *
+ *  \tparam  FIELDTUPLE   Tuple of field elements
+ */
+template<typename FIELDTUPLE>
+class surf::LaplaceBeltrami
+{
+public:
+    //! Template parameter
+    typedef FIELDTUPLE FieldTuple;
+
+    //! @name Extract element types from pointers
+    //@{
+    typedef typename FieldTuple::GeomElement  GeomElement;
+    typedef typename FieldTuple::TestElement  TestElement;
+    typedef typename FieldTuple::TrialElement TrialElement;
+    //@}
+
+    //! Local coordinate
+    typedef typename base::GeomTraits<GeomElement>::LocalVecDim  LocalVecDim;
+
+    //! Type of global vector
+    typedef typename base::GeomTraits<GeomElement>::GlobalVecDim GlobalVecDim;
+
+    //! Global space dimension
+    static const unsigned globalDim = base::GeomTraits<GeomElement>::globalDim;
+
+    //! Size of DOFs
+    static const unsigned doFSize   = TrialElement::DegreeOfFreedom::size;
+
+    //! Constructor with form and test functions 
+    LaplaceBeltrami( const double factor )
+    : factor_( factor )
+    { }
+
+    //--------------------------------------------------------------------------
+    /**  Contribution to the element stiffness matrix in a quadrature rule
+     *   The element stiffness matrix for the Laplace operator reads
+     *   \f[
+     *       K[M*d+i,N*d+i] =
+     *       \int_\Gamma \mu \nabla_\Gamma \phi^M \cdot \nabla_\Gamma \phi^N dx
+     *   \f]
+     *   This object adds the weighted integrand evaluated at a local coordinate
+     *   \f$\xi\f$ to a provided storage.
+     *   \param[in]  fieldTuple Tuple of field element pointers
+     *   \param[in]  xi       Local coordinate: quadrature point
+     *   \param[in]  weight   Weight corresponding to the quadrature point
+     *   \param[out] matrix   Result storage
+     */
+    void tangentStiffness( const FieldTuple&  fieldTuple,
+                           const LocalVecDim& xi,
+                           const double       weight,
+                           base::MatrixD&     matrix ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+        const TestElement*  testEp  = fieldTuple.testElementPtr();
+        const TrialElement* trialEp = fieldTuple.trialElementPtr();
+
+        // if pointers are identical, Galerkin-Bubnov scheme
+        const bool isBubnov =
+            base::aux::EqualPointers<TestElement,TrialElement>::apply( testEp,
+                                                                       trialEp );
+
+        // Evaluate gradient of test and trial functions
+        std::vector<GlobalVecDim> testGradX, trialGradX;
+        const double detJ =
+            (testEp -> fEFun()).evaluateGradient( geomEp, xi, testGradX );
+
+        if ( isBubnov ) trialGradX = testGradX;
+        else
+            (trialEp -> fEFun()).evaluateGradient( geomEp, xi, trialGradX );
+
+        // Get surface normal
+        GlobalVecDim normal;
+        base::SurfaceNormal<GeomElement>()( geomEp, xi, normal );
+        
+        // Sizes and sanity checks
+        const unsigned numRowBlocks = static_cast<unsigned>( testGradX.size()  );
+        const unsigned numColBlocks = static_cast<unsigned>( trialGradX.size() );
+        assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * doFSize );
+        assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * doFSize );
+
+        // scalar multiplier
+        const double scalar = factor_ * detJ * weight;
+        
+        for ( unsigned M = 0; M < numRowBlocks; M ++ ) {
+
+            // create tangential gradient of test function
+            const GlobalVecDim testGradTan =
+                this -> tangentialGradient_( testGradX[M], normal );
+
+            for ( unsigned N = 0; N < numColBlocks; N ++ ) {
+
+                // create tangential gradient of test function
+                const GlobalVecDim trialGradTan =
+                    this -> tangentialGradient_( trialGradX[N], normal );
+
+                double entry = 0.;
+                // dot-product of function gradients
+                for ( unsigned k = 0; k < globalDim; k ++ )
+                    entry += trialGradTan[k] * testGradTan[k];
+                // multiply with weight and material
+                entry *= scalar;
+
+                // add to matrix block's diagonal entries
+                for ( unsigned d = 0; d < doFSize; d++ )
+                    matrix( M*doFSize + d, N*doFSize + d ) += entry;
+            }
+        }
+
+        return;
+    }
+
+private:
+    //--------------------------------------------------------------------------
+    /** Remove normal component from gradient vector.
+     *  By application of the projection
+     *  \f[
+     *       P v = (I - n \otimes n) v = v - (v,n) n
+     *  \f]
+     *  the tangential part of the given gradient vector is computed:
+     *  \f[
+     *      \nabla_\Gamma u = P ( \nabla u )
+     *  \f]
+     *  \param[in]  grad   Gradient vector
+     *  \param[in]  normal Normal vector (unit length)
+     *  \return            Tangential part of gradient
+     */
+    GlobalVecDim tangentialGradient_( const GlobalVecDim& grad,
+                                      const GlobalVecDim& normal ) const
+    {
+        const double projection = normal.dot( grad );
+        return grad - projection * normal;
+    }
+    
+private:
+    const double factor_; //!< Scalar multiplier (e.g. conductivity)
+};
+
+#endif

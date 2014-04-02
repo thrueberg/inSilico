@@ -19,7 +19,10 @@
 // base/asmb includes
 #include <base/asmb/StiffnessMatrix.hpp>
 #include <base/asmb/ForceIntegrator.hpp>
-#include <base/asmb/FunEvaluationPolicy.hpp>
+// base/auxi includes
+#include <base/auxi/FunEvaluationPolicy.hpp>
+// base/post includes
+#include <base/post/evaluateField.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -29,18 +32,20 @@ namespace base{
         class Energy;
 
         //----------------------------------------------------------------------
-        /** Convenience function for the LHS term of the penalty method */
+        /** Convenience functions for the LHS terms of the penalty method */
+
+        // PRIMAL
         template<typename SURFACETUPLEBINDER,
                  typename KERNEL, typename SURFACEQUADRATURE,
                  typename SOLVER, typename BOUNDFIELD,
                  typename PARAMETER>
-        void energyLHS( const KERNEL&            kernel, 
-                        const SURFACEQUADRATURE& surfaceQuadrature,
-                        SOLVER&                  solver, 
-                        const BOUNDFIELD&        boundField,
-                        const PARAMETER&         parameter, 
-                        const bool               inOut = true,
-                        const bool               plusMinus = true )
+        void primalEnergyLHS( const KERNEL&            kernel, 
+                              const SURFACEQUADRATURE& surfaceQuadrature,
+                              SOLVER&                  solver, 
+                              const BOUNDFIELD&        boundField,
+                              const PARAMETER&         parameter, 
+                              const bool               inOut = true,
+                              const bool               plusMinus = true )
         {
             // object to compute the LHS penalty term
             typedef base::nitsche::Energy<KERNEL,
@@ -54,18 +59,8 @@ namespace base{
             typename SysMat::Kernel kernelFunP =
                 boost::bind( &Energy::primal, &energy, _1, _2, _3, _4 );
             
-            SysMat primal( kernelFunP, surfaceQuadrature, solver );
+            SysMat primal( kernelFunP, surfaceQuadrature, solver, false );
             
-            // dual
-            typedef base::asmb::StiffnessMatrix<SURFACEQUADRATURE,SOLVER,
-                                                typename SURFACETUPLEBINDER::TransposedTuple>
-                SysMatT;
-
-            typename SysMatT::Kernel kernelFunD =
-                boost::bind( &Energy::dual, &energy, _1, _2, _3, _4 );
-            
-            SysMatT dual( kernelFunD, surfaceQuadrature, solver );
-
             // apply
             typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
             typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
@@ -76,10 +71,52 @@ namespace base{
                 energy.setKappa( kappa );
 
                 primal( SURFACETUPLEBINDER::makeTuple(           *iter ) );
+            }
+
+            return;
+        }
+
+        //----------------------------------------------------------------------
+        // DUAL
+        template<typename SURFACETUPLEBINDER,
+                 typename KERNEL, typename SURFACEQUADRATURE,
+                 typename SOLVER, typename BOUNDFIELD,
+                 typename PARAMETER>
+        void dualEnergyLHS( const KERNEL&            kernel, 
+                            const SURFACEQUADRATURE& surfaceQuadrature,
+                            SOLVER&                  solver, 
+                            const BOUNDFIELD&        boundField,
+                            const PARAMETER&         parameter, 
+                            const bool               inOut = true,
+                            const bool               plusMinus = true )
+        {
+            // object to compute the LHS penalty term
+            typedef base::nitsche::Energy<KERNEL,
+                                          typename SURFACETUPLEBINDER::Tuple> Energy;
+            Energy energy( kernel );
+            
+            // dual
+            typedef base::asmb::StiffnessMatrix<SURFACEQUADRATURE,SOLVER,
+                                                typename SURFACETUPLEBINDER::TransposedTuple>
+                SysMatT;
+
+            typename SysMatT::Kernel kernelFunD =
+                boost::bind( &Energy::dual, &energy, _1, _2, _3, _4 );
+            
+            SysMatT dual( kernelFunD, surfaceQuadrature, solver, false );
+
+            // apply
+            typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
+            typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+
+                const double sign  = ( plusMinus ? 1.0 : -1.0 );
+                const double kappa = sign * parameter.energyWeight( iter, inOut );
+                energy.setKappa( kappa );
+
                 dual(   SURFACETUPLEBINDER::makeTransposedTuple( *iter ) );
             }
 
-            
             return;
         }
 
@@ -149,7 +186,7 @@ namespace base{
         {
             typedef typename SURFACETUPLEBINDER::Tuple::GeomElement::DomainElement
                 DomainElement;
-            typedef base::asmb::EvaluateDirectly<DomainElement,BCFUN>
+            typedef base::auxi::EvaluateDirectly<DomainElement,BCFUN>
                 EvaluationPolicy;
 
             detail_::computeEnergyRHS<SURFACETUPLEBINDER,
@@ -178,7 +215,7 @@ namespace base{
         {
             typedef typename SURFACETUPLEBINDER::Tuple::GeomElement::DomainElement
                 DomainElement;
-            typedef base::asmb::EvaluateViaElement<DomainElement,BCFUN>
+            typedef base::auxi::EvaluateViaElement<DomainElement,BCFUN>
                 EvaluationPolicy;
 
             detail_::computeEnergyRHS<SURFACETUPLEBINDER,
@@ -516,7 +553,12 @@ public:
         const VecDof bc = EVALPOL::apply( surfEp -> getDomainElementPointer(),
                                           xi, bcFun );
 
-        //
+        // Evaluate solution
+        const VecDof  u = base::post::evaluateField( surfEp -> getDomainElementPointer(),
+                                                     surfFieldTuple.trialElementPtr(),
+                                                     xi );
+
+        // scalar multiplier
         const double scalar = -1. * detG * weight * kappa_;
 
         const unsigned otherSize = static_cast<unsigned>(coNormal.cols() );
@@ -524,7 +566,7 @@ public:
         for ( unsigned i = 0; i < otherSize; i++ ) {
             number sum = 0.;
             for ( unsigned d = 0; d < doFSize; d++ ) {
-                sum += scalar * coNormal( d, i ) * bc[d];
+                sum -= scalar * coNormal( d, i ) * (u[d]-bc[d]);
             }
             result[i] += sum;
         }
@@ -565,8 +607,8 @@ public:
 
         // compute co-normal from kernel using domain tuple
         base::VectorD coNormalResidual;
-        kernel_.coNormalDerivativeResidual( domainFieldTuple, xi,
-                                            normal, coNormalResidual );
+        kernel_.boundaryResidual( domainFieldTuple, xi,
+                                  normal, coNormalResidual );
 
         //
         const double scalar = detG * weight * kappa_;

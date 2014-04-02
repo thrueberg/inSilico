@@ -14,6 +14,7 @@
 #include <string>
 // boost includes
 #include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string/trim.hpp>
 // base includes
 #include <base/verify.hpp>
 // tools includes
@@ -70,6 +71,7 @@ int main( int argc, char * argv[] )
 
                 std::string aux;
                 std::getline( std::cin, aux );
+                boost::trim( aux );
                 if ( aux.length() > 0 )
                     smfAffine::A(i,j) = boost::lexical_cast<double>( aux );
             }
@@ -84,6 +86,7 @@ int main( int argc, char * argv[] )
 
             std::string aux;
             std::getline( std::cin, aux );
+            boost::trim( aux );
             if ( aux.length() > 0 )
                 smfAffine::c[i] = boost::lexical_cast<double>( aux );
         }

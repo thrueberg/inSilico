@@ -32,7 +32,7 @@
 #include <base/solver/Eigen3.hpp>
 // material
 #include <mat/hypel/StVenant.hpp>
-#include <mat/hypel/CompNeoHookean.hpp>
+#include <mat/hypel/NeoHookeanCompressible.hpp>
 #include <mat/Lame.hpp>
 // integral kernels
 #include <solid/HyperElastic.hpp>
@@ -59,8 +59,6 @@ template<unsigned DIM, typename DOF>
 void dirichletBC( const typename base::Vector<DIM>::Type& x,
                   DOF* doFPtr ) 
 {
-    typedef typename base::Vector<DIM>::Type  VecDim;
-    
     // location at x_1 = 0 or x_1 = 1
     const bool onLeftBdr  = ( std::abs( x[0] -  0. ) < coordTol );
 
@@ -270,22 +268,23 @@ int main( int argc, char * argv[] )
     for ( unsigned d = 0; d < dim; d++ ) x[d] = 0.5;
 
     // find point in mesh
-    std::pair<Mesh::Element*,VecDim> probe =
-        base::post::findLocationInMesh( mesh, x, coordTol, 10 );
+    std::pair<std::size_t,VecDim> probe;
+    const bool found = base::post::findLocationInMesh( mesh, x, coordTol, 10, probe );
+    VERIFY_MSG( found, "Could not find the point in the mesh" );
 
     // prepare a monitor
     base::post::Monitor<Mesh::Element,Field::Element>
-        monitorD( probe.first, 
-                  displacement.elementPtr( (probe.first) -> getID() ),
+        monitorD( mesh.elementPtr(         probe.first ),
+                  displacement.elementPtr( probe.first ),
                   probe.second );
 
     base::post::Monitor<Mesh::Element,Field::Element>
-        monitorV( probe.first, 
-                  velocity.elementPtr( (probe.first) -> getID() ),
+        monitorV( mesh.elementPtr(     probe.first ),
+                  velocity.elementPtr( probe.first ),
                   probe.second );
     
     //--------------------------------------------------------------------------
-    // Loop over load steps
+    // Loop over time steps
     //--------------------------------------------------------------------------
     for ( unsigned step = 0; step < numSteps; step++ ) {
 
@@ -319,10 +318,12 @@ int main( int argc, char * argv[] )
 
         // Reaction terms of time integrator
         base::time::computeReactionTerms<DV,MSM>( mass, quadrature, solver,
-                                                  fieldBinder, stepSize, step );
+                                                  fieldBinder, stepSize, step,
+                                                  false );
 
         base::time::computeReactionTerms<VD,MSM>( identity1, quadrature, solver,
-                                                  fieldBinder, stepSize, step );
+                                                  fieldBinder, stepSize, step,
+                                                  false );
 
         // History terms of time integrator
         base::time::computeResidualForceHistory<DD,MSM>( linearElastic,
@@ -353,12 +354,8 @@ int main( int argc, char * argv[] )
         writeVTKFile( baseName, step+1, mesh, displacement, velocity );
 
         // push history
-        std::for_each( displacement.doFsBegin(), displacement.doFsEnd(),
-                       boost::bind( &DoF::pushHistory, _1 ) );
-
-        // push history
-        std::for_each( velocity.doFsBegin(), velocity.doFsEnd(),
-                       boost::bind( &DoF::pushHistory, _1 ) );
+        base::dof::pushHistory( displacement );
+        base::dof::pushHistory( velocity );
 
     }
     // Finished load steps

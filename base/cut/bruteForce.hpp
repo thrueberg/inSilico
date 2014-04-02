@@ -13,6 +13,8 @@
 //------------------------------------------------------------------------------
 // std includes
 #include <vector>
+// base/mesh includes
+#include <base/mesh/Size.hpp>
 // base/cut includes
 #include <base/cut/LevelSet.hpp>
 #include <base/cut/distanceToElement.hpp>
@@ -45,7 +47,7 @@ namespace base{
  *           of methods which accelerate this compuation but are not used here.
  *
  *  \warning Using the nodes of the domain mesh only works properly for either
- *           Lagrangian geometry represnetations or linear B-splines. Higher
+ *           Lagrangian geometry representations or linear B-splines. Higher
  *           order B-splines do not really have nodes and therefore the geometry
  *           needs to be evaluated at the vertices of a reference element.
  *
@@ -79,9 +81,20 @@ void base::cut::bruteForce( const DOMAINMESH& domainMesh,
         levelSet.push_back( ls );
     }
 
-    // Go through the surface elements
+    // Go through the surface elements and get minimal size
     typename SURFMESH::ElementPtrConstIter seIter = surfaceMesh.elementsBegin();
     typename SURFMESH::ElementPtrConstIter seEnd  = surfaceMesh.elementsEnd();
+    double minEdgeLength = base::invalidNumber();
+    for ( ; seIter != seEnd; ++seIter ) {
+        const double candidate = base::mesh::minimalEdgeLength( *seIter );
+        if ( candidate < minEdgeLength ) minEdgeLength = candidate;
+    }
+
+    // threshold for checking of two closest points are identical
+    const double pointIdentityThreshold = minEdgeLength / 2.;
+
+
+    seIter = surfaceMesh.elementsBegin();
     for ( ; seIter != seEnd; ++seIter ) {
 
         // get pointer to surface element
@@ -94,7 +107,8 @@ void base::cut::bruteForce( const DOMAINMESH& domainMesh,
             LevelSet ls = levelSet[el];
 
             // compute distance data
-            base::cut::distanceToElement( surfEp, isSigned, ls );
+            base::cut::distanceToElement( surfEp, isSigned, ls,
+                                          pointIdentityThreshold );
 
             // set level set
             levelSet[el] = ls;

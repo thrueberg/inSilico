@@ -92,7 +92,7 @@ public:
     VecDoF fun( const VecDim& x, const VecDim& y ) const
     {
         const double dist = base::norm(y - x);
-        const double factor = 1./(2.*(dim-1)*M_PI);
+        const double factor = 1./(2.*(dim-1.)*M_PI);
         VecDoF result;
         result[0] = factor * detail_::LaplaceKernel<dim>::apply( dist );
         return result;
@@ -103,7 +103,7 @@ public:
     {
         const double dist = base::norm(y - x);
         const double factor =
-            1./(2.*(dim-1)*M_PI) / (base::Power<dim>::apply( dist ) );
+            1./(2.*(dim-1.)*M_PI) / (base::Power<dim>::apply( dist ) );
 
         Grad result;
         for ( unsigned d = 0; d < dim; d++ )
@@ -117,7 +117,7 @@ public:
                      const VecDim& normal ) const
     {
         const Grad grad = this -> grad( x, y );
-        return grad * normal;
+        return grad.transpose() * normal;
     }
     
 };

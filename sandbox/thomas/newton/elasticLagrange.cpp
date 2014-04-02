@@ -23,6 +23,7 @@
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
 #include <base/dof/Distribute.hpp>
+#include <base/dof/location.hpp>
 
 #include <base/asmb/FieldBinder.hpp>
 #include <base/asmb/SurfaceFieldBinder.hpp>
@@ -32,7 +33,7 @@
 #include <base/solver/Eigen3.hpp>
 
 #include <solid/HyperElastic.hpp>
-#include <mat/hypel/CompNeoHookean.hpp>
+#include <mat/hypel/NeoHookeanCompressible.hpp>
 #include <mat/Lame.hpp>
 
 #include <base/post/findLocation.hpp>
@@ -49,12 +50,20 @@ bool interval( const typename base::Vector<DIM>::Type& x,
                      typename base::Vector<DIM>::Type& xClosest,
                const double L )
 {
-    xClosest[0] = L;
-    if ( x[0] <= L ) return true;
+    //xClosest[0] = L;
+    if ( x.norm() < coordTol ) {
+        xClosest = base::constantVector<DIM>(0.);
+        xClosest[0] = L;
+    }
+    else{
+        xClosest = (L / x.norm()) * x;
+    }
 
+    if ( x.norm() <= L ) return true;
     return false;
 }
 
+//------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 template<unsigned DIM>
 typename base::Vector<DIM>::Type
@@ -62,8 +71,11 @@ tractionFun( const typename base::Vector<DIM>::Type& x,
              const typename base::Vector<DIM>::Type& normal,
              const double value )
 {
-    typename base::Vector<DIM>::Type f = base::constantVector<DIM>( 0. );        
-    f[0] = value;
+    const double phi = std::atan2( x[1], x[0] );
+    
+    
+    typename base::Vector<DIM>::Type f = value * normal
+        * (std::cos(2. * phi));
     return f;
 }
 
@@ -71,6 +83,15 @@ tractionFun( const typename base::Vector<DIM>::Type& x,
 //------------------------------------------------------------------------------
 int main( int argc, char* argv[] )
 {
+    // spatial dimension
+    const unsigned    dim = 2; 
+    
+    if ( argc != 3 ) {
+        std::cerr << "Usage: " << argv[0] << " N  input.dat\n"
+                  << "(Compiled for dim=" << dim << ")\n\n";
+        return -1;
+    }
+
     // read name of input file
     const unsigned    numElements = boost::lexical_cast<unsigned>(    argv[1] );
     const std::string   inputFile = boost::lexical_cast<std::string>( argv[2] );
@@ -97,9 +118,6 @@ int main( int argc, char* argv[] )
         inp.close( );
     }
 
-    // spatial dimension
-    const unsigned    dim = 1; 
-    
     // basic attributes of the computation
     const unsigned             geomDeg  = 1;
     const unsigned             fieldDeg = 1;
@@ -111,8 +129,10 @@ int main( int argc, char* argv[] )
     typedef base::Unstructured<shape,geomDeg>  Mesh;
     Mesh mesh;
     {
-        generateMesh( mesh, numElements, 0, xmax );
+        const double left = (dim == 1 ? 0. : -xmax );
+        generateMesh( mesh, numElements, left, xmax );
     }
+    typedef Mesh::Node::VecDim VecDim;
 
     //--------------------------------------------------------------------------
     typedef base::cut::LevelSet<dim> LevelSet;
@@ -167,23 +187,43 @@ int main( int argc, char* argv[] )
     base::cut::supportComputation( mesh, displacement, cutQuadrature,  supports );
     displacement.scaleAndTagBasis( supports,  1.e-10 );
 
-    // fix left end
-    Field::DoFPtrIter dIter = displacement.doFsBegin();
-    for ( unsigned d = 0; d < dim; d++ ) (*dIter) -> constrainValue( d, 0. );
+    writeVTKFile( "lagrange", 0, mesh, displacement, levelSet );
+
+    // fix some points
+    {
+        std::vector<std::pair<std::size_t,VecDim> > doFLocation;
+        base::dof::associateLocation( displacement, doFLocation );
+        
+        VecDim point = base::constantVector<dim>( 0. );
+        const std::size_t index = base::dof::findDoFWithLocation( doFLocation, mesh,
+                                                                  point, coordTol );
+        
+        Field::DegreeOfFreedom* dPtr = displacement.doFPtr( index );
+        for ( unsigned d = 0; d < dim; d++ ) dPtr -> constrainValue( d, 0. );
+
+        if ( dim > 1 ) {
+            const double h = 2. * xmax / static_cast<double>( numElements );
+            const unsigned bla = static_cast<unsigned>(L/h);
+            point[0] = bla * h;
+            const std::size_t index = base::dof::findDoFWithLocation( doFLocation, mesh,
+                                                                      point, coordTol );
+            
+            Field::DegreeOfFreedom* dPtr = displacement.doFPtr( index );
+            for ( unsigned d = 1; d < dim; d++ ) dPtr -> constrainValue( d, 0. );
+        }
+
+    }
     
     // number DoFs
     const std::size_t activeDoFsU = 
         base::dof::numberDoFsConsecutively( displacement.doFsBegin(), displacement.doFsEnd() );
 
-    typedef mat::hypel::CompNeoHookean Material;
+    typedef mat::hypel::NeoHookeanCompressible Material;
     Material material( mat::Lame::lambda( E, nu), mat::Lame::mu( E, nu ) );
     typedef solid::HyperElastic<Material,UU::Tuple> HyperElastic;
     HyperElastic hyperElastic( material );
 
-    writeVTKFile( "lagrange", 0, mesh, displacement, levelSet );
-
     // point to check
-    typedef Mesh::Node::VecDim VecDim;
     VecDim x = base::constantVector<dim>( 0. );
     x[0] = L;
 
@@ -247,6 +287,8 @@ int main( int argc, char* argv[] )
             std::cout << conv2 << std::endl;
 
             if ( conv2 < tolerance ) break;
+
+            writeVTKFile( "lagrange", 100*(step+1)+iter, mesh, displacement, levelSet );
         }
 
         // write a vtk file

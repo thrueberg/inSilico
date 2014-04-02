@@ -16,6 +16,8 @@
 // base includes
 #include <base/geometry.hpp>
 #include <base/linearAlgebra.hpp>
+// base/post includes
+#include <base/post/evaluateField.hpp>
 // base/kernel includes
 #include <base/kernel/KernelFun.hpp>
 

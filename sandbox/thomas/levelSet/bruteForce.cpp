@@ -43,7 +43,7 @@ int main( int argc, char * argv[] )
     const unsigned    dim       = 2;
     const bool        isSigned  = true;
     
-    const base::Shape shape     = base::SimplexShape<dim>::value;
+    const base::Shape shape     = base::HyperCubeShape<dim>::value;
     const base::Shape surfShape = base::SimplexShape<dim-1>::value;
 
     //--------------------------------------------------------------------------
@@ -121,9 +121,11 @@ int main( int argc, char * argv[] )
 
     //--------------------------------------------------------------------------
     // Extract distances, closestPoints and location flags from level set data
-    std::vector<double> distances;
+    std::vector<double>           distances;
     std::vector<LevelSet::VecDim> closestPoints;
-    std::vector<bool>   location;
+    std::vector<bool>             location;
+    std::vector<std::size_t>      closestElements;
+    std::vector<double>           distancesToPlane;
     {
         std::transform( levelSet.begin(), levelSet.end(),
                         std::back_inserter( distances ),
@@ -136,6 +138,14 @@ int main( int argc, char * argv[] )
         std::transform( levelSet.begin(), levelSet.end(),
                         std::back_inserter( location ),
                         boost::bind( &LevelSet::isInterior, _1 ) );
+
+        std::transform( levelSet.begin(), levelSet.end(),
+                        std::back_inserter( closestElements ),
+                        boost::bind( &LevelSet::getClosestElement, _1 ) );
+
+        std::transform( levelSet.begin(), levelSet.end(),
+                        std::back_inserter( distancesToPlane ),
+                        boost::bind( &LevelSet::getDistanceToPlane, _1 ) );
     }
 
     // compute element areas in parameter coordinates (in- and outside)
@@ -156,6 +166,8 @@ int main( int argc, char * argv[] )
         vtkWriter.writePointData( distances.begin(), distances.end(), "distances" );
         vtkWriter.writePointData( closestPoints.begin(), closestPoints.end(), "points" );
         vtkWriter.writePointData( location.begin(), location.end(), "location" );
+        vtkWriter.writePointData( closestElements.begin(), closestElements.end(), "elemID" );
+        vtkWriter.writePointData( distancesToPlane.begin(), distancesToPlane.end(), "d2p" );
 
 
         vtkWriter.writeCellData( areaIn.begin(),  areaIn.end(),  "areaIn" );

@@ -14,10 +14,12 @@
 // std includes
 #include <vector>
 #include <utility>
+#include <iostream>
 // boost array
 #include <boost/array.hpp>
 // base includes
 #include <base/numbers.hpp>
+#include <base/geometry.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{

@@ -18,7 +18,7 @@
 #include <base/linearAlgebra.hpp>
 // base/asmb includes
 #include <base/asmb/ForceIntegrator.hpp>
-#include <base/asmb/FunEvaluationPolicy.hpp>
+#include <base/auxi/FunEvaluationPolicy.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -70,7 +70,7 @@ namespace base{
             const FIELDBINDER& fieldBinder,
             const FUN& forceFun )
         {
-            typedef base::asmb::EvaluateDirectly<
+            typedef base::auxi::EvaluateDirectly<
                 typename FIELDTUPLEBINDER::Tuple::GeomElement,FUN> Evaluate;
             
             // body force wrapper
@@ -96,7 +96,7 @@ namespace base{
             const FIELDBINDER& fieldBinder,
             const FUN& forceFun )
         {
-            typedef base::asmb::EvaluateViaElement<
+            typedef base::auxi::EvaluateViaElement<
                 typename FIELDTUPLEBINDER::Tuple::GeomElement,FUN> Evaluate;
             
             // body force wrapper

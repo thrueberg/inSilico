@@ -178,7 +178,6 @@ int main( int argc, char * argv[] )
     const unsigned    doFSizeP = 1;
     typedef base::fe::Basis<shape,fieldDegP>         FEBasisP;
     typedef base::Field<FEBasisP,doFSizeP>           Pressure;
-    typedef Pressure::DegreeOfFreedom                DoFP;
     Pressure pressure;
 
     // generate DoFs from mesh

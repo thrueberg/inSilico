@@ -60,7 +60,13 @@ namespace base{
             for ( ; iter != end; ++iter ) {
                 forceInt( FIELDTUPLEBINDER::makeTuple( *iter ) );
             }
-        
+
+            //const std::size_t numElements = std::distance( iter, end );
+            //#pragma omp parallel for
+            //for ( std::size_t e = 0; e < numElements; e++ ) {
+            //    forceInt( FIELDTUPLEBINDER::makeTuple( fieldBinder.elementPtr( e ) ) );
+            //}
+
             return;
         }
 
@@ -125,13 +131,18 @@ public:
         // dof activities and IDs
         std::vector<base::dof::DoFStatus> doFStatus;
         std::vector<std::size_t> doFIDs;
-        std::vector<base::number> prescribedValues;
+        std::vector<base::number> prescribedValues; // placeholder
         std::vector<
             std::pair<unsigned,std::vector<std::pair<base::number,std::size_t> > >
             > constraints;
-    
-        base::asmb::collectFromDoFs( testEp, doFStatus, doFIDs,
-                                     prescribedValues, constraints );
+
+        //  get all dof data
+        const bool doSomething = 
+            base::asmb::collectFromDoFs( testEp, doFStatus, doFIDs,
+                                         prescribedValues, constraints, false );
+
+        // if no dof is ACTIVE or CONSTRAINED, just return
+        if ( not doSomething ) return;
         
         // Compute the element contribution to all its dofs
         base::VectorD forceVec = base::VectorD::Zero( doFIDs.size() );

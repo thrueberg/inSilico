@@ -15,7 +15,6 @@
 #include <boost/math/special_functions/cbrt.hpp>
 // material includes
 #include <mat/TensorAlgebra.hpp>
-#include <mat/Eigen.hpp>
 
 //------------------------------------------------------------------------------
 namespace mat{
@@ -90,7 +89,7 @@ public:
         mat::rightCauchyGreen( F, C );
 
         // get eigenvalues of C
-        const boost::array<double,3> evalC = mat::eigenValues( C );
+        const Vector evalC = base::eigenValues( C );
 
         // compute determinant of F and its logarithm
         const double J = mat::determinant( F );
@@ -152,9 +151,9 @@ public:
         mat::rightCauchyGreen( F, C );
 
         // get eigen-pairs of C
-        boost::array<double,3> eVal;
         Tensor eVec;
-        mat::eigenPairs( C, eVal, eVec );
+        const Vector eVal = base::eigenPairs( C, eVec );
+        
 
         // compute determinant of F and its logarithm
         const double J = mat::determinant( F );
@@ -238,9 +237,8 @@ public:
         mat::rightCauchyGreen( F, C );
 
         // get eigen-pairs of C
-        boost::array<double,3> eVal;
         Tensor eVec;
-        mat::eigenPairs( C, eVal, eVec );
+        const Vector eVal = base::eigenPairs( C, eVec );
 
         // compute determinant of F and its logarithm
         const double J = mat::determinant( F );

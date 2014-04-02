@@ -51,7 +51,7 @@ namespace base{
  *  \f[
  *      \sum_{s=0}^q a_s y^{n+1-s} = \Delta t f( t^{n+1}, y^{n+1} )
  *  \f]
- *  In the framework of a general linear multi-step method, they RHS weights
+ *  In the framework of a general linear multi-step method, the RHS weights
  *  assume the values \f$ b_0 = 1 \f$ and \f$ b_s \f$ else.
  *
  *  Table of weights:

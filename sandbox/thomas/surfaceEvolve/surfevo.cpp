@@ -33,7 +33,9 @@
 #include <base/post/Monitor.hpp>
 
 #include <base/kernel/Mass.hpp>
+#include <base/kernel/Laplace.hpp>
 #include <surf/LaplaceBeltrami.hpp>
+#include <surf/Moments.hpp>
 
 #include <base/time/BDF.hpp>
 #include <base/time/AdamsMoulton.hpp>
@@ -289,12 +291,12 @@ int main( int argc, char * argv[] )
 
     // empty mesh boundary implies a closed surface
     const bool closedSurface =
-        (std::distance( meshBoundary.boundaryBegin(), meshBoundary.boundaryEnd() )
+        (std::distance( meshBoundary.begin(), meshBoundary.end() )
          == 0);
 
     // constrain the boundary degrees of freedom
-    base::dof::constrainBoundary<FEBasis>( meshBoundary.boundaryBegin(),
-                                           meshBoundary.boundaryEnd(),
+    base::dof::constrainBoundary<FEBasis>( meshBoundary.begin(),
+                                           meshBoundary.end(),
                                            mesh, location, 
                                            boost::bind( &dirichletBC<dim,
                                                         Location::DegreeOfFreedom>,
@@ -314,6 +316,7 @@ int main( int argc, char * argv[] )
 
     // Object for the surface laplacian
     typedef surf::LaplaceBeltrami<FTB::Tuple> LaplaceBeltrami;
+    //typedef base::kernel::Laplace<FTB::Tuple> LaplaceBeltrami;
     LaplaceBeltrami laplace( visc );
 
     typedef base::kernel::Mass<FTB::Tuple> Mass;

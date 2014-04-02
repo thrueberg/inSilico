@@ -22,6 +22,7 @@
 // base includes
 #include <base/linearAlgebra.hpp>
 #include <base/auxi/EqualPointers.hpp>
+#include <base/auxi/parallel.hpp>
 // base/asmb includes
 #include <base/asmb/collectFromDoFs.hpp>
 #include <base/asmb/assembleMatrix.hpp>
@@ -52,7 +53,7 @@ namespace base{
                                          SOLVER& solver,
                                          const FIELDBINDER& fieldBinder,
                                          const KERNEL&      kernelObj,
-                                         const bool zeroConstraints = false )
+                                         const bool         incremental = true )
         {
             typedef typename FIELDTUPLEBINDER::Tuple ElementPtrTuple;
             
@@ -65,20 +66,22 @@ namespace base{
                              &kernelObj, _1, _2, _3, _4 );
 
             // Object of the stiff matrix assembler
-            StiffMat stiffness( kernel, quadrature, solver, zeroConstraints );
+            StiffMat stiffness( kernel, quadrature, solver, incremental );
 
             // Apply to all elements
-            typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
-            typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
-            for ( ; iter != end; ++iter ) {
-                stiffness( FIELDTUPLEBINDER::makeTuple( *iter ) );
-            }
+            base::auxi::applyToAllFieldTuple<FIELDTUPLEBINDER>( fieldBinder, stiffness );
 
-            // const std::size_t numElements = std::distance( iter, end );
-            //#pragma omp parallel for
-            //for ( std::size_t e = 0; e < numElements; e++ ) {
-            //    stiffness( FIELDTUPLEBINDER::makeTuple( fieldBinder.elementPtr( e ) ) );
+            //typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+            //typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+            //for ( ; iter != end; ++iter ) {
+            //    stiffness( FIELDTUPLEBINDER::makeTuple( *iter ) );
             //}
+
+//            const std::size_t numElements = std::distance( iter, end );
+//#pragma omp parallel for
+//            for ( std::size_t e = 0; e < numElements; e++ ) {
+//                stiffness( FIELDTUPLEBINDER::makeTuple( fieldBinder.elementPtr( e ) ) );
+//            }
 
             
         }
@@ -145,11 +148,11 @@ public:
     StiffnessMatrix( Kernel&              kernel,
                      const Quadrature&    quadrature,
                      Solver&              solver,
-                     const bool zeroConstraints = false )
+                     const bool           incremental )
         : kernel_(          kernel ),
           quadrature_(      quadrature ),
           solver_(          solver ),
-          zeroConstraints_( zeroConstraints )
+          incremental_(     incremental )
     { }
 
     //--------------------------------------------------------------------------
@@ -170,7 +173,7 @@ public:
         // dof IDs
         std::vector<std::size_t> rowDoFIDs, colDoFIDs;
 
-        // dof values (for constraints)
+        // dof values (for constraints, rowDoFValues is just a placeholder)
         std::vector<base::number> rowDoFValues, colDoFValues;
 
         // dof constraints
@@ -179,9 +182,14 @@ public:
         std::vector<WeightedDoFIDs> rowConstraints, colConstraints;
 
         // Collect dof entities from element
-        base::asmb::collectFromDoFs( testEp, rowDoFStatus,
-                                     rowDoFIDs, rowDoFValues,
-                                     rowConstraints );
+        bool doSomething = 
+            base::asmb::collectFromDoFs( testEp, rowDoFStatus,
+                                         rowDoFIDs, rowDoFValues,
+                                         rowConstraints,
+                                         incremental_ );
+
+        // if no row dof is ACTIVE or CONSTRAINED, just return
+        if ( not doSomething ) return;
 
         // In case of identical test and trial spaces, just copy
         if ( isBubnov ) {
@@ -191,9 +199,15 @@ public:
             colConstraints = rowConstraints;
         }
         else // otherwise, collect for trial space
-            base::asmb::collectFromDoFs( trialEp, colDoFStatus,
-                                         colDoFIDs, colDoFValues,
-                                         colConstraints );
+            doSomething =
+                base::asmb::collectFromDoFs( trialEp, colDoFStatus,
+                                             colDoFIDs, colDoFValues,
+                                             colConstraints,
+                                             incremental_ );
+
+        // if no col dof is ACTIVE or CONSTRAINED, just return
+        if ( not doSomething ) return;
+
 
         // Compute the element matrix contribution
         base::MatrixD elemMatrix = base::MatrixD::Zero( rowDoFIDs.size(),
@@ -206,7 +220,7 @@ public:
                                     rowDoFIDs, colDoFIDs,
                                     colDoFValues,
                                     rowConstraints, colConstraints,
-                                    solver_, isBubnov, zeroConstraints_ );
+                                    solver_, isBubnov );
         return;
     }
     
@@ -215,9 +229,8 @@ private:
     const Quadrature&    quadrature_;    //!< Quadrature object
     Solver&              solver_;        //!< Solver object
 
-    //! If set to true the constraint DoF values are passed on as zeros
-    const bool zeroConstraints_;
-
+    //! Use difference between prescribed and current value
+    const bool incremental_;
 };
 
 

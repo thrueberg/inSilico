@@ -3,6 +3,9 @@
 ########################################
 # system paths
 
+# std header
+STD_DIR          = /usr/include
+
 # boost header
 BOOST_DIR        = /usr/include
 BOOST_LIB_PATH   = /usr/lib
@@ -19,8 +22,16 @@ SUPERLU_LIB      = -lsuperlu
 MKL_PATH = /opt/intel/mkl
 
 # UMFPACK
-UMFPACK_INC = /usr/include/suitesparse
-UMFPACK_LIB = -lumfpack
+UMFPACK_INC      = /usr/include/suitesparse
+UMFPACK_LIB_PATH = /usr/lib
+UMFPACK_LIB      = -lumfpack
+
+# VTK
+VTK_PATH     = /usr
+VTK_INC      = $(VTK_PATH)/include/vtk-5.8
+VTK_LIB_PATH = $(VTK_PATH)/lib/vtk-5.8
+VTK_LIB      = -Wl,-rpath,$(VTK_LIB_PATH) -L$(VTK_LIB_PATH)
+VTK_LIB     += -lvtkHybrid -lvtkIO -lvtkFiltering -lvtkCommon -lvtkGraphics
 
 # linking flags
 DEBLDFLAGS  = -g3
@@ -50,7 +61,11 @@ ifeq ($(INSILICOCOMPENV),INTEL)
   CPLUSPLUS = icpc
 
   # includes for the system
+  # MKL header
   SYSINCLUDES += -I$(MKL_PATH)
+  # STD header (strange bug?)
+  SYSINCLUDES += -I/usr/include/x86_64-linux-gnu/c++/4.8/
+
 
   # libraries for the system
   SYSLIBS    += -L$(MKL_PATH)/lib/intel64 -lmkl_core

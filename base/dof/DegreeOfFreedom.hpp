@@ -222,20 +222,26 @@ public:
             constraints_[ which ] -> setValue( value );
     }
 
-    //! Return the prescribed value of the constraint
-    number getPrescribedValue( const unsigned which ) const
-    {
-        assert( status_[which] == CONSTRAINED );
-        return constraints_[which] -> getValue(); 
-    }
-
-    //! Return prescribed values of all constraints (or invalid numbers)
+    //--------------------------------------------------------------------------
+    /** Get the values the constrained DoF components are prescribed.
+     *  In case of no constraint give an invalid number. For the case of an
+     *  incremental analysis, return the difference between the prescribed
+     *  value and the current value of the DoF components.
+     *  \tparam OUTITER Type of iterator to copy into.
+     *  \param[in,out]  iter        Iterator to some storage
+     *  \param[in]      incremental True for an incremental analysis
+     */
     template<typename OUTITER>
-    void getPrescribedValues( OUTITER iter ) const
+    void getPrescribedValues( OUTITER iter,
+                              const bool incremental ) const
     {
         for ( unsigned d = 0; d < size; d ++ ) {
-            if ( status_[d] == CONSTRAINED )
-                *iter = constraints_[d] -> getValue();
+            if ( status_[d] == CONSTRAINED ) {
+                if ( incremental )
+                    *iter = (constraints_[d] -> getValue()) - values_[0][d];
+                else
+                    *iter = (constraints_[d] -> getValue());
+            }
             else
                 *iter = base::invalidReal();
 
@@ -246,8 +252,10 @@ public:
     //! Destroy the constraints
     void clearConstraints()
     {
-        for ( unsigned s = 0; s < constraints_.size(); s++ )
+        for ( unsigned s = 0; s < constraints_.size(); s++ ) {
             delete constraints_[s];
+            constraints_[s] = NULL;
+        }
         
         status_.assign( ACTIVE );
     }
@@ -255,7 +263,7 @@ public:
     //! Generate a new constraint
     void makeConstraint( const unsigned which )
     {
-        if ( status_[which] == ACTIVE ) {
+        if ( not (status_[which] == CONSTRAINED) ) {
             status_[      which ] = CONSTRAINED;
             constraints_[ which ] = new Constraint();
         }
@@ -266,6 +274,18 @@ public:
     {
         return constraints_[which];
     }
+
+    //! Multiply constraint RHS by a scalar
+    void scaleConstraint( const double factor )
+    {
+        for ( unsigned d = 0; d < size; d++ ) {
+            if ( status_[d] == CONSTRAINED ) {
+                const number old = constraints_[d] -> getValue();
+                constraints_[d] -> setValue( old * factor );
+            }
+        }
+    }
+    
     //@}
 
     

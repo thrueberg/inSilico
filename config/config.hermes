@@ -1,19 +1,10 @@
 # `-*-mode: Makefile -*-'
 
-#################################################
-#  MAKEFILE variables for openFTL on a Linux 
-#  machine (Debian/Ubuntu) with system default
-#  installations and gcc
-
-# compiler and linker
-CPLUSPLUS    = g++44
-
 ########################################
 # system paths
 
 # boost header
-BOOST_DIR        = $(INSILICOROOT)/ext/boost/boost_1_53_0
-#BOOST_LIB_PATH   = /usr/lib
+BOOST_DIR        = $(INSILICOROOT)/ext/boost/boost_1_55_0
 
 # eigen3 header
 EIGEN3_DIR = $(INSILICOROOT)/ext/Eigen3/Eigen
@@ -23,13 +14,24 @@ SUPERLU_INC      = $(INSILICOROOT)/ext/SuperLU/SuperLU_4.3/SRC
 SUPERLU_LIB_PATH = $(INSILICOROOT)/ext/SuperLU/SuperLU_4.3/lib
 SUPERLU_LIB      = -lsuperlu_4.3 -lblas
 
-########################################
-# flags and defines (DEBUG and RELEASE modes)
+# BLAS
+BLAS = -lblas #-L/home/m2be/trueberg/GotoBLAS2/ -lgoto2
 
-# compilation flags
-DEBCPPFLAGS = -g3 -Wall -Wextra -ansi -pedantic -Wno-unused-parameter \
-	-Wno-variadic-macros -Wconversion -std=c++0x
-RELCPPFLAGS = -g -O3 
+# UMFPACK
+UMFPACK_INC      = $(INSILICOROOT)/ext/suitesparse/include
+UMFPACK_LIB_PATH = $(INSILICOROOT)/ext/suitesparse/lib
+UMFPACK_LIB      = -lumfpack -lamd -lcholmod -lcolamd -lsuitesparseconfig $(BLAS)
+
+# VTK
+VTK_PATH     = $(INSILICOROOT)/ext/vtk/vtk
+VTK_INC      = $(VTK_PATH)/include/vtk-6.1
+VTK_LIB_PATH = $(VTK_PATH)/lib/
+VTK_LIB      = -Wl,-rpath,$(VTK_LIB_PATH) -L$(VTK_LIB_PATH)
+VTK_LIB     += -lvtkIOXML-6.1 -lvtkIOLegacy-6.1 -lvtkFiltersGeneral-6.1\
+	 -lvtkCommonDataModel-6.1 -lvtkFiltersSources-6.1
+
+# MKL paths and libraries
+MKL_PATH = /opt/intel/mkl
 
 # linking flags
 DEBLDFLAGS  = -g3
@@ -40,10 +42,43 @@ DEBDEFINES  = -DDEBUG
 RELDEFINES  = -DNDEBUG
 
 # inclusion of system headers and insilico
-SYSINCLUDES = -I$(INSILICOROOT) -isystem$(EIGEN3_DIR) -isystem$(BOOST_DIR)
+SYSINCLUDES = -I$(INSILICOROOT) -isystem$(EIGEN3_DIR) -I$(BOOST_DIR)
 
 # inclusion of system libraries (always, debug or release)
 SYSLIBS     = 
 DEBSYSLIBS  =
 RELSYSLIBS  = 
+
+
+#################################################
+# compiler and linker
+ifeq ($(INSILICOCOMPENV),INTEL)
+
+  # Compiler: intel c++ compiler
+  CPLUSPLUS = icpc
+
+  # includes for the system
+  SYSINCLUDES += -I$(MKL_PATH)
+
+  # libraries for the system
+  SYSLIBS    += -L$(MKL_PATH)/lib/intel64 -lmkl_core
+  DEBSYSLIBS += -lmkl_sequential
+  RELSYSLIBS += -lmkl_intel_thread
+
+  # compilation flags (debug or release)
+  DEBCPPFLAGS = -g -Wall -ansi -wd383,869,981,1418,1419 -mkl=sequential
+  RELCPPFLAGS = -g -O3 -openmp -wd858 -mkl=parallel
+
+else
+
+  # Default Compiler: system's gnu c++ compiler
+  CPLUSPLUS = g++44
+
+  # compilation flags (debug or release)
+  DEBCPPFLAGS = -g3 -Wall -Wextra -ansi -pedantic -Wno-unused-parameter \
+		-Wno-variadic-macros -Wconversion -std=c++0x
+  RELCPPFLAGS = -g -O3 -fopenmp
+
+
+endif
 

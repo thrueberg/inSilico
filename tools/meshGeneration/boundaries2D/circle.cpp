@@ -3,7 +3,7 @@
 // </preamble>
 //------------------------------------------------------------------------------
 
-//! @file   circle.cpp
+//! @file   boundaries2D/circle.cpp
 //! @author Thomas Rueberg
 //! @date   2013
 

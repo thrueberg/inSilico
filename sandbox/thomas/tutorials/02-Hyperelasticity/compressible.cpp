@@ -31,7 +31,7 @@
 #include <base/solver/Eigen3.hpp>
 // material
 #include <mat/hypel/StVenant.hpp>
-#include <mat/hypel/CompNeoHookean.hpp>
+#include <mat/hypel/NeoHookeanCompressible.hpp>
 #include <mat/Lame.hpp>
 // integral kernel and stress
 #include <solid/HyperElastic.hpp>
@@ -47,8 +47,6 @@ void dirichletBC( const typename base::Vector<DIM>::Type& x,
                   DOF* doFPtr,
                   const double value ) 
 {
-    typedef typename base::Vector<DIM>::Type  VecDim;
-    
     // location at x_1 = 0 or x_1 = 1
     const bool onLeftBdr  = ( std::abs( x[0] -  0. ) < coordTol );
     const bool onRightBdr = ( std::abs( x[0] -  1. ) < coordTol );
@@ -63,7 +61,10 @@ void dirichletBC( const typename base::Vector<DIM>::Type& x,
 
     // If assked for, apply normal displacement at x_1=1
     if (  onRightBdr ) { 
-        if ( doFPtr -> isActive(0) ) doFPtr -> constrainValue( 0, value );
+        if ( doFPtr -> isActive(0) ) {
+            doFPtr -> constrainValue( 0, 0.0 );
+            doFPtr -> constrainValue( 1, value );
+        }
     }
         
     return;
@@ -105,11 +106,11 @@ int main( int argc, char * argv[] )
     const unsigned    geomDeg  = 1;
     const unsigned    fieldDeg = 1;
     const base::Shape shape    = base::HyperCubeShape<dim>::value;
-    const unsigned kernelDegEstimate = 3;
+    const unsigned kernelDegEstimate = 5;
 
     // Type of material
     //typedef mat::hypel::StVenant Material;
-    typedef mat::hypel::CompNeoHookean Material;
+    typedef mat::hypel::NeoHookeanCompressible Material;
 
     // usage message
     if ( argc != 2 ) {
@@ -213,6 +214,12 @@ int main( int argc, char * argv[] )
     //--------------------------------------------------------------------------
     for ( unsigned step = 0; step < loadSteps; step++ ) {
 
+        const double pullFactor =
+            (step == 0 ? 1. :
+             static_cast<double>(step+1.)/static_cast<double>(step) );
+
+        base::dof::scaleConstraints( displacement, pullFactor );
+
         //----------------------------------------------------------------------
         // Nonlinear iterations
         //----------------------------------------------------------------------
@@ -233,8 +240,7 @@ int main( int argc, char * argv[] )
             // Compute element stiffness matrices and assemble them
             base::asmb::stiffnessMatrixComputation<FTB>( quadrature, solver,
                                                          fieldBinder,
-                                                         hyperElastic,
-                                                         iter > 0 );
+                                                         hyperElastic );
 
             // Finalise assembly
             solver.finishAssembly();
@@ -254,7 +260,7 @@ int main( int argc, char * argv[] )
             //solver.cgSolve();
             
             // distribute results back to dofs
-            base::dof::addToDoFsFromSolver( solver, displacement, iter > 0 );
+            base::dof::addToDoFsFromSolver( solver, displacement );
 
             // norm of displacement increment
             const double conv2 = solver.norm();

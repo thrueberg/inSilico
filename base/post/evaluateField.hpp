@@ -212,7 +212,7 @@ base::post::evaluateFieldHistory( const GEOMELEMENT*  geomElemPtr,
  *  The gradient of the FE solution field at time point \f$ t_{n-s}\f$
  *  has the interpolation representation
  *  \f[
- *       \nabla_x u_{n-1}^h (x) = \sum u_{n-s}^i \nabla_x \phi^i (x(\xi))
+ *       \nabla_x u_{n-s}^h (x) = \sum u_{n-s}^i \nabla_x \phi^i (x(\xi))
  *  \f]
  *  which is evaluated by this object. Other than providing a global coordinate
  *  \f$ x \f$, the pair of a geometry element and its local evaluation point
@@ -223,11 +223,11 @@ base::post::evaluateFieldHistory( const GEOMELEMENT*  geomElemPtr,
  *  \param[in]  geomElemPtr  Pointer to geometry element
  *  \param[in]  fieldElemPtr Pointer to field element
  *  \param[in]  xi           Local evaluation coordinate
- *  \returns                 Value of the approximate field gradient
+ *  \return                  Value of the approximate field gradient
  */
 template<unsigned HIST,typename GEOMELEMENT,typename FIELDELEMENT>
 typename base::Matrix<GEOMELEMENT::Node::dim,
-                          FIELDELEMENT::DegreeOfFreedom::size,base::number>::Type
+                      FIELDELEMENT::DegreeOfFreedom::size,base::number>::Type
 base::post::evaluateFieldGradientHistory( const GEOMELEMENT*  geomElemPtr,
                                           const FIELDELEMENT* fieldElemPtr,
                                           const typename FIELDELEMENT::FEFun::VecDim& xi ) 

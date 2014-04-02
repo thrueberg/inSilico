@@ -2,10 +2,12 @@
 # Include machine dependent settings file
 include $(INSILICOROOT)/config/definitions.mk
 
-# default mode: DEBUG
+# default modes
 DEBUG    ?= YES
 SOLVER   ?= EIGEN
 APPFLAGS ?=
+NTHREADS ?= 1
+VTK      ?= NO
 
 # compile/link executables and flags
 SHELL = /bin/bash
@@ -20,7 +22,7 @@ INCLUDES += $(SYSINCLUDES)
 LDLIBS  ?= 
 
 # common flags
-CPPFLAGS = $(APPFLAGS) $(INCLUDES) 
+CPPFLAGS = $(APPFLAGS) $(INCLUDES) -DNTHREADS=$(NTHREADS)
 
 ################################################################################
 # set flags depending on mode (DEBUG or RELEASE)
@@ -54,8 +56,15 @@ endif
 ifeq ($(findstring UMFPACK,$(SOLVER)),UMFPACK)
 	CPPFLAGS += -DLOAD_UMFPACK
 	INCLUDES += -I$(UMFPACK_INC)
-	LDLIBS   += $(UMFPACK_LIB)
+	LDLIBS   += -L $(UMFPACK_LIB_PATH) $(UMFPACK_LIB)
 endif
+
+# VTK
+ifeq ($(strip $(VTK)),YES)
+	INCLUDES += -I$(VTK_INC)
+	LDLIBS   +=   $(VTK_LIB)
+endif
+
 
 # error message
 ifdef REQUIREINTEL

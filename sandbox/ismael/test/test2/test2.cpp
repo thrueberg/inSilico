@@ -43,6 +43,11 @@
 #include <base/asmb/ForceIntegrator.hpp>
 #include <base/asmb/BodyForce.hpp>
 #include <base/asmb/NeumannForce.hpp>
+// time integration
+#include <base/time/BDF.hpp>
+#include <base/time/AdamsMoulton.hpp>
+#include <base/time/ReactionTerms.hpp>
+#include <base/time/ResidualForceHistory.hpp>
 
 // local inclusion of the boundary value problem's definitions
 #include "BoundaryConditions.hpp"
@@ -57,23 +62,31 @@ int main( int argc, char * argv[] )
     }
     
     // Static attributes
-    const unsigned    geomDeg  = 1;
-    const unsigned    fieldDeg = 2;
-    const base::Shape shape    = base::TET;
-    const unsigned    doFSize  = 1;
-    const unsigned kernelDegEstimate = 3;
+    const unsigned geomDeg  			= 1;
+    const unsigned fieldDeg 			= 2;
+    const base::Shape shape    			= base::TET;
+    const unsigned doFSize  			= 1;
+    const unsigned kernelDegEstimate 	= 3;
+    const unsigned tiOrder           	= 2;
 
     // first command line argument is the input data file
     const std::string inputFile  = boost::lexical_cast<std::string>( argv[1] );
 
     // read from input file
     std::string meshFile;
-    double kappa;
+    double diff_default;
+	double D1, D2, stepSize;
+	unsigned numSteps;
     {    
         //Feed properties parser with the variables to be read
         base::io::PropertiesParser prop;
         prop.registerPropertiesVar( "meshFile",         meshFile );
-        prop.registerPropertiesVar( "kappa",            kappa );
+        prop.registerPropertiesVar( "Default",     diff_default );
+		prop.registerPropertiesVar( "D1",         		D1 );
+		prop.registerPropertiesVar( "D2",         		D2 );
+        prop.registerPropertiesVar( "numSteps",    numSteps );
+        prop.registerPropertiesVar( "stepSize",    stepSize );
+
 
        // Read variables from the input file
         std::ifstream inp( inputFile.c_str()  );
@@ -87,6 +100,7 @@ int main( int argc, char * argv[] )
 
     //--------------------------------------------------------------------------
     // create a mesh from file
+	std::cout << "Create Mesh from file" << std::endl;
     typedef base::Unstructured<shape,geomDeg>     Mesh;
     const unsigned dim = Mesh::Node::dim;
     
@@ -98,19 +112,28 @@ int main( int argc, char * argv[] )
     }
 
     // Quadrature and surface quadrature
+	std::cout << "Quadrature" << std::endl;
+
     typedef base::Quadrature<kernelDegEstimate,shape> Quadrature;
     Quadrature quadrature;
     typedef base::SurfaceQuadrature<kernelDegEstimate,shape> SurfaceQuadrature;
     SurfaceQuadrature surfaceQuadrature;
  
+ 	// time integration
+    typedef base::time::BDF<tiOrder> MSM;
+    //typedef base::time::AdamsMoulton<tiOrder> MSM;
+    const unsigned nHist = MSM::numSteps;
+
+
     // DOF handling
     typedef base::fe::Basis<shape,fieldDeg>        FEBasis;
-    typedef base::Field<FEBasis,doFSize>           Field;
+    typedef base::Field<FEBasis,doFSize,nHist>     Field;
     typedef Field::DegreeOfFreedom                 DoF;
-    Field temperature;
+    Field concetration;
 
     // generate DoFs from mesh
-    base::dof::generate<FEBasis>( mesh, temperature );
+	std::cout << "Generate DoFs from mesh" << std::endl;
+    base::dof::generate<FEBasis>( mesh, concetration );
 
     // Creates a list of <Element,faceNo> pairs
     base::mesh::MeshBoundary meshBoundary;
@@ -118,58 +141,60 @@ int main( int argc, char * argv[] )
 
     // Object to constrain the boundary 
     base::dof::constrainBoundary<FEBasis>( meshBoundary.begin(), meshBoundary.end(),
-                                           mesh, temperature,
+                                           mesh, concetration,
                                            boost::bind( &BoundaryConditions<dim>::dirichleBC<DoF>,
                                                         _1, _2 ) );
 
     // Number of DoFs after constraint application!
     const std::size_t numDofs =
-        base::dof::numberDoFsConsecutively( temperature.doFsBegin(), temperature.doFsEnd() );
+        base::dof::numberDoFsConsecutively( concetration.doFsBegin(), concetration.doFsEnd() );
     std::cout << "Number of dofs " << numDofs << std::endl;
 
+    // Bind the fields together
+	std::cout << "Bind Fields" << std::endl;
+    typedef base::asmb::FieldBinder<Mesh,Field> FieldBinder;
+    FieldBinder fieldBinder( mesh, concetration );
+    typedef FieldBinder::TupleBinder<1,1>::Type FTB;
+
+// Time Loop
+
+std::cout << "\n\nTime loop:\n" << std::endl;
+
+
+for ( unsigned step = 0; step < numSteps; step++ ) {
+	
+    std::cout << "\033[2K\r\t"<< "Time:" << (step+1)*stepSize << "\tStep: " 
+				<< step+1 << "/" << numSteps << std::flush;
+    
     // Create a solver object
     typedef base::solver::Eigen3           Solver;
     Solver solver( numDofs );
 
-    // Bind the fields together
-    typedef base::asmb::FieldBinder<Mesh,Field> FieldBinder;
-    FieldBinder fieldBinder( mesh, temperature );
-    typedef FieldBinder::TupleBinder<1,1>::Type FTB;
 
-    // Body force
-    base::asmb::bodyForceComputation<FTB>( quadrature, solver, fieldBinder,
-                                           boost::bind( &BoundaryConditions<dim>::forceFun,
-                                                        _1 ) );
+    // compute stiffness matrix - diffusion
 
-    // Create a connectivity out of this list
-    typedef base::mesh::BoundaryMeshBinder<Mesh::Element>::Type BoundaryMesh;
-    BoundaryMesh boundaryMesh;
-    {
-        // Create a real mesh object from this list
-        base::mesh::generateBoundaryMesh( meshBoundary.begin(), meshBoundary.end(),
-                                          mesh, boundaryMesh );
+	typedef heat::Laplace<FTB::Tuple> Laplace;
+    Laplace laplace( diff_default );
+    boost::function< double( const Mesh::Element *,
+                             const Mesh::Element::GeomFun::VecDim & ) >
+        diffusionFun = boost::bind( &diffusionConstant<Mesh::Element>, _1, _2,
+                                    D1, D2);
+    laplace.setConductivityFunction( diffusionFun );
 
-        const std::string name = baseName + ".boundary.smf";
-        std::ofstream smf( name.c_str() );
-        base::io::smf::writeMesh( boundaryMesh, smf );
-        smf.close();
-    }
-
-    // bind temperature field to the surface mesh
-    typedef base::asmb::SurfaceFieldBinder<BoundaryMesh,Field> SurfaceFieldBinder;
-    SurfaceFieldBinder surfaceFieldBinder( boundaryMesh, temperature );
-    typedef SurfaceFieldBinder::TupleBinder<1>::Type SFTB;
-
-    // Neumann boundary condition
-    base::asmb::neumannForceComputation<SFTB>(
-        surfaceQuadrature, solver, surfaceFieldBinder,
-        boost::bind( &BoundaryConditions<dim>::neumannBC, _1, _2 ) );
-    
-    // compute stiffness matrix
-    typedef heat::Laplace<FTB::Tuple> Laplace;
-    Laplace laplace( kappa );
     base::asmb::stiffnessMatrixComputation<FTB>( quadrature, solver,
                                                  fieldBinder, laplace );
+
+	// compute inertia terms, d/dt, due to time integration
+    base::time::computeInertiaTerms<FTB,MSM>( quadrature, solver,
+                                                  fieldBinder, stepSize, step,
+                                                  1.0 );
+
+
+    // compute history of residual forces due to time integration
+    base::time::computeResidualForceHistory<FTB,MSM>( laplace, 
+                                                      quadrature, solver,
+                                                      fieldBinder, step );
+
     
     // Finalise assembly
     solver.finishAssembly();
@@ -178,11 +203,17 @@ int main( int argc, char * argv[] )
     solver.choleskySolve();
 
     // distribute results back to dofs
-    base::dof::setDoFsFromSolver( solver, temperature );
+    base::dof::setDoFsFromSolver( solver, concetration );
+    
+	// pass to history 
+    std::for_each( concetration.doFsBegin(), concetration.doFsEnd(),
+                    boost::bind( &DoF::pushHistory, _1 ) );
+
 
     // output to a VTK file
-    const std::string vtkFile = baseName + ".vtk";
-    writeVTKFile( mesh, temperature, vtkFile );
-    
+    const std::string vtkFile = 
+		baseName + base::io::leadingZeros( step+1 )+ ".vtk";
+    writeVTKFile( mesh, concetration, vtkFile );
+};    
     return 0;
 }

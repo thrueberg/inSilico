@@ -167,10 +167,12 @@ struct tools::meshGeneration::unitCube::HierarchicCube
 template<unsigned DIM, bool MAKESIMPLEX>
 struct tools::meshGeneration::unitCube::SMF
 {
-    // shape of the elements
+    // shape of the elements (static_casts are owed to a INTEL compiler bug)
     static const base::Shape shape = (MAKESIMPLEX ?
-                                      base::SimplexShape<DIM>::value :
-                                      base::HyperCubeShape<DIM>::value);
+                                      static_cast<base::Shape>(
+                                          base::SimplexShape<DIM>::value) :
+                                      static_cast<base::Shape>(
+                                          base::HyperCubeShape<DIM>::value) );
 
     // number of points per element
     static const unsigned elementNumPoints =

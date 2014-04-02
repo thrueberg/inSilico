@@ -19,6 +19,8 @@ namespace base{
         template<typename DUMMY>
         class Parameters;
 
+        class PrescribedParameters;
+
         class OuterBoundary;
 
         template<typename CELL>
@@ -42,6 +44,33 @@ class base::nitsche::Parameters
 {
     STATIC_ASSERT_MSG( sizeof(DUMMY) == 0,
                        "Documentation class only" );
+};
+
+//------------------------------------------------------------------------------
+/**  Nitsche's method for boundary conditions on the mesh boundary.
+ */
+class base::nitsche::PrescribedParameters
+{
+public:
+    PrescribedParameters( const double alpha, const double kappa )
+        : alpha_( alpha ), kappa_( kappa ) { }
+
+    template<typename ITER>
+    double penaltyWeight( const ITER dummy ) const
+    {
+        return alpha_;
+    }
+
+    template<typename ITER>
+    double energyWeight( const ITER dummy,
+                         const bool inOut ) const
+    {
+        return kappa_;
+    }
+
+private:
+    const double alpha_;
+    const double kappa_;
 };
 
 //------------------------------------------------------------------------------

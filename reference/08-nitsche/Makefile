@@ -1,12 +1,12 @@
 # determine mode of compilation
 DEBUG  = YES
 # choose solver
-SOLVER = 
+SOLVER = SUPERLU
 # name the compilation targets
-TARGET = box interface
+TARGET = box interface hyperElastic
 
 SPACEDIM=2
-STRUCTURED=YES
+STRUCTURED=NO
 
 APPFLAGS  = -DSPACEDIM=$(SPACEDIM)
 ifeq ($(strip $(STRUCTURED)),YES)

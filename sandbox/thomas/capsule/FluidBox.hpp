@@ -170,8 +170,8 @@ public:
         base::mesh::MeshBoundary meshBoundary;
         meshBoundary.create( mesh_.elementsBegin(), mesh_.elementsEnd() );
 
-        base::dof::constrainBoundary<FEBasisU>( meshBoundary.boundaryBegin(),
-                                                meshBoundary.boundaryEnd(),
+        base::dof::constrainBoundary<FEBasisU>( meshBoundary.begin(),
+                                                meshBoundary.end(),
                                                 mesh_, velocity_, fun );
     }
 
@@ -245,10 +245,9 @@ public:
         return std::make_pair( numDoFsU_, numDoFsP_ );
     }
 
-    template<typename SMESH, typename SVELOC, typename BFUN>
-    unsigned solveProblem( const SMESH&   surfaceMesh,
-                           const SVELOC&  surfaceVelocity,
-                           const BFUN&    bodyForceFun,
+    //template<typename SMESH, typename SVELOC>
+    unsigned solveProblem( //const SMESH&   surfaceMesh,
+                           //const SVELOC&  surfaceVelocity,
                            const double   penaltyFactor, 
                            const unsigned maxIter, 
                            const double   tolerance,
@@ -271,9 +270,9 @@ public:
 
 
         
-        typename base::cut::TransferSurfaceDatum<SMESH,SVELOC,
-                                                 typename Mesh::Element>
-            s2d( surfaceMesh, surfaceVelocity, levelSet_ );
+        //typename base::cut::TransferSurfaceDatum<SMESH,SVELOC,
+        //                                         typename Mesh::Element>
+        //    s2d( surfaceMesh, surfaceVelocity, levelSet_ );
 
         
         // Nonlinear Picard iterations
@@ -300,25 +299,22 @@ public:
             base::asmb::stiffnessMatrixComputation<BottomLeft>( quadrature_, solver,
                                                                 field_, divU_ );
 
-            base::asmb::bodyForceComputation<BottomRight>( quadrature_,  solver, field_,
-                                                           bodyForceFun );
-            
             base::nitsche::ImmersedBoundary<Cell> ib( 1.0, cells_ );
             
             base::nitsche::penaltyLHS<STBUU>( surfaceQuadrature_, solver,
                                               immersedFieldBinder, ib, penaltyFactor );
-            base::nitsche::penaltyRHS2<STBUU>( surfaceQuadrature_, solver,
-                                               immersedFieldBinder, s2d, ib, penaltyFactor );
+            //base::nitsche::penaltyRHS2<STBUU>( surfaceQuadrature_, solver,
+            //                                   immersedFieldBinder, s2d, ib, penaltyFactor );
             
             base::nitsche::energyLHS<STBUU>( stressDivergence_, surfaceQuadrature_, solver,
                                              immersedFieldBinder, ib, isInside_ );
-            base::nitsche::energyRHS2<STBUU>( stressDivergence_, surfaceQuadrature_, solver,
-                                              immersedFieldBinder, s2d, ib, isInside_ );
+            //base::nitsche::energyRHS2<STBUU>( stressDivergence_, surfaceQuadrature_, solver,
+            //                                  immersedFieldBinder, s2d, ib, isInside_ );
             
             base::nitsche::energyLHS<STBUP>( gradP_, surfaceQuadrature_, solver,
                                              immersedFieldBinder, ib, isInside_ );
-            base::nitsche::energyRHS2<STBUP>( gradP_, surfaceQuadrature_, solver,
-                                              immersedFieldBinder, s2d, ib, isInside_ );
+            //base::nitsche::energyRHS2<STBUP>( gradP_, surfaceQuadrature_, solver,
+            //                                  immersedFieldBinder, s2d, ib, isInside_ );
 
             // Finalise assembly
             solver.finishAssembly();
@@ -351,7 +347,7 @@ public:
     {
         // VTK Legacy
         const std::string vtkFile = baseName
-            + "." + base::io::leadingZeros( step ) + ".vtk";
+            + "F." + base::io::leadingZeros( step ) + ".vtk";
         
         std::ofstream vtk( vtkFile.c_str() );
         base::io::vtk::LegacyWriter vtkWriter( vtk );
@@ -378,8 +374,9 @@ public:
 
 
     //--------------------------------------------------------------------------
-    template<typename SFIELD>
-    VecDim computeImmersedSurfaceForce( SFIELD& surfForces, 
+    template<typename SMESH, typename FFIELD>
+    VecDim computeImmersedSurfaceForce( SMESH& surfaceMesh,
+                                        FFIELD& surfForces, 
                                         const double viscosity,
                                         const double velocityWeight )
     {
@@ -400,8 +397,10 @@ public:
         typedef typename ::Robin<typename UP::Tuple> Traction;
         Traction traction( viscosity, velocityWeight );
         
-        base::cut::ComputeSurfaceForces<SFIELD,SurfaceQuadrature,typename STBUP::Tuple,Traction>
-            computeSurfaceForces( surfForces, surfaceQuadrature_, levelSet_, traction, isInside_ );
+        base::cut::ComputeSurfaceForces<SMESH,FFIELD,SurfaceQuadrature,
+                                        typename STBUP::Tuple,Traction>
+            computeSurfaceForces( surfaceMesh, surfForces, surfaceQuadrature_,
+                                  levelSet_, traction, not isInside_ );
 
         typename SurfaceFieldBinder::FieldIterator first = immersedFieldBinder.elementsBegin();
         typename SurfaceFieldBinder::FieldIterator  last = immersedFieldBinder.elementsEnd();

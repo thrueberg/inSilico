@@ -25,6 +25,7 @@
 // assembly
 #include <base/asmb/FieldBinder.hpp>
 #include <base/asmb/StiffnessMatrix.hpp>
+#include <base/asmb/ForceIntegrator.hpp>
 // fluid terms
 #include <fluid/Stokes.hpp>
 #include <fluid/Convection.hpp>
@@ -147,7 +148,7 @@ int main( int argc, char * argv[] )
     }
 
     // Quadrature 
-    const unsigned kernelDegEstimate = 3;
+    const unsigned kernelDegEstimate = 4;
     typedef base::Quadrature<kernelDegEstimate,shape> Quadrature;
     Quadrature quadrature;
 
@@ -191,7 +192,7 @@ int main( int argc, char * argv[] )
                                             meshBoundary.end(),
                                             mesh, velocity,
                                             boost::bind( &dirichletBCVelocity<dim,DoFU>,
-                                                         _1, _2, 0.0 ) );
+                                                         _1, _2, 1.0 ) );
     // Fix one pressure dof
     Pressure::DoFPtrIter pIter = pressure.doFsBegin();
     std::advance( pIter, std::distance( pressure.doFsBegin(), pressure.doFsEnd() )/2 );
@@ -250,6 +251,8 @@ int main( int argc, char * argv[] )
     // system solver
     typedef base::solver::Eigen3           Solver;
 
+    const bool incremental = false;
+    
     //--------------------------------------------------------------------------
     // Time loop
     for ( unsigned step = 0; step < numSteps; step++ ) {
@@ -260,7 +263,11 @@ int main( int argc, char * argv[] )
         //
         std::cout << "Time step " << step << " at time " << time
                   << std::endl;
-    
+
+        //base::dof::clearDoFs( velocity );
+        //base::dof::clearDoFs( pressure );
+
+#if 1
         // ramp function
         const double appliedVelocity = 
             ( time < 0.5 ? 0.0 : ( time < 1.0 ? time - 0.5 : 1.0 ) );
@@ -271,11 +278,13 @@ int main( int argc, char * argv[] )
                                                 mesh, velocity,
                                                 boost::bind( &dirichletBCVelocity<dim,DoFU>,
                                                              _1, _2, appliedVelocity ) );
+#endif        
+        double prevResNorm;
+        double prevSolNorm;
         
         //----------------------------------------------------------------------
         // Nonlinear fixpoint iterations
         unsigned iter = 0;
-        double prevNorm = 0.;
         while( iter < maxIter ) {
 
             // Create a solver object
@@ -285,49 +294,94 @@ int main( int argc, char * argv[] )
     
             // Compute system matrix
             base::asmb::stiffnessMatrixComputation<UUU>( quadrature, solverFluid,
-                                                         field, vecLaplace );
+                                                         field, vecLaplace,
+                                                         incremental );
 
             base::asmb::stiffnessMatrixComputation<UUU>( quadrature, solverFluid,
-                                                         field, convection );
+                                                         field, convection,
+                                                         incremental );
 
             base::asmb::stiffnessMatrixComputation<UP>( quadrature, solverFluid,
-                                                        field, gradP );
+                                                        field, gradP,
+                                                        incremental );
 
             base::asmb::stiffnessMatrixComputation<PU>( quadrature, solverFluid,
-                                                        field, divU );
+                                                        field, divU,
+                                                        incremental );
 
+            if ( incremental ) {
+                base::asmb::computeResidualForces<UUU>( quadrature, solverFluid,
+                                                        field, vecLaplace );
+                base::asmb::computeResidualForces<UUU>( quadrature, solverFluid,
+                                                        field, convection );
+                base::asmb::computeResidualForces<UP >( quadrature, solverFluid,
+                                                        field, gradP );
+                base::asmb::computeResidualForces<PU >( quadrature, solverFluid,
+                                                        field, divU );
+            }
+            
             // compute inertia terms, d/dt, due to time integration
             base::time::computeInertiaTerms<UUU,MSM>( quadrature, solverFluid,
                                                       field, stepSize, step,
-                                                      density );
+                                                      density, incremental );
 
             // Finalise assembly
             solverFluid.finishAssembly();
+
+            // check convergence via solver norms
+            const double residualNorm = solverFluid.norm( );
+            std::cout << " |R| = " << residualNorm << std::flush;
+
+            bool isConverged = false;
+            
+            if ( ( incremental ) or ( iter== 0 ) ) {
+                if ( residualNorm < tolerance * viscosity ) isConverged = true;
+            }
+            else {
+                if ( std::abs( (residualNorm - prevResNorm)/prevResNorm ) < tolerance )
+                    isConverged = true;
+            }
+            
+            if ( isConverged ) { std::cout << std::endl; break; }
+            prevResNorm = residualNorm;
 
             // Solve
             solverFluid.superLUSolve();
 
             // distribute results back to dofs
-            base::dof::setDoFsFromSolver( solverFluid, velocity );
-            base::dof::setDoFsFromSolver( solverFluid, pressure );
-    
-            // check convergence via solver norms
-            const double newNorm = solverFluid.norm();
-            const double convCrit = (newNorm > tolerance / 1000. ? 
-                                     (std::abs( prevNorm - newNorm ) / std::abs( newNorm ) ) :
-                                     newNorm );
-            std::cout << "  convergence criterion = " << convCrit << std::endl;
-            if ( convCrit < tolerance ) break;
+            if ( incremental ) {
+                base::dof::addToDoFsFromSolver( solverFluid, velocity );
+                base::dof::addToDoFsFromSolver( solverFluid, pressure );
+            }
+            else {
+                base::dof::setDoFsFromSolver( solverFluid, velocity );
+                base::dof::setDoFsFromSolver( solverFluid, pressure );
+            }
 
-            // update storage of previous norm
-            prevNorm = newNorm;
-        
+            // check convergence via solver norms
+            const double solNorm = solverFluid.norm( );
+            std::cout << " |dU| = " << solNorm << std::endl;
+
+            if ( ( incremental ) or ( iter== 0 ) ) {
+                if ( solNorm < tolerance * viscosity ) isConverged = true;
+            }
+            else {
+                if ( std::abs( (solNorm - prevSolNorm)/prevSolNorm ) < tolerance )
+                    isConverged = true;
+            }
+            
+            if ( isConverged ) break; 
+            prevSolNorm = solNorm;
+
             iter++;
+
         }
 
         // solve the food equation
         {
             std::cout << " * Solve food equation " << std::endl;
+
+            base::dof::clearDoFs( food );
             
             // Create a solver object
             Solver solverFood( numDoFsF );
@@ -359,14 +413,9 @@ int main( int argc, char * argv[] )
 
         // Move in history storage (n+1 -> n)
         {
-            std::for_each( velocity.doFsBegin(), velocity.doFsEnd(),
-                           boost::bind( &DoFU::pushHistory, _1 ) );
-
-            std::for_each( pressure.doFsBegin(), pressure.doFsEnd(),
-                           boost::bind( &DoFP::pushHistory, _1 ) );
-
-            std::for_each( food.doFsBegin(), food.doFsEnd(),
-                           boost::bind( &DoFF::pushHistory, _1 ) );
+            base::dof::pushHistory( velocity );
+            base::dof::pushHistory( pressure );
+            base::dof::pushHistory( food     );
         }
 
         // output to a VTK file

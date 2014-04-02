@@ -64,34 +64,40 @@ public:
     //! Constructor with coordinate, invalidates other member data
     LevelSet( const VecDim& x = base::invalidVector<dim>() )
     : x_( x ),
-      isInterior_( false ),
-      closestPoint_( base::invalidVector<dim>() ),
-      closestElement_( base::invalidInt ),
+      distanceToPlane_( base::invalidNumber() ),
+      closestPoint_(    base::invalidVector<dim>() ),
+      closestElement_(  base::invalidInt ),
       localCoordinate_( base::invalidVector<dim-1>() )
     { }
 
     //--------------------------------------------------------------------------
     //! @name Mutators
     //@{
-    void setInterior() { isInterior_ = true; }
-    void setExterior() { isInterior_ = false; }
-    void setX(              const VecDim&     x ) { x_ = x; }
-    void setClosestPoint(   const VecDim&     y ) { closestPoint_   = y; }
-    void setClosestElement( const std::size_t e ) { closestElement_ = e; }
+    void setDistanceToPlane( const double     dp ) { distanceToPlane_ = dp; }
+    void setX(               const VecDim&     x ) { x_ = x; }
+    void setClosestPoint(    const VecDim&     y ) { closestPoint_   = y; }
+    void setClosestElement(  const std::size_t e ) { closestElement_ = e; }
     void setClosestLocalCoordinate( const LocalVecDim& xi ) { localCoordinate_ = xi; }
+    //@}
+
+    //! @name Short-cuts for an analytical surface
+    //@{
+    void setInterior() { distanceToPlane_ =  1.0; }
+    void setExterior() { distanceToPlane_ = -1.0; }
     //@}
 
     //--------------------------------------------------------------------------
     //! @name Accessors
     //@{
     VecDim getX()                const { return x_; }
-    bool   isInterior()          const { return isInterior_; }
+    double getDistanceToPlane()  const { return distanceToPlane_; }
+    bool   isInterior()          const { return (distanceToPlane_ > 0.); }
     VecDim getClosestPoint()     const { return closestPoint_; }
     double getUnsignedDistance() const { return base::norm(closestPoint_ - x_); }
     
     double getSignedDistance()  const
     {
-        const double sign = ( isInterior_ ? +1.0 : -1.0 );
+        const double sign =  ( this -> isInterior() ? +1.0 : -1.0 );
         return sign * (this -> getUnsignedDistance() );
     }
     
@@ -107,10 +113,10 @@ private:
 
     //! @name Variable distance data
     //@{
-    bool        isInterior_;     //!< Flag, if the point x_ is interior
-    VecDim      closestPoint_;   //!< Coordinates of the closest surface point 
-    std::size_t closestElement_; //!< Index of the closest surface element
-    LocalVecDim localCoordinate_;//!< Element coordinate of closest point
+    double      distanceToPlane_; //!< Signed distance to plane of closest element
+    VecDim      closestPoint_;    //!< Coordinates of the closest surface point 
+    std::size_t closestElement_;  //!< Index of the closest surface element
+    LocalVecDim localCoordinate_; //!< Element coordinate of closest point
     //@}
 };
 
@@ -125,10 +131,10 @@ private:
  *  using the signed distances \f$ d_K \f$ of the element's vertices and linear
  *  interpolation functions \f$ \phi_K \f$.
  *  \tparam ELEMENT Type of element considered here
- *  \param[in]  ep         Pointer to an element
- *  \param[in]  xi         Local interpolation coordinate
- *  \param[in]  levelSets  Nodal Level Set data
- *  \param[out] eLevelSet  Level set representation of the element
+ *  \param[in]  ep               Pointer to an element
+ *  \param[in]  xi               Local interpolation coordinate
+ *  \param[in]  vertexLevelSets  Nodal Level Set data
+ *  \return                      Interpolated level set value
  */
 template<typename ELEMENT>
 double base::cut::signedDistance( const ELEMENT* ep,
@@ -168,10 +174,10 @@ double base::cut::signedDistance( const ELEMENT* ep,
  *  using the closest points \f$ x^*_K \f$ of the element's vertices and linear
  *  interpolation functions \f$ \phi_K \f$.
  *  \tparam ELEMENT Type of element considered here
- *  \param[in]  ep         Pointer to an element
- *  \param[in]  xi         Local interpolation coordinate
- *  \param[in]  levelSets  Nodal Level Set data
- *  \param[out] eLevelSet  Level set representation of the element
+ *  \param[in]  ep               Pointer to an element
+ *  \param[in]  xi               Local interpolation coordinate
+ *  \param[in]  vertexLevelSets  Nodal Level Set data
+ *  \return                      Interpolated closest point
  */
 template<typename ELEMENT>
 typename ELEMENT::Node::VecDim

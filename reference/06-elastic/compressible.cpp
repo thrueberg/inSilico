@@ -29,7 +29,7 @@
 #include <base/solver/Eigen3.hpp>
 
 #include <mat/hypel/StVenant.hpp>
-#include <mat/hypel/CompNeoHookean.hpp>
+#include <mat/hypel/NeoHookeanCompressible.hpp>
 #include <mat/Lame.hpp>
 
 #include <solid/HyperElastic.hpp>
@@ -68,12 +68,11 @@ public:
         }
 
         // If assked for, apply normal displacement at x_1=1
-        if (  onRightBdr and pullRightSide ) { 
+        if (  onRightBdr and pullRightSide ) {
             if ( doFPtr -> isActive(0) )
                 doFPtr -> constrainValue( 0, value );
-            
         }
-        
+
         return;
     }
 
@@ -89,7 +88,8 @@ public:
         const bool onTractionBdr =
             ( std::abs( x[0] -  1. ) < tol );
 
-        if ( onTractionBdr ) result[1] = value;
+        if ( onTractionBdr ) // result[1] = value;
+            result[0] = value * (x[1] - 0.5);
         
         return result;
     }
@@ -128,29 +128,28 @@ int main( int argc, char * argv[] )
     // basic attributes of the computation
     const unsigned    geomDeg  = 1;
     const unsigned    fieldDeg = 2;
-    const base::Shape shape    = base::QUAD;
+    const base::Shape shape    = base::HyperCubeShape<SPACEDIM>::value;
 
     // typedef mat::hypel::StVenant Material;
-    typedef mat::hypel::CompNeoHookean Material;
+    typedef mat::hypel::NeoHookeanCompressible Material;
 
     // usage message
-    if ( argc != 2 ) {
-        std::cout << "Usage:  " << argv[0] << "  input.dat \n";
+    if ( argc != 3 ) {
+        std::cout << "Usage:  " << argv[0] << "  mesh.smf input.dat \n";
         return 0;
     }
 
     // read name of input file
-    const std::string inputFile = boost::lexical_cast<std::string>( argv[1] );
+    const std::string meshFile  = boost::lexical_cast<std::string>( argv[1] );
+    const std::string inputFile = boost::lexical_cast<std::string>( argv[2] );
 
     // read from input file
-    std::string meshFile;
     double E, nu, pull, traction, tolerance;
     unsigned maxIter, loadSteps;
     bool dispControlled;
     {    
         //Feed properties parser with the variables to be read
         base::io::PropertiesParser prop;
-        prop.registerPropertiesVar( "meshFile",         meshFile );
         prop.registerPropertiesVar( "E",                E );
         prop.registerPropertiesVar( "nu",               nu );
         prop.registerPropertiesVar( "pull",             pull );
@@ -220,8 +219,10 @@ int main( int argc, char * argv[] )
                                           mesh, boundaryMesh );
     }
 
-    // constrain the boundary
+    // initial pull = (total amount) / (number of steps)
     const double firstPull = pull / static_cast<double>( loadSteps );
+
+    // constrain the boundary
     base::dof::constrainBoundary<FEBasis>( meshBoundary.begin(),
                                            meshBoundary.end(),
                                            mesh, field, 
@@ -250,9 +251,9 @@ int main( int argc, char * argv[] )
     std::cout << "# Number of dofs " << numDofs << std::endl;
 
     // create table for writing the convergence behaviour of the nonlinear solves
-    base::io::Table<4>::WidthArray widths = {{ 2, 10, 10, 10 }};
+    base::io::Table<4>::WidthArray widths = {{ 2, 5, 5, 15 }};
     base::io::Table<4> table( widths );
-    table % "Load step" % "iteration" % "|F|"  % "|x|";
+    table % "Step" % "Iter" % "|F|"  % "|x|";
     std::cout << "#" << table;
 
     // write a vtk file
@@ -263,6 +264,15 @@ int main( int argc, char * argv[] )
     // Loop over load steps
     //--------------------------------------------------------------------------
     for ( unsigned step = 0; step < loadSteps; step++ ) {
+
+        // rescale constraints in every load step: (newValue / oldValue)
+        const double  pullFactor =
+            (step == 0 ?
+             static_cast<double>( step+1 ) :
+             static_cast<double>( step+1 )/ static_cast<double>(step) );
+
+        // scale constraints
+        base::dof::scaleConstraints( field, pullFactor );
 
         //----------------------------------------------------------------------
         // Nonlinear iterations
@@ -278,16 +288,21 @@ int main( int argc, char * argv[] )
 
             // apply traction boundary condition, if problem is not disp controlled
             if ( not dispControlled ) {
+                
                 // value of applied traction
-                const double tracValue =
+                const double tractionFactor =
+                    traction * 
                     static_cast<double>(step+1) / static_cast<double>( loadSteps );
-                base::asmb::neumannForceComputation<SFTB>( surfaceQuadrature, solver,
-                                                           surfaceFieldBinder,
-                                                           boost::bind( &PulledSheetProblem<dim>::
-                                                                        neumannBC,
-                                                                        _1, _2, tracValue ) );
+
+                // apply traction load
+                base::asmb::neumannForceComputation<SFTB>(
+                    surfaceQuadrature, solver,
+                    surfaceFieldBinder,
+                    boost::bind( &PulledSheetProblem<dim>::neumannBC,
+                                 _1, _2, tractionFactor ) );
             }
-            
+
+            // residual forces
             base::asmb::computeResidualForces<FTB>( quadrature, solver,
                                                     fieldBinder,
                                                     hyperElastic );
@@ -295,8 +310,7 @@ int main( int argc, char * argv[] )
             // Compute element stiffness matrices and assemble them
             base::asmb::stiffnessMatrixComputation<FTB>( quadrature, solver,
                                                          fieldBinder,
-                                                         hyperElastic,
-                                                         iter > 0 );
+                                                         hyperElastic );
 
             // Finalise assembly
             solver.finishAssembly();
@@ -312,10 +326,11 @@ int main( int argc, char * argv[] )
             }
 
             // Solve
-            solver.choleskySolve();
+            //solver.choleskySolve();
+            solver.cgSolve();
             
             // distribute results back to dofs
-            base::dof::addToDoFsFromSolver( solver, field, iter > 0 );
+            base::dof::addToDoFsFromSolver( solver, field );
 
             // norm of displacement increment
             const double conv2 = solver.norm();

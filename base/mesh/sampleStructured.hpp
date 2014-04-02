@@ -18,6 +18,7 @@
 #include <boost/bind.hpp>
 // base includes
 #include <base/MultiIndex.hpp>
+#include <base/geometry.hpp>
 // base/mesh includes
 #include <base/mesh/Structured.hpp>
 

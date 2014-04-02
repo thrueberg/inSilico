@@ -2,7 +2,7 @@
 #include <base/asmb/SurfaceFieldBinder.hpp>
 
 #include "Surface.hpp"
-
+#include "InternalPressure.hpp"
 
 //------------------------------------------------------------------------------
 // Statically determined positioning
@@ -30,147 +30,6 @@ void constrainSupports( FIELD& field )
     (*dIter) -> constrainValue( 0, 0. );
 }
 
-//------------------------------------------------------------------------------
-template<typename SURFFIELDTUPLE>
-class InternalPressure
-{
-public:
-    
-    typedef typename SURFFIELDTUPLE::GeomElement SurfaceElement;
-    typedef typename SURFFIELDTUPLE::TrialElement TrialElement;
-    
-    typedef typename base::GeomTraits<SurfaceElement>::LocalVecDim
-    LocalVecDim;
-
-    typedef typename base::GeomTraits<SurfaceElement>::GlobalVecDim
-    GlobalVecDim;
-
-    static const unsigned numValues = SurfaceElement::numNodes;
-    typedef boost::array<GlobalVecDim,numValues> ForceArray;
-
-    // dirty hack
-    typedef SURFFIELDTUPLE  arg1_type;
-    typedef ForceArray&     arg4_type;
-
-    InternalPressure( const double p,
-                      const GlobalVecDim& centre )
-        : p_( p ), centre_( centre ) { }
-    
-    void operator()( const SURFFIELDTUPLE& sft,
-                     const LocalVecDim&    xi,
-                     const double          weight,
-                     ForceArray& forceArray ) const
-    {
-        // extract surface geometry element of the tuple
-        const SurfaceElement* surfEp  = sft.geomElementPtr();
-        const TrialElement*   trialEp = sft.trialElementPtr();
-
-        // Get surface metric and normal
-        GlobalVecDim normal;
-        const double detG =
-            base::SurfaceNormal<SurfaceElement>()( surfEp, xi, normal );
-
-        // evaluate shape functions
-        typename TrialElement::FEFun::FunArray trialFunValues;
-        (trialEp -> fEFun()).evaluate( surfEp, xi, trialFunValues );
-
-        // get coordinate
-        const GlobalVecDim x = base::Geometry<SurfaceElement>()( surfEp, xi );
-
-        // angle
-        const double phi = std::atan2( (x[1] - centre_[1]), (x[0] - centre_[0]) );
-
-        // force
-        const GlobalVecDim force = p_ * normal * (1. + 0.8 * std::cos(2. * phi) );
-        
-        // assemble to array
-        for ( unsigned n = 0; n < numValues; n++ )
-            forceArray[n] += force * trialFunValues[n] * detG * weight;
-    }
-    
-private:
-    const double p_;
-    const GlobalVecDim centre_;
-};
-
-//------------------------------------------------------------------------------
-template<typename SURFFIELDTUPLE, typename QUADRATURE>
-void computeForceField( SURFFIELDTUPLE sft,
-                        const QUADRATURE& quadrature,
-                        const double p,
-                        const typename SURFFIELDTUPLE::GeomElement::Node::VecDim & centre )
-{
-    typedef InternalPressure<SURFFIELDTUPLE> InternalPressure;
-    InternalPressure internalPressure( p, centre );
-
-    static const unsigned dim = SURFFIELDTUPLE::GeomElement::Node::dim;
-
-    // array of nodal forces, initialise to zero
-    typename InternalPressure::ForceArray forceArray;
-    forceArray.assign( base::constantVector<dim>( 0. ) );
-
-    // compute nodal forces
-    quadrature.apply( internalPressure, sft, forceArray );
-    
-    // add to dofs
-    typedef typename SURFFIELDTUPLE::TestElement TestElement;
-    TestElement* testEp = sft.testElementPtr();
-
-    // go through degrees of freedom of surface element
-    typename TestElement::DoFPtrIter dIter = testEp -> doFsBegin();
-    typename TestElement::DoFPtrIter dLast = testEp -> doFsEnd();
-    for ( unsigned s = 0; dIter != dLast; ++dIter, s++ ) {
-
-        for ( unsigned d = 0; d < dim; d++ ) {
-            const double oldValue = (*dIter) -> getValue( d );
-            const double newValue = oldValue + forceArray[s][d];
-            (*dIter) -> setValue( d, newValue );
-        }
-    }
-
-    return;
-}
-
-//------------------------------------------------------------------------------
-template<typename SURFACE>
-void computeForceField( const SURFACE& surface,
-                        const bool constrain,
-                        const double p,
-                        const typename SURFACE::VecDim& centre,
-                        typename SURFACE::Field& forces )
-{
-    // extract surface current configuration
-    typename SURFACE::Mesh  current;
-    surface.currentConfiguration( current );
-    
-    // make sure the dof-pattern is the same as for the surface displacements
-    if ( constrain ) constrainSupports( forces );
-            
-    // Number the degrees of freedom
-    base::dof::numberDoFsConsecutively( forces.doFsBegin(), forces.doFsEnd() );
-
-    // Bind the surface to the new field
-    typedef typename 
-        base::asmb::SurfaceFieldBinder<typename SURFACE::Mesh,
-                                       typename SURFACE::Field>
-        SurfaceFieldBinder;
-
-    // tuple binder: test and trial fields are the force
-    typedef typename SurfaceFieldBinder::template TupleBinder<1,1>::Type STBUU;
-    SurfaceFieldBinder forceFieldBinder( current, forces );
-
-    // go through all elements and compute the forces
-    typename SurfaceFieldBinder::FieldIterator first = forceFieldBinder.elementsBegin();
-    typename SurfaceFieldBinder::FieldIterator  last = forceFieldBinder.elementsEnd();
-    for ( ; first != last; ++first ) {
-        computeForceField( STBUU::makeTuple( *first ),
-                           surface.accessQuadrature(), p,
-                           centre );
-        
-    }
-
-    return;
-}
 
 //------------------------------------------------------------------------------
 double pressureFun( const double t, const double max )
@@ -239,12 +98,7 @@ int main( int argc, char * argv[] )
 
     surface.numberDoFs();
 
-    Surface::Field forces, velocity;
-    surface.fieldCopy( forces );
-    surface.fieldCopy( velocity );
-
-            
-    surface.writeVTKFile( baseName, 0, forces, velocity );
+    surface.writeVTKFile( baseName, 0);
 
     double          volume = surface.enclosedVolume();
     Surface::VecDim centre = surface.moment() / volume;
@@ -260,18 +114,18 @@ int main( int argc, char * argv[] )
     //--------------------------------------------------------------------------
     for ( unsigned step = 0; step < numSteps; step++ ) {
 
-        base::dof::clearDoFs( forces );
+        base::dof::clearDoFs( surface.accessForces() );
 
         // current load
         const double p = pressureFun( (step+1)*dt, pressure );
 
         // new field for surface forces
-        computeForceField( surface, constrain, p, centre, forces );
+        if ( constrain ) constrainSupports( surface.accessForces() );
+        computeInternalPressure( surface, p, surface.accessForces() );
         
         // solve structure problem
         const unsigned iter = surface.findEquilibrium( dt, step,
-                                                       maxIter, tolerance, forces,
-                                                       1.0 );
+                                                       maxIter, tolerance );
         
         // warning
         if ( iter == maxIter ) {
@@ -279,10 +133,10 @@ int main( int argc, char * argv[] )
                       << maxIter << " iterations \n";
         }
 
-        surface.computeSurfaceVelocity( velocity, dt );
+        surface.computeSurfaceVelocity( dt );
 
         // write a vtk file
-        surface.writeVTKFile( baseName, step+1, forces, velocity );
+        surface.writeVTKFile( baseName, step+1 );
         
         volume = surface.enclosedVolume();
         centre = surface.moment() / volume;

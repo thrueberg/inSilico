@@ -234,13 +234,8 @@ int main( int argc, char * argv[] )
     // Time loop
     for ( unsigned step = 0; step < numSteps; step ++ ) {
 
-        //std::cout << "Time step " << step << std::endl;
-        const double time = step * stepSize;
-        std::cout << time << " ";
-        monitorSol.solution( std::cout );
-        monitorSol.gradient( std::cout );
-        std::cout << std::endl;
-    
+        base::dof::clearDoFs( temperature );
+
         // Create a solver object
         typedef base::solver::Eigen3           Solver;
         Solver solver( numDofs );
@@ -276,11 +271,18 @@ int main( int argc, char * argv[] )
             base::dof::setDoFsFromSolver( solver, temperature );
 
             // push history
-            std::for_each( temperature.doFsBegin(), temperature.doFsEnd(),
-                           boost::bind( &Temperature::DegreeOfFreedom::pushHistory, _1 ) );
+            base::dof::pushHistory( temperature );
         }
 
         writeVTKFile( baseName, step+1, mesh, temperature );
+
+        //std::cout << "Time step " << step << std::endl;
+        const double time = step * stepSize;
+        std::cout << time << " ";
+        monitorSol.solution( std::cout );
+        monitorSol.gradient( std::cout );
+        std::cout << std::endl;
+    
 
     } // end time loop
 

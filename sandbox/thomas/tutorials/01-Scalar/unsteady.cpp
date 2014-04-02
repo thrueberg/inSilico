@@ -155,6 +155,8 @@ int main( int argc, char * argv[] )
     //--------------------------------------------------------------------------
     for ( unsigned step = 0; step < numSteps; step++ ) {
 
+        base::dof::clearDoFs( temperature );
+
         std::cout << "Step " << step << "\n";
     
         // Create a solver object
@@ -187,9 +189,8 @@ int main( int argc, char * argv[] )
         base::dof::setDoFsFromSolver( solver, temperature );
 
 
-        // pass to history 
-        std::for_each( temperature.doFsBegin(), temperature.doFsEnd(),
-                       boost::bind( &DoF::pushHistory, _1 ) );
+        // pass to history
+        base::dof::pushHistory( temperature );
 
         // write output
         const std::string vtkFile =

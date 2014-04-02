@@ -45,9 +45,7 @@ namespace base{
                                                                  std::size_t> > > > &
                              colConstraints,
                              SOLVER& solver,
-                             const bool isBubnov, 
-                             const bool zeroConstraints );
-
+                             const bool isBubnov );
 
         //----------------------------------------------------------------------
         namespace detail_{
@@ -210,8 +208,6 @@ namespace base{
  *  \param[in] colConstraints Linear constraints on the columns
  *  \param[in] solver         Access to the system solver
  *  \param[in] isBubnov       True if column and row spaces are identical
- *  \param[in] zeroConstraints True if the prescribed values are set to zero
- *                      as in the sub-sequent iterations of a nonlinear solve
  */
 template<typename SOLVER>
 void base::asmb::assembleMatrix( const base::MatrixD&             elemMatrix,
@@ -231,8 +227,7 @@ void base::asmb::assembleMatrix( const base::MatrixD&             elemMatrix,
                                                                      std::size_t> > > > &
                                  colConstraints,
                                  SOLVER& solver,
-                                 const bool isBubnov, 
-                                 const bool zeroConstraints )
+                                 const bool isBubnov )
 {
     // number of active dofs in the row space
     const std::size_t numActiveRowDoFs =
@@ -336,8 +331,8 @@ void base::asmb::assembleMatrix( const base::MatrixD&             elemMatrix,
     
     // Pass on to system matrix
     solver.insertToLHS( sysMatrix, effRowDoFIDs, effColDoFIDs );
-    if ( not zeroConstraints )
-        solver.insertToRHS( sysVector, effRowDoFIDs );
+    //if ( not zeroConstraints )
+    solver.insertToRHS( sysVector, effRowDoFIDs );
             
     return;
 }

@@ -15,7 +15,7 @@ namespace base{
         //@{
 
         //! \image html lagrange_0.png
-        template<>
+        template<> inline
         void Lagrange1D<0>::fun( const VecDim& xi,
                                  FunArray& values ) const
         {
@@ -31,7 +31,7 @@ namespace base{
         //@{
 
         //! \image html lagrange_1.png        
-        template<>
+        template<> inline
         void Lagrange1D<1>::fun( const VecDim& xi,
                                  FunArray& values ) const
         {
@@ -39,7 +39,7 @@ namespace base{
             values[1] =      xi[0];
         }
 
-        template<>
+        template<>  inline
         void Lagrange1D<1>:: gradient( const VecDim& xi,
                                        GradArray& values ) const
         {
@@ -55,7 +55,7 @@ namespace base{
         //@{
 
         //! \image html lagrange_2.png
-        template<>
+        template<> inline
         void Lagrange1D<2>::fun( const VecDim & xi,
                                  FunArray& values ) const
         {
@@ -64,7 +64,7 @@ namespace base{
             values[2] = xi[0] * (2. * xi[0] - 1.);
         }
 
-        template<>
+        template<> inline
         void Lagrange1D<2>::gradient( const VecDim& xi,
                                       GradArray& values ) const
         {
@@ -73,7 +73,7 @@ namespace base{
             values[2][0] = 4. * xi[0] - 1.;
         }
 
-        template<>
+        template<> inline
         void Lagrange1D<2>::hessian(  const VecDim& xi,
                                       HessianArray& values ) const
         {
@@ -89,7 +89,7 @@ namespace base{
         //@{
 
         //! \image html lagrange_3.png
-        template<>
+        template<> inline
         void Lagrange1D<3>::fun( const VecDim& xi,
                                  FunArray& values ) const
         {
@@ -102,7 +102,7 @@ namespace base{
             values[3] = 0.5 * zeta1 * (3. * zeta1 - 1.) * (3. * zeta1 - 2.);
         }
 
-        template<>
+        template<> inline
         void Lagrange1D<3>::gradient( const VecDim& xi,
                                       GradArray& values ) const
         {
@@ -119,7 +119,7 @@ namespace base{
                 0.5 * ( (3.*zeta1 - 1.)*(3.*zeta1 - 2.) + 3.*zeta1 * (6.*zeta1 - 3.) );
         }
 
-        template<>
+        template<> inline
         void Lagrange1D<3>::hessian(  const VecDim& xi,
                                       HessianArray& values ) const
         {

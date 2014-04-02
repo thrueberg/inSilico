@@ -106,9 +106,6 @@ public:
             // geometric shapes of elements
             STATIC_ASSERT_MSG( OtherElement::shape == Element::shape,
                                "Shapes do not fit" );
-            // geometry representation function of the element
-            typedef base::TypeEquality<typename OtherElement::GeomFun,
-                                       typename Element::GeomFun> TE;
         }
         
         // sizes of the old mesh

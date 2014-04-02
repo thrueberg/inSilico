@@ -72,6 +72,16 @@ namespace base{
 
                 };
 
+                template<>
+                struct WriteDoFValue<std::size_t>
+                {
+                    static void apply( const std::size_t& value,
+                                       std::ostream& out )
+                    {
+                        out << value;
+                    }
+
+                };
             }
             
             //------------------------------------------------------------------

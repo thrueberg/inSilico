@@ -9,6 +9,7 @@
 
 #include "FluidBox.hpp"
 #include "Surface.hpp"
+#include "InternalPressure.hpp"
 
 //------------------------------------------------------------------------------
 // Driven cavity BC
@@ -36,7 +37,6 @@ void drivenCavity( const typename base::Vector<DIM>::Type& x,
         if ( doFPtr -> isActive(d) ) doFPtr -> constrainValue( d, value );
     }
 }
-//[dirichlet]}
 
 //------------------------------------------------------------------------------
 // Box BC
@@ -88,13 +88,13 @@ int main( int argc, char * argv[] )
         return -1;
     }
 
-    const unsigned fsiIter = 20;
+    const unsigned fsiIter = 1;
     
     const std::string inputFile = boost::lexical_cast<std::string>( argv[1] );
 
     //--------------------------------------------------------------------------
     std::string meshFile, surfFile;
-    double viscosity, density, tolerance, penaltyFactor, A, B, dt;
+    double viscosity, density, tolerance, penaltyFactor, A, B, dt, robinFac, aux, pressure;
     unsigned maxIter, numSteps;
     {    
         //Feed properties parser with the variables to be read
@@ -106,6 +106,9 @@ int main( int argc, char * argv[] )
         prop.registerPropertiesVar( "maxIter",          maxIter );
         prop.registerPropertiesVar( "tolerance",        tolerance );
         prop.registerPropertiesVar( "penaltyFactor",    penaltyFactor );
+        prop.registerPropertiesVar( "robinFac",         robinFac );
+        prop.registerPropertiesVar( "aux",              aux );
+        prop.registerPropertiesVar( "pressure",         pressure );
 
         prop.registerPropertiesVar( "A", A );
         prop.registerPropertiesVar( "B", B );
@@ -142,24 +145,17 @@ int main( int argc, char * argv[] )
     const double h = base::mesh::Size<FluidBox::Mesh::Element>::apply(
         fluidBoxIn.accessMesh().elementPtr(0) );
     const double nitscheWeight = penaltyFactor * viscosity / h;
-    
+
+    const double robin = nitscheWeight * robinFac;
+    const double robinForce = robin * aux;
 
     typedef Surface<dim> Surface;
-    Surface surface( A, B, nitscheWeight );
+    Surface surface( A, B, robin );
     surface.readMesh( surfFile );
     surface.numberDoFs();
 
     // no convection used here
     const bool withConvection = false;
-
-    // Time loop
-    Surface::Field velocity;
-    surface.fieldCopy( velocity );
-    
-    // extract forces from fluid domains
-    Surface::Field forces;
-    surface.fieldCopy( forces );
-    base::dof::numberDoFsConsecutively( forces.doFsBegin(), forces.doFsEnd() );
 
     double volume = surface.enclosedVolume();
     Surface::VecDim centroid = surface.moment() / volume;
@@ -176,7 +172,7 @@ int main( int argc, char * argv[] )
         for ( unsigned iter = 0; iter < fsiIter; iter++ ) {
             std::cout << " " << iter; 
 
-            base::dof::clearDoFs( forces );
+            base::dof::clearDoFs( surface.accessForces() );
             
             //------------------------------------------------------------------
             // Get current surface configuration
@@ -203,12 +199,14 @@ int main( int argc, char * argv[] )
 
             // solve fluid problem in outer domain
             fluidBoxOut.solveProblem( surface.accessMesh(),
-                                      velocity,
+                                      surface.accessVelocity(),
                                       boost::bind( &source<dim>, _1, 0. ),
                                       penaltyFactor,
                                       maxIter, tolerance, withConvection );
             
-            fluidBoxOut.computeImmersedSurfaceForce( forces, viscosity, -nitscheWeight );    
+            fluidBoxOut.computeImmersedSurfaceForce( current,
+                                                     surface.accessForces(),
+                                                     viscosity, robinForce );
             //------------------------------------------------------------------
 #if 0
             // Immerse inner domain
@@ -224,20 +222,24 @@ int main( int argc, char * argv[] )
 
             // solver inner fluid problem
             fluidBoxIn.solveProblem( surface.accessMesh(),
-                                     velocity,
+                                     surface.accessVelocity(),
                                      boost::bind( &source<dim>, _1, 0.00 ),
                                      penaltyFactor,
                                      maxIter, tolerance, withConvection );
 
-            fluidBoxIn.computeImmersedSurfaceForce(  forces,  viscosity, -nitscheWeight );
+            fluidBoxIn.computeImmersedSurfaceForce( current,
+                                                    surface.accessForces(),
+                                                    viscosity, robinForce );
 #endif
             //------------------------------------------------------------------
             // solve the surface
 
-            // solve structure problem
-            surface.findEquilibrium( dt, step, maxIter, tolerance, forces, -1.0 );
+            computeForceField( surface, pressure, surface.accessForces() );
 
-            surface.computeSurfaceVelocity( velocity, dt );
+            // solve structure problem
+            surface.findEquilibrium( dt, step, maxIter, tolerance );
+
+            surface.computeSurfaceVelocity( dt );
 
 
             oldVolume   = volume;
@@ -262,7 +264,7 @@ int main( int argc, char * argv[] )
         
         fluidBoxOut.writeVTKFile( baseName + ".out", step );
         fluidBoxIn.writeVTKFile( baseName + ".in", step );
-        surface.writeVTKFile( baseName + ".surf", step, forces, velocity );
+        surface.writeVTKFile( baseName + ".surf", step );
         
     } // time steps
     

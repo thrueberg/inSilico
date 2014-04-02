@@ -56,7 +56,13 @@ namespace base{
                 {
                     static std::string apply() { return "SCALARS"; }
                 };
-                
+
+                template<>
+                struct ValueTypeString<std::size_t>
+                {
+                    static std::string apply() { return "SCALARS"; }
+                };
+
             } // namespace detail_
 
             //------------------------------------------------------------------
@@ -296,7 +302,7 @@ void base::io::vtk::writePointData( base::io::vtk::LegacyWriter& writer,
 {
     typedef typename base::Vector<FIELD::DegreeOfFreedom::size>::Type VecDof;
     std::vector<VecDof> nodalValues;
-    base::post::evaluateAtNodes( mesh, field, nodalValues );
+    base::post::evaluateFieldAtNodes( mesh, field, nodalValues );
     writer.writePointData( nodalValues.begin(), nodalValues.end(), name );
 }
 

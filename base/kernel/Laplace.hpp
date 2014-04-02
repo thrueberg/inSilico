@@ -18,6 +18,8 @@
 #include <base/linearAlgebra.hpp>
 // base/aux includes
 #include <base/auxi/EqualPointers.hpp>
+// base/post includes
+#include <base/post/evaluateField.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -158,9 +160,9 @@ public:
      *  \f$ n \f$. In the general case of the vector Laplacian, the result
      *  matrix has the entries
      *  \f[
-     *       B[ k, M*d + k ] = \kappa (\nabla \phi^M) \cdot n
+     *       B[ i, M*d + j ] = \kappa \delta_{ij} (\phi^M_{,k} n_k)
      *  \f]
-     *  for all \f$ 1 \leq k \leq d \f$ with \f$ d \f$ being the size of the
+     *  for all \f$ 1 \leq i,j \leq d \f$ with \f$ d \f$ being the size of the
      *  nodal  degree of freedom (i.e. \f$ d = 1 \f$ for the standard Laplace
      *  and \f$ d = dim \f$ for the vector Laplace operator).
      *  \param[in]  fieldTuple Tuple of field element pointers
@@ -188,17 +190,72 @@ public:
         result = base::MatrixD::Zero( +doFSize, numColBlocks * doFSize );
 
         // assemble
-        for ( unsigned i = 0; i < numColBlocks; i++ ) {
+        for ( unsigned M = 0; M < numColBlocks; M++ ) {
         
-            const double entry = factor_ * base::dotProduct( normal, trialGradX[i] );
+            const double entry = factor_ * base::dotProduct( normal, trialGradX[M] );
             
-            for ( unsigned d = 0; d < doFSize; d++)
-                result( d, i*doFSize + d) = entry;
+            for ( unsigned k = 0; k < doFSize; k++)
+                result( k, M*doFSize + k) = entry;
 
         }
         
         return;
     }
+
+    //--------------------------------------------------------------------------
+    /** The boundary term due to integration by parts.
+     *  This term reads
+     *  \f[
+     *       \int_\Gamma \kappa v \cdot (\nabla u \cdot n) d s
+     *  \f]
+     *  and is discretised as
+     *  \f[
+     *       F[Md + i] = \int_\Gamma \kappa \psi^M (\nabla u \cdot n)[i] d s
+     *  \f]
+     *  
+     *
+     *  \param[in]  fieldTuple Tuple of field element pointers
+     *  \param[in]  xi         Local evaluation coordinate
+     *  \param[in]  normal     Surface normal \f$ n \f$
+     *  \param[out] result     Result container
+     */
+    void boundaryResidual( const FieldTuple&   fieldTuple,
+                           const LocalVecDim&  xi,
+                           const GlobalVecDim& normal,
+                           base::VectorD&      result ) const
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+        const TestElement*  testEp  = fieldTuple.testElementPtr();
+        const TrialElement* trialEp = fieldTuple.trialElementPtr();
+
+        // Evaluate test functions
+        typename TestElement::FEFun::FunArray testFun;
+        (testEp -> fEFun()).evaluate( geomEp, xi, testFun );
+
+        const std::size_t numRowBlocks = testFun.size();
+
+        // initialise result container
+        result = base::VectorD::Zero( numRowBlocks * doFSize );
+
+        //
+        const typename base::Matrix<globalDim,doFSize>::Type gradU =
+            base::post::evaluateFieldGradient( geomEp, trialEp, xi );
+
+        const typename base::Vector<doFSize>::Type dUDN =
+            gradU.transpose() * normal;
+
+        //
+        for ( std::size_t M = 0; M < numRowBlocks; M++ ) {
+            for ( unsigned i = 0; i < doFSize; i++ ) {
+
+                result[M*doFSize+i] = factor_ * dUDN[i] * testFun[M];
+            }
+        }
+
+        return;
+    }
+
 
 private:
     const double factor_; //!< Scalar multiplier (e.g. conductivity)

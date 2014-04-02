@@ -26,6 +26,7 @@
 #include <base/solver/Eigen3.hpp>
 
 #include <solid/HyperElastic.hpp>
+#include <solid/Stress.hpp>
 
 #include <surf/HyperElasticMembrane.hpp>
 #include <surf/Skalak.hpp>
@@ -107,6 +108,8 @@ public:
         
         // generate DoFs from mesh
         base::dof::generate<FEBasis>( mesh_, displacement_ );
+        base::dof::generate<FEBasis>( mesh_, forces_ );
+        base::dof::generate<FEBasis>( mesh_, velocity_ );
     }
 
     //! Generate dofs and assign dof numbers
@@ -117,18 +120,20 @@ public:
             base::dof::numberDoFsConsecutively( displacement_.doFsBegin(),
                                                 displacement_.doFsEnd() );
 
+        base::dof::numberDoFsConsecutively( forces_.doFsBegin(),
+                                            forces_.doFsEnd() );
+        base::dof::numberDoFsConsecutively( velocity_.doFsBegin(),
+                                            velocity_.doFsEnd() );
         return numDoFs_;
     }
 
     //!
-    void assembleForcesFromField( const Field& forces,
-                                  const double factor, 
-                                  Solver& solver )
+    void assembleForcesFromField( Solver& solver )
     {
         static const unsigned doFSize = Field::DegreeOfFreedom::size;
         
-        typename Field::DoFPtrConstIter dIter = forces.doFsBegin();
-        typename Field::DoFPtrConstIter dEnd  = forces.doFsEnd();
+        typename Field::DoFPtrConstIter dIter = forces_.doFsBegin();
+        typename Field::DoFPtrConstIter dEnd  = forces_.doFsEnd();
 
         for ( ; dIter != dEnd; ++dIter ) {
 
@@ -161,7 +166,7 @@ public:
             // get values from dof
             base::VectorD fVec = base::VectorD::Zero( doFSize );
             for ( unsigned d = 0; d < doFSize; d++ )
-                fVec[d] = factor* ( (*dIter) -> getValue(d) );
+                fVec[d] = ( (*dIter) -> getValue(d) );
 
             // assemble to solver
             base::asmb::assembleForces( fVec, status, ids, constraints, solver );
@@ -171,11 +176,11 @@ public:
         return;
     }
 
-    void computeSurfaceVelocity( Field& velocity, const double dt ) const
+    void computeSurfaceVelocity( const double dt ) 
     {
         typename Field::DoFPtrConstIter dIter = displacement_.doFsBegin();
         typename Field::DoFPtrConstIter dEnd  = displacement_.doFsEnd();
-        typename Field::DoFPtrIter vIter = velocity.doFsBegin();
+        typename Field::DoFPtrIter vIter = velocity_.doFsBegin();
         for ( ; dIter != dEnd; ++dIter, ++vIter ) {
 
             for ( unsigned d = 0; d < dim; d++ ) {
@@ -192,9 +197,7 @@ public:
     unsigned findEquilibrium( const double dt,
                               const unsigned step, 
                               const unsigned maxIter,
-                              const double tolerance,
-                              const Field&  forceField,
-                              const double factor )
+                              const double tolerance )
     {
         
         unsigned iter = 0;
@@ -214,7 +217,7 @@ public:
                                                          iter > 0 );
 
             // assemble forces from field
-            this -> assembleForcesFromField( forceField, factor, solver );
+            this -> assembleForcesFromField( solver );
 
             // compute inertia terms, d/dt, due to time integration
             base::time::computeReactionTerms<FTB,MSM>( mass_, quadrature_, solver,
@@ -259,9 +262,7 @@ public:
 
     //------------------------------------------------------------------------------
     void writeVTKFile( const std::string& baseName,
-                       const unsigned     step,
-                       const Field&       forces,
-                       const Field&       velocity )
+                       const unsigned     step )
     {
         // create file name with step number
         const std::string vtkFile =
@@ -271,15 +272,23 @@ public:
         vtkWriter.writeUnstructuredGrid( mesh_ );
 
         base::io::vtk::writePointData( vtkWriter, mesh_, displacement_, "U" );
-        base::io::vtk::writePointData( vtkWriter, mesh_, forces, "F" );
-        base::io::vtk::writePointData( vtkWriter, mesh_, velocity, "V" );
-        
+        base::io::vtk::writePointData( vtkWriter, mesh_, forces_, "F" );
+        base::io::vtk::writePointData( vtkWriter, mesh_, velocity_, "V" );
+
+        base::io::vtk::writeCellData( vtkWriter, mesh_, displacement_, 
+                                      boost::bind( solid::cauchy<typename Mesh::Element,
+                                                   typename Field::Element,
+                                                   Material>,
+                                                   _1, _2, material_ ), "sigma" );
+
         vtk.close();
     }
 
     //------------------------------------------------------------------------------
     Mesh&  accessMesh() {          return mesh_; }
     Field& accessDisplacements() { return displacement_; }
+    Field& accessVelocity()      { return velocity_; }
+    Field& accessForces()        { return forces_; }
     const Quadrature& accessQuadrature() const { return quadrature_; }
 
     //------------------------------------------------------------------------------
@@ -359,10 +368,12 @@ public:
 
 
 private:
-    Mesh         mesh_;
+    Mesh               mesh_;
     const Quadrature   quadrature_;
-    Field        displacement_;
-    FieldBinder  fieldBinder_;
+    Field              displacement_;
+    Field              velocity_;
+    Field              forces_;
+    FieldBinder        fieldBinder_;
     const Energy       energy_;
     const Material     material_;
     const HyperElastic hyperElastic_;

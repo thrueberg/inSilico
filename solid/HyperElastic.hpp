@@ -392,12 +392,23 @@ public:
 
 public:
     //--------------------------------------------------------------------------
-    /**
+    /** The boundary term due to integration by parts.
+     *  Integrating by parts the Lagrangian equilibrium equation gives the
+     *  boundary term
+     *  \f[
+     *      \int_\Gamma ( P(u) N ) v d x
+     *  \f]
+     *  with the first Piola-Kirchhoff stress tensor \f$ P \f$ and the
+     *  outward unit normal vector \f$ N \f$.
+     *  \param[in]  fieldTuple Tuple of field element pointers
+     *  \param[in]  xi         Local evaluation coordinate
+     *  \param[in]  normal     Surface normal \f$ N \f$
+     *  \param[out] result     Result container
      */
-    void coNormalDerivativeResidual( const FieldTuple&   fieldTuple,
-                                     const LocalVecDim&  xi,
-                                     const GlobalVecDim& normal,
-                                     base::VectorD&      result ) const
+    void boundaryResidual( const FieldTuple&   fieldTuple,
+                           const LocalVecDim&  xi,
+                           const GlobalVecDim& normal,
+                           base::VectorD&      result ) const
     {
         // Extract element pointer from tuple
         const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
@@ -416,22 +427,23 @@ public:
         typename mat::Tensor P;
         P.noalias() = F * S;
 
-        // Evaluate pressure trial functions
+        // Evaluate test functions
         typename TestElement::FEFun::FunArray testFun;
         (testEp -> fEFun()).evaluate( geomEp, xi, testFun );
 
         const std::size_t numRowBlocks = testFun.size();
 
+        // initialise result container
         result = base::VectorD::Zero( numRowBlocks * nDoFs );
 
         for ( std::size_t M = 0; M < testFun.size(); M++ ) {
             for ( unsigned i = 0; i < nDoFs; i++) {
 
-                double entry = 0.;
-                for ( unsigned J = 0; J < nDoFs; J++ )
-                    entry += P(i,J) * normal[J];
+                double ti = 0.;
+                for ( unsigned k = 0; k < nDoFs; k++ )
+                    ti += P(i,k) * normal[k];
 
-                result[ M * nDoFs + i ] = entry;
+                result[ M * nDoFs + i ] = ti * testFun[M];
             }
         }
         

@@ -1,5 +1,5 @@
 //Variables
-lc=0.05;
+lc=0.03;
 gcl=1;
 lcl=0.2;
 
@@ -24,10 +24,10 @@ lcl=0.2;
 	Extrude {0,0,gcl} {Surface{111};}	
 	
 	Translate {-gcl/2, -gcl/2, -gcl/2} {Volume{1};}
-
+/*
 //Lesser Cube
 	//Points
-/*	Point(201)={0,0,0,lc};
+	Point(201)={0,0,0,lc};
 	Point(202)={lcl,0,0,lc};
 	Point(203)={0,lcl,0,lc};
 	Point(204)={lcl,lcl,0,lc};
@@ -47,4 +47,7 @@ lcl=0.2;
 	
 	//Translate
 	Translate {-lcl/2, -lcl/2, -lcl/2} {Volume{2};}
+
+// Compound volume
+	Compound Volume(3) = {1,2};
 */

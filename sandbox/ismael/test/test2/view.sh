@@ -1,1 +1,1 @@
-paraview ./vtk/test2geo.tetrahedron.vtk &
+paraview --data=./vtk/test2geo.tetrahedron..vtk &

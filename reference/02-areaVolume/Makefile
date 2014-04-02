@@ -5,6 +5,9 @@ SOLVER =
 # name the compilation targets
 TARGET = areaVolume
 
+# test make file
+TESTMK=appTest.mk
+
 # include configuration file
 include $(INSILICOROOT)/config/convenience.mk
 

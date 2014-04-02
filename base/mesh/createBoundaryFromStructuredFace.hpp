@@ -34,6 +34,8 @@ namespace base{
             class FaceNumberLookUp
             {
             public:
+                typedef boost::array<unsigned,2*DIM> FaceNumberArray;
+                
                 static unsigned apply( const unsigned direction,
                                        const unsigned side )
                 {
@@ -42,20 +44,47 @@ namespace base{
                 
             private:
                 // see base/mesh/ElementFaces for explanation
-                static const boost::array<unsigned,2*DIM> faceNumbers_;
+                static const FaceNumberArray faceNumbers_;
             };
 
+            template<unsigned DIM>
+            typename FaceNumberLookUp<DIM>::FaceNumberArray
+            initialiseFaceNumberArray();
+            
             // Line element: faces are 0, 1
-            template<> const boost::array<unsigned,2>
-            FaceNumberLookUp<1>::faceNumbers_ = {{ 0, 1 }};
+            template<> inline
+            FaceNumberLookUp<1>::FaceNumberArray
+            initialiseFaceNumberArray<1>()
+            {
+                FaceNumberLookUp<1>::FaceNumberArray aux = {{ 0, 1 }};
+                return aux;
+            }
 
             // Quad element
-            template<> const boost::array<unsigned,4>
-            FaceNumberLookUp<2>::faceNumbers_ = {{ 3, 1, 0, 2 }};
+            template<> inline
+            FaceNumberLookUp<2>::FaceNumberArray
+            initialiseFaceNumberArray<2>()
+            {
+                FaceNumberLookUp<2>::FaceNumberArray aux = {{ 3, 1, 0, 2 }};
+                return aux;
+            }
 
             // Hex element
-            template<> const boost::array<unsigned,6>
-            FaceNumberLookUp<3>::faceNumbers_ = {{ 5, 3, 2, 4, 0, 1 }};
+            template<> inline
+            FaceNumberLookUp<3>::FaceNumberArray
+            initialiseFaceNumberArray<3>()
+            {
+                FaceNumberLookUp<3>::FaceNumberArray aux =
+                    {{ 5, 3, 2, 4, 0, 1 }};
+                return aux;
+            }
+
+            // iniatlise
+            template<unsigned DIM>
+            const typename FaceNumberLookUp<DIM>::FaceNumberArray
+            FaceNumberLookUp<DIM>::faceNumbers_ =
+                initialiseFaceNumberArray<DIM>();
+
             
         } // namespace detail_
 

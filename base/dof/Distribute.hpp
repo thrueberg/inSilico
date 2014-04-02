@@ -31,30 +31,27 @@ namespace base{
         class Distribute;
 
         //----------------------------------------------------------------------
-        // Convenience function to set dof values
+        //! Convenience function to set dof values
         template<typename SOLVER, typename FIELD>
-        void setDoFsFromSolver( const SOLVER& solver,
-                                FIELD& field )
+        void setDoFsFromSolver( const SOLVER& solver, FIELD& field )
         {
             base::dof::Distribute<typename FIELD::DegreeOfFreedom,
-                                  SOLVER,SET> distributeDoF( solver, false );
+                                  SOLVER,SET> distributeDoF( solver );
             distributeDoF.apply( field.doFsBegin(), field.doFsEnd() );
         }
 
         //----------------------------------------------------------------------
-        // Convenience function to add to dof values
+        //! Convenience function to add to dof values
         template<typename SOLVER, typename FIELD>
-        void addToDoFsFromSolver( const SOLVER& solver,
-                                  FIELD& field,
-                                  const bool zeroConstraints = false )
+        void addToDoFsFromSolver( const SOLVER& solver, FIELD& field )
         {
             base::dof::Distribute<typename FIELD::DegreeOfFreedom,SOLVER,ADD>
-                distributeDoF( solver, zeroConstraints );
+                distributeDoF( solver );
             distributeDoF.apply( field.doFsBegin(), field.doFsEnd() );
         }
 
         //----------------------------------------------------------------------
-        // Convenience function to clear the current dof values
+        //! Convenience function to clear the current dof values
         template<typename FIELD>
         void clearDoFs( FIELD& field )
         {
@@ -63,6 +60,35 @@ namespace base{
             for ( ; dIter != dEnd; ++dIter ) (*dIter) -> clearValue();
         }
 
+        //----------------------------------------------------------------------
+        //! Convenience function to clear the current dof values
+        template<typename FIELD>
+        void pushHistory( FIELD& field )
+        {
+            typename FIELD::DoFPtrIter dIter = field.doFsBegin();
+            typename FIELD::DoFPtrIter dEnd  = field.doFsEnd();
+            for ( ; dIter != dEnd; ++dIter ) (*dIter) -> pushHistory();
+        }
+        
+        //----------------------------------------------------------------------
+        //! Convenience function to multiply existing constraints by a factor
+        template<typename FIELD>
+        void scaleConstraints( FIELD& field, const double factor )
+        {
+            typename FIELD::DoFPtrIter dIter = field.doFsBegin();
+            typename FIELD::DoFPtrIter dEnd  = field.doFsEnd();
+            for ( ; dIter != dEnd; ++dIter ) (*dIter) -> scaleConstraint( factor );
+        }
+
+        //----------------------------------------------------------------------
+        template<typename FIELD>
+        void clearConstraints( FIELD& field )
+        {
+            typename FIELD::DoFPtrIter dIter = field.doFsBegin();
+            typename FIELD::DoFPtrIter dEnd  = field.doFsEnd();
+            for ( ; dIter != dEnd; ++dIter ) (*dIter) -> clearConstraints();
+        }
+        
         //----------------------------------------------------------------------
         namespace detail_{
 
@@ -103,7 +129,7 @@ namespace base{
  *       (according to the DOFOP flag by setting or adding)
  *    2. Evaluate the constraint of every in-active dof (either as a homogeneous
  *       dof, in case of e.g. non-linear iterations, or fully) and apply that
- *       value to the dof-component (setting or adding)
+ *       value to the dof-component (set, not add!)
  *
  *
  *  \tparam DOF   Type of degree of freedom
@@ -129,10 +155,8 @@ public:
     typedef detail_::DoFManip<DOFOP>  DoFOp;
 
     //! Constructor with source access
-    Distribute( const SourceOfValues & sourceOfValues,
-                const bool zeroConstraints = false )
-        : sourceOfValues_(  sourceOfValues ),
-          zeroConstraints_( zeroConstraints )
+    Distribute( const SourceOfValues & sourceOfValues )
+        : sourceOfValues_(  sourceOfValues )
     {  }
 
     //! Distribute the solution values back to the degrees of freedom
@@ -141,7 +165,6 @@ public:
     {
         // go through all dofs in order to collect solution values
         for ( DOFITER iter = first; iter != last; ++iter ) {
-            //(this -> operator())( *iter );
 
             DegreeOfFreedom* dof = *iter;
             
@@ -176,13 +199,10 @@ public:
 
                     // evaluate the constraint of this dof-component
                     const base::number constraintValue =
-                        dof -> getConstraint( d ) -> evaluate( not zeroConstraints_ );
+                        dof -> getConstraint( d ) -> evaluate( );
 
                     // apply to dof
-                    dof -> setValue( d,
-                                     DoFOp::apply( dof -> getValue( d ), 
-                                                   constraintValue ) );
-                    
+                    dof -> setValue( d, constraintValue );
                 }
             }
             
@@ -192,9 +212,6 @@ public:
 private:
     //! Access to source of values (usually the solver object)
     const SourceOfValues & sourceOfValues_;
-    //! In case of nonlinear iterations based on increments,
-    //! use homogeneous constraints only
-    const bool zeroConstraints_;
 };
 
 #endif

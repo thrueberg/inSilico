@@ -21,13 +21,15 @@ public:
     // or top and bottom points;
     static bool isNeumann( const VecDim & x ) 
     {
-        const bool minX = ( std::abs( x[0] + 0.5 ) < coordTol );
+       /* const bool minX = ( std::abs( x[0] + 0.5 ) < coordTol );
         const bool maxX =  x[0] > 0.3;
         const bool maxZ =
             ( std::abs( x[2] - 0.    ) < coordTol ) or
             ( std::abs( x[2] + 0.145 ) < coordTol );
 	return maxX or ( maxZ and not minX );
-    }
+    */
+	return 0;
+	}
 
     // boundary points with x_1 < 0.8 are on the Dirichlet boundary
     static bool isDirichlet( const VecDim& x )
@@ -39,18 +41,20 @@ public:
     static bool hasAppliedValue( const VecDim& x )
     {
 	
-	/* All sides but bottom
+	//All faces but bottom
 	const bool boundx1 = std::abs( x[0] + 0.5 ) < coordTol;
-	const bool boundx2 = std::abs( x[0] - 0.5 ) < coordTol;
-        const bool boundy1 = std::abs( x[1] - 0.5 ) < coordTol;
-	const bool boundz1 = std::abs( x[2] + 0.5 ) < coordTol;
-	const bool boundz2 = std::abs( x[2] - 0.5 ) < coordTol;
-	return boundx1 or boundx2 or boundy1 or boundz1 or boundz2; 
-    */
+//	const bool boundx2 = std::abs( x[0] - 0.5 ) < coordTol;
+//        const bool boundy1 = std::abs( x[1] - 0.5 ) < coordTol;
+//	const bool boundz1 = std::abs( x[2] + 0.5 ) < coordTol;
+//	const bool boundz2 = std::abs( x[2] - 0.5 ) < coordTol;
+
+	return boundx1; //or boundx2 or boundy1 or boundz1 or boundz2; 
+    	/*
 	const bool boundx1 = std::abs( x[0] - 0.5 ) < coordTol;
 	const bool boundy1 = std::abs( x[1] + 0.5 ) < coordTol;
 	const bool boundz1 = std::abs( x[2] - 0.5 ) < coordTol;
 	return (boundx1 or boundy1);
+	*/
     }
 
     // Dirichlet boundary condition
@@ -95,18 +99,21 @@ public:
 };
 	    
 //-----------------------------------------------------------------------
-// Diffusion Coefficients - IMCOMPLETE
+// Diffusion Coefficients 
 template<typename ELEMENT>
 double diffusionConstant( const ELEMENT* geomEp,
 		          const typename ELEMENT::GeomFun::VecDim& xi,
                           const double D1, const double D2 )
 {
     const typename ELEMENT::Node::VecDim x =
-		base::Geometry<ELEMENT>()( geomEp, xi );
+		base::Geometry<ELEMENT>()( geomEp, 
+			base::ShapeCentroid<ELEMENT::shape>::apply() );
 
-    const bool domain2 = (x[0] >= (-0.1) and x[0] <= (0.1));
-
-    return (domain2 ? D2 : D1);
+    const bool domain2 = (x[0] >= (-0.45)  and x[0] <= (0.1) and 
+			  x[1] >= (-0.3) and x[1] <= (0.3) and
+			  x[2] >= (-0.3) and x[2] <= (0.3));
+    
+	return (domain2 ? D2 : D1);
 }
 
 
@@ -116,10 +123,10 @@ template<typename MESH, typename FIELD>
 void writeVTKFile( const MESH& mesh, const FIELD& field, 
                    const std::string outFileName )
 {
-    std::ofstream vtk(  outFileName.c_str() );
+	std::ofstream vtk(  outFileName.c_str() );
     base::io::vtk::LegacyWriter vtkWriter( vtk );
     vtkWriter.writeUnstructuredGrid( mesh );
-    base::io::vtk::writePointData( vtkWriter, mesh, field, "temperature" );
+    base::io::vtk::writePointData( vtkWriter, mesh, field, "concetration" );
     vtk.close();
 }
     

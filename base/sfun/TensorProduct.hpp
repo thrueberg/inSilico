@@ -152,7 +152,7 @@ public:
     {
         HessianArray lexi;
         TPEvaluator::hessian( shapeFun1D_, xi, lexi );
-        Reordering::template apply<HessianArray>::template apply( lexi, values );
+        Reordering::template apply<HessianArray>( lexi, values );
     }
     //@}
 
@@ -365,18 +365,18 @@ namespace base{
                                 }
 
                                 values[ctr]( d1, DIM-1 ) =
-                                    oneDimGradients( 0, nOuter ) *
-                                    lowerDimGradients( d1, nInner );
+                                    oneDimGradients[   nOuter ][ 0  ] *
+                                    lowerDimGradients[ nInner ][ d1 ];
 
                                 values[ctr]( DIM-1, d1 ) =
-                                    oneDimGradients( 0, nOuter ) *
-                                    lowerDimGradients( d1, nInner );
+                                    oneDimGradients[   nOuter ][  0 ] *
+                                    lowerDimGradients[ nInner ][ d1 ];
 
                             }
 
                             values[ctr]( DIM-1, DIM-1 ) =
                                 oneDimHessians[nOuter](0,0) *
-                                lowerDimValues( nInner );
+                                lowerDimValues[ nInner ];
                             
                             ctr++;
                         }

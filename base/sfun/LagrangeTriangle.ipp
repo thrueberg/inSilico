@@ -13,7 +13,7 @@ namespace base{
         //----------------------------------------------------------------------
         //! @name Constant function
         //@{
-        template<>
+        template<> inline
         void LagrangeTriangle<0>::fun( const VecDim& xi,
                                             FunArray& values ) const
         {
@@ -27,7 +27,7 @@ namespace base{
         //----------------------------------------------------------------------
         //! @name Linear functions
         //@{
-        template<>
+        template<> inline
         void LagrangeTriangle<1>::fun( const VecDim& xi,
                                             FunArray& values ) const
         {
@@ -36,7 +36,7 @@ namespace base{
             values[2] = xi[1];
         }
 
-        template<>
+        template<> inline
         void LagrangeTriangle<1>::gradient( const VecDim& xi,
                                             GradArray& values ) const
         {
@@ -47,7 +47,7 @@ namespace base{
             values[2][0] =  0.; values[2][1] =  1.; 
         }
 
-        template<>
+        template<> inline
         void LagrangeTriangle<1>::supportPoints( boost::array<VecDim,
                                                               numFun> & values )
         {
@@ -62,7 +62,7 @@ namespace base{
         //----------------------------------------------------------------------
         //! @name Quadratic functions
         //@{
-        template<>
+        template<> inline
         void LagrangeTriangle<2>::fun( const VecDim& xi,
                                             FunArray& values ) const
         {
@@ -75,7 +75,7 @@ namespace base{
             values[ 5 ] = 4. * xi[1] * (1. - xi[0] - xi[1] );
         }
 
-        template<>
+        template<> inline
         void LagrangeTriangle<2>:: gradient( const VecDim& xi,
                                              GradArray& values ) const
         {
@@ -98,7 +98,7 @@ namespace base{
             values[5][1] = 4. - 4. * xi[0] - 8. * xi[1];
         }
 
-        template<>
+        template<> inline
         void LagrangeTriangle<2>::hessian( const VecDim& xi,
                                            HessianArray& values ) const
         {
@@ -110,7 +110,7 @@ namespace base{
             values[5](0, 0) = 0.; values[5](0, 1) = values[5](1, 0) =-4.; values[5](1, 1) =-8.;
         }
 
-        template<>
+        template<> inline
         void LagrangeTriangle<2>::supportPoints( boost::array<VecDim,
                                                               numFun> & values )
         {

@@ -364,6 +364,294 @@ namespace base{
                         detail_::InsideSimplex<  ShapeDim<SHAPE>::value>,
                         detail_::InsideHyperCube<ShapeDim<SHAPE>::value> >::Type
     {};
+
+
+    //--------------------------------------------------------------------------
+    namespace detail_{
+
+        template<unsigned DIM>
+        struct SnapToHyperCube
+        {
+            typedef typename base::Vector<DIM>::Type VecDim;
+
+            static VecDim apply( const VecDim& xi )
+            {
+                VecDim result = xi;
+                for ( unsigned d = 0; d < DIM; d++ ) {
+                    if      ( xi[d] < 0. ) result[d] = 0.;
+                    else if ( xi[d] > 1. ) result[d] = 1.;
+                }
+                
+                return result;
+            }
+        };
+
+        //----------------------------------------------------------------------
+        //! Dummy not to be called
+        template<unsigned DIM>
+        struct SnapToSimplex
+        {
+            typedef typename base::Vector<DIM>::Type VecDim;
+
+            static VecDim apply( const VecDim& xi )
+            {
+                STATIC_ASSERT_MSG( DIM == 0, "Not to be called" );
+            }
+        };
+        
+        //----------------------------------------------------------------------
+        /** Find point inside standard triangle closest to the given point.
+         *  The standard triangle has vertices A=(0,0), B=(1,0) and C=(0,1). A
+         *  given point \f$ \xi \f$ can have the following relative locations
+         *
+         *  1. closest to vertices A, B, or C
+         *  2. closest to edges A-B, A-C, or B-C
+         *  3. inside the triangle A-B-C
+         *
+         *  In this object these locations are checked in the given order. In
+         *  case the point falls in one of the categories, the closest point
+         *  (i.e. the detected vertex, the projection onto an edge or simply
+         *  the point itself) is computed and returned.
+         */
+        template<>
+        struct SnapToSimplex<2>
+        {
+            typedef base::Vector<2>::Type VecDim;
+
+            static VecDim apply( const VecDim& xi )
+            {
+                VecDim result; 
+
+                //--------------------------------------------------------------
+                // Vertex regions
+                if ( ( xi[0] <= 0. ) and ( xi[1] <= 0. ) ) {
+                    result[0] = 0.;
+                    result[1] = 0.;
+                    return result; // Vertex A=(0,0)
+                }
+
+                if ( ( xi[0] >= 1. ) and ( xi[0] >= 1. + xi[1] ) ) {
+                    result[0] = 1.;
+                    result[1] = 0.;
+                    return result; // Vertex B=(1,0)
+                }
+                
+                if ( ( xi[1] >= 1. ) and ( xi[1] >= 1. + xi[0] ) ) {
+                    result[0] = 0.;
+                    result[1] = 1.;
+                    return result; // Vertex C=(0,1)
+                }
+
+                //--------------------------------------------------------------
+                // Edge regions
+                if ( ( xi[0] >= 0. ) and ( xi[0] <= 1. ) and ( xi[1] <= 0. ) ) {
+                    result[0] = xi[0];
+                    result[1] = 0.;
+                    return result; // Edge A-B
+                }
+
+                if ( ( xi[1] >= 0. ) and ( xi[1] <= 1. ) and ( xi[0] <= 0. ) ) {
+                    result[0] = 0.;
+                    result[1] = xi[1];
+                    return result; // Edge A-C
+                }
+
+                const double s = (1. - xi[0] + xi[1]) / 2.;
+                if ( ( s >= 0. ) and ( s <= 1. ) and (xi[0] + xi[1] >= 1.) ) {
+                    result[0] = 1. - s;
+                    result[1] = s;
+                    return result; // Edge B-C
+                }
+
+                // Point is inside the triangle
+                return xi;
+            }
+        };
+
+        //----------------------------------------------------------------------
+        /** Find point inside standard tetrahedron closest to the given point.
+         *  The standard tetrahedron has vertices A=(0,0,0), B=(1,0,0),
+         *  C=(0,1,0) and D=(0,0,1). A given point \f$ \xi \f$ can have the
+         *  following relative locations
+         *
+         *  1. closest to vertices A, B, C, or D
+         *  2. closest to edges A-B, A-C, A-D, B-C, C-D, or D-B
+         *  3. closest to faces A-B-C, A-B-D, A-C-D, or B-C-D
+         *  4. inside the tetrahedron A-B-C-D
+         *
+         *  In this object these locations are checked in the given order. In
+         *  case the point falls in one of the categories, the closest point
+         *  (i.e. the detected vertex, the projection onto an edge or face, or
+         *  simply the point itself) is computed and returned.
+         */
+        template<>
+        struct SnapToSimplex<3>
+        {
+            typedef base::Vector<3>::Type VecDim;
+
+            static VecDim apply( const VecDim& xi )
+            {
+                VecDim result; 
+
+                //--------------------------------------------------------------
+                // Vertex regions
+                if ( ( xi[0] <= 0. ) and ( xi[1] <= 0. ) and ( xi[2] <= 0. ) ){
+                    result[0] = 0.;
+                    result[1] = 0.;
+                    result[2] = 0.;
+                    return result; // Vertex A=(0,0,0)
+                }
+
+                if ( ( xi[0] >= 1. ) and
+                     ( xi[0] >= 1. + xi[1] ) and ( xi[0] >= 1. + xi[2] ) ) {
+                    result[0] = 1.;
+                    result[1] = 0.;
+                    result[2] = 0.;
+                    return result; // Vertex B=(1,0,0)
+                }
+                
+                if ( ( xi[1] >= 1. ) and
+                     ( xi[1] >= 1. + xi[0] ) and ( xi[1] >= 1. + xi[2] ) ) {
+                    result[0] = 0.;
+                    result[1] = 1.;
+                    result[2] = 0.;
+                    return result; // Vertex C=(0,1,0)
+                }
+                
+                if ( ( xi[2] >= 1. ) and
+                     ( xi[2] >= 1. + xi[0] ) and ( xi[2] >= 1. + xi[1] ) ) {
+                    result[0] = 0.;
+                    result[1] = 0.;
+                    result[2] = 1.;
+                    return result; // Vertex D=(0,0,1)
+                }
+
+                //--------------------------------------------------------------
+                // Edge regions
+
+                // edges along the main coordinate axes
+                if ( ( xi[0] >= 0. ) and ( xi[0] <= 1. ) and
+                     ( xi[1] <= 0. ) and ( xi[2] <= 0. ) ) {
+                    result[0] = xi[0];
+                    result[1] = 0.;
+                    result[2] = 0.;
+                    return result; // Edge A-B
+                }
+                
+                if ( ( xi[1] >= 0. ) and ( xi[1] <= 1. ) and
+                     ( xi[0] <= 0. ) and ( xi[2] <= 0. ) ) {
+                    result[0] = 0.;
+                    result[1] = xi[1];
+                    result[2] = 0.;
+                    return result; // Edge A-C
+                }
+
+                if ( ( xi[2] >= 0. ) and ( xi[2] <= 1. ) and
+                     ( xi[0] <= 0. ) and ( xi[1] <= 0. ) ) {
+                    result[0] = 0.;
+                    result[1] = 0.;
+                    result[2] = xi[2];
+                    return result; // Edge A-D
+                }
+
+                // diagonal edges
+                const double sum = xi[0] + xi[1] + xi[2];
+                if ( sum >= 1. ) {
+                
+                    const double s = (1. - xi[0] + xi[1]) / 2.;
+                    if ( ( s >= 0. ) and ( s <= 1. ) and ( xi[2] <= 0. ) ) {
+                        result[0] = 1. - s;
+                        result[1] = s;
+                        result[2] = 0.;
+                        return result; // Edge B-C
+                    }
+
+                    const double t = (1. - xi[1] + xi[2]) / 2.;
+                    if ( ( t >= 0. ) and ( t <= 1. ) and ( xi[0] <= 0. ) ) {
+                        result[0] = 0.;
+                        result[1] = 1. - t;
+                        result[2] = t;
+                        return result; // Edge C-D
+                    }
+                    
+                    const double u = (1. - xi[2] + xi[1]) / 2.;
+                    if ( ( u >= 0. ) and ( u <= 1. ) and ( xi[1] <= 0. ) ) {
+                        result[0] = u;
+                        result[1] = 0.;
+                        result[2] = 1. - u;
+                        return result; // Edge D-B
+                    }
+
+                }
+
+                //--------------------------------------------------------------
+                // Face regions
+                typedef detail_::InsideSimplex<2> CheckTri;
+                typedef base::Vector<2>::Type     Vec2;
+
+                Vec2 abc; abc[0] = xi[0]; abc[1] = xi[1];
+                if ( CheckTri::apply( abc, 0. ) and ( xi[2] <= 0. ) ) {
+                    result[0] = xi[0];
+                    result[1] = xi[1];
+                    result[2] = 0.;
+                    return result; // Face A-B-C
+                }
+                
+                Vec2 abd; abd[0] = xi[0]; abd[1] = xi[2];
+                if ( CheckTri::apply( abd, 0. ) and ( xi[1] <= 0. ) ) {
+                    result[0] = xi[0];
+                    result[1] = 0.;
+                    result[2] = xi[2];
+                    return result; // Face A-B-D
+                }
+
+                Vec2 acd; acd[0] = xi[1]; acd[1] = xi[2];
+                if ( CheckTri::apply( acd, 0. ) and ( xi[0] <= 0. ) ) {
+                    result[0] = 0.;
+                    result[1] = xi[1];
+                    result[2] = xi[2];
+                    return result; // Face A-C-D
+                }
+
+                const double w = sum - 1.;
+                Vec2 bcd; bcd[0] = xi[1] - w/3.; bcd[1] = xi[2] - w/3.;
+                if ( CheckTri::apply( bcd, 0. ) and ( w >= 0. ) ) {
+                    result[0] = xi[0] - w/3.;
+                    result[1] = xi[1] - w/3.;
+                    result[2] = xi[2] - w/3.;
+                    return result; // Face B-C-D
+                }
+
+                // reaching this point -> point is inside the TET
+                return xi;
+            }
+        };
+    }
+
+    /**  Snap to a reference element's polytope.
+     *   Given a parametric coordinate \f$ \xi \f$, these objects calculate the
+     *   parametric coordinate \f$ \eta \f$ inside of the reference shape which
+     *   is closest to the given \f$ \xi \f$. Let \f$ \hat{\tau} \f$ denote the
+     *   reference polytope, then the task is to find \f$ \eta \f$ such that
+     *   \f[
+     *       \min_{\eta \in \hat{\tau}} | \eta - \xi |
+     *   \f]
+     *   is achieved.
+     *   If the given \f$ \xi \f$ is already inside \f$ \hat{\tau} \f$ we
+     *   obviously have \f$ \eta = \xi \f$. Otherwise the vertex, edge or face
+     *   of \f$ \hat{\tau} \f$ has to be found to which \f$ \xi \f$ is closest
+     *   and its orthogonal projection onto that entity is returned.
+     *   Whereas the computations for the unit hypercube shapes is trivially
+     *   the check against \f$ [0,1] \f$ in all coordinate directions, the
+     *   computations for the triangle and tetrahedron are quite tedious.
+     *   \tparam SHAPE  Type of shape to find closest point in
+     */
+    template<base::Shape SHAPE>
+    struct SnapToShape
+        : base::IfElse< SHAPE == HyperCubeShape<ShapeDim<SHAPE>::value>::value,
+                        detail_::SnapToHyperCube<ShapeDim<SHAPE>::value>,
+                        detail_::SnapToSimplex<  ShapeDim<SHAPE>::value> >::Type
+    { };
 }
 
 #endif

@@ -1,5 +1,0 @@
-meshFile   cavity.smf
-viscosity  0.001
-density    1.00
-maxIter    100
-tolerance  1.e-5

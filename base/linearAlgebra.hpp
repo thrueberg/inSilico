@@ -14,8 +14,10 @@
 // eigen3 includes
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <Eigen/Eigenvalues>
 // base   includes
 #include <base/numbers.hpp>
+#include <base/verify.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -69,7 +71,7 @@ namespace base{
 
     //--------------------------------------------------------------------------
     //! Cross product function for the columns of 3 x 2 matrix
-    base::Vector<3>::Type
+    inline base::Vector<3>::Type
     crossProduct( const base::Matrix<3,2>::Type & surfJac )
     {
         const base::Vector<3>::Type result =
@@ -79,7 +81,7 @@ namespace base{
     }
 
     //! Cross product function for two vectors
-    base::Vector<3>::Type
+    inline base::Vector<3>::Type
     crossProduct( const base::Vector<3>::Type & a,
                   const base::Vector<3>::Type & b )
     {
@@ -87,7 +89,7 @@ namespace base{
     }
 
     //! 2D cross product: gives the normal vector to the column of a 2x1 matrix
-    base::Vector<2>::Type
+    inline base::Vector<2>::Type
     crossProduct( const base::Matrix<2,1>::Type & surfJac )
     {
         base::Vector<2>::Type result;
@@ -172,8 +174,114 @@ namespace base{
     }
 
 
+    //--------------------------------------------------------------------------
+    /** Compute all eigenvalues of a given symmetric matrix.
+     *  \tparam MAT Type of matrix to operate on (size <= 3)
+     */
+    template<typename MAT>
+    typename base::Vector<MatRows<MAT>::value>::Type eigenValues( const MAT& A )
+    {
+        static const unsigned numRows = MatRows<MAT>::value;
+        
+        STATIC_ASSERT_MSG( numRows == MatCols<MAT>::value, "Matrix must be square" );
+        STATIC_ASSERT_MSG( numRows <= 3, "Direct computation only for N<=3" );
+        
+        Eigen::SelfAdjointEigenSolver<MAT> es( numRows );
+        es.computeDirect( A, Eigen::EigenvaluesOnly );
+        const typename base::Vector<numRows>::Type result = es.eigenvalues();
+        return result;
+    }
 
-    
+    //--------------------------------------------------------------------------
+    /** Compute all eigenvalues and eigenvectors of a given symmetric matrix.
+     *  \tparam MAT Type of matrix to operate on (size <= 3)
+     */
+    template<typename MAT>
+    typename base::Vector<MatRows<MAT>::value>::Type eigenPairs( const MAT& A,
+                                                                 MAT& X )
+    {
+        static const unsigned numRows = MatRows<MAT>::value;
+        
+        STATIC_ASSERT_MSG( numRows == MatCols<MAT>::value, "Matrix must be square" );
+        STATIC_ASSERT_MSG( numRows <= 3, "Direct computation only for N<=3" );
+        
+        Eigen::SelfAdjointEigenSolver<MAT> es( numRows );
+        es.computeDirect( A, Eigen::ComputeEigenvectors );
+        const typename base::Vector<numRows>::Type result = es.eigenvalues();
+        X = es.eigenvectors();
+        return result;
+    }
+
+    //--------------------------------------------------------------------------
+    namespace detail_{
+
+        template<unsigned SIZE> struct ComputeAngleAxis;
+        
+        //! Helper to compute the axis-angle representation of 2x2 rotation matrix
+        template<>
+        struct ComputeAngleAxis<2>
+        {
+            template<typename MAT>
+            static std::pair<double,base::Vector<3>::Type> apply( const MAT& R )
+            {
+                // trivial axis: in 2D rotate always around z-axis
+                base::Vector<3>::Type axis;
+                axis[0] = axis[1] = 0.; axis[2] = 1.;
+                // determine angle from first column
+                double angle = std::atan2( R(1,0), R(0,0) );
+                // ensure positive angle
+                if ( angle < 0. ) angle += M_PI;
+                return std::make_pair( angle, axis );
+            }
+        };
+
+        //! Helper to compute the axis-angle representation of 3x3 rotation matrix
+        template<>
+        struct ComputeAngleAxis<3>
+        {
+            template<typename MAT>
+            static std::pair<double,base::Vector<3>::Type> apply( const MAT& R )
+            {
+                // http://en.wikipedia.org/wiki/Rotation_matrix#Axis_and_angle
+                base::Vector<3>::Type axis;
+                axis[0] = R( 2, 1 ) - R( 1, 2 );
+                axis[1] = R( 0, 2 ) - R( 2, 0 );
+                axis[2] = R( 1, 0 ) - R( 0, 1 );
+                const double r = axis.norm();
+
+                double angle = 0.;
+                if ( r >= 1.e-10 ) {
+                    // in case of a zero axis (diagonal matrix, hence no rotation)
+                    axis /=  r;
+                    angle = std::atan2( r, (R(0,0) + R(1,1) + R(2,2)) - 1. );
+                }
+
+                // ensure positive angle
+                if ( angle < 0. ) angle += M_PI;
+                
+                return std::make_pair( angle, axis );
+            }
+        };
+
+    }
+
+    //--------------------------------------------------------------------------
+    /** Given a rotation matrix, determine the angle axis representation.
+     *  Let a matrix \f$ R \f$ be given which represents a (2D/3D) rotation.
+     *  There is an alternative representation by axis and angle, see
+     *  http://en.wikipedia.org/wiki/Rotation_matrix#Axis_and_angle
+     *  This object generates this representation.
+     *  \tparam MAT  Type of the matrix to analyse
+     */
+    template<typename MAT>
+    std::pair<double,base::Vector<3>::Type> angleAxis( const MAT& R )
+    {
+        static const unsigned numRows = MatRows<MAT>::value;
+        STATIC_ASSERT_MSG( (numRows <= 3) and (numRows > 1),
+                           "Matrix size does not make sense" );
+        return detail_::ComputeAngleAxis<numRows>::apply( R );
+    }
+
 }
 
 //------------------------------------------------------------------------------

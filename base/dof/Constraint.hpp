@@ -17,6 +17,8 @@
 #include <boost/tuple/tuple.hpp>
 // base  includes
 #include <base/numbers.hpp>
+// boost/io/includes
+#include <base/io/Format.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -75,9 +77,10 @@ public:
     void addWeightedDoF( DegreeOfFreedom* doF, const unsigned dir,
                          base::number weight )
     {
+        ASSERT_MSG( doF -> isActive( dir ),
+                    "DoF with ID " + x2s(doF->getID()) + " not active ");
         weightedDoFs_.push_back( boost::make_tuple( doF, dir, weight ) );
     }
-    
 
     //! Evaluate the constraint equation
     base::number evaluate( const bool useRhsTerm = true ) const
@@ -90,7 +93,10 @@ public:
                 (weightedDoFs_[w].template get<0>()) -> getValue( dir );
 
             // guarantee that the master DoF is active
-            assert( (weightedDoFs_[w].template get<0>()) -> isActive( dir ) );
+            ASSERT_MSG( (weightedDoFs_[w].template get<0>()) -> isActive( dir ),
+                        "DoF with ID " +
+                        x2s( (weightedDoFs_[w].template get<0>()) -> getID() ) +
+                        " is not active" );
 
         }
         
@@ -111,13 +117,15 @@ public:
                 weightedDoFs_[w].template get<0>() -> getIndex( dir );
 
             // guarantee that the master DoF is active
-            assert( (weightedDoFs_[w].template get<0>()) -> isActive( dir ) );
+            ASSERT_MSG( (weightedDoFs_[w].template get<0>()) -> isActive( dir ),
+                        "DoF with ID " +
+                        x2s( (weightedDoFs_[w].template get<0>()) -> getID() ) +
+                        " is not active" );
 
             weightedDoFIDs.push_back( std::make_pair( weight, id ) );
         }
         return;
     }
-
 
 private:
     base::number             rhs_;          //!< RHS term of linear constraint

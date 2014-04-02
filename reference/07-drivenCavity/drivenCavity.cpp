@@ -21,6 +21,7 @@
 #include <base/dof/constrainBoundary.hpp>
 #include <base/asmb/FieldBinder.hpp>
 #include <base/asmb/StiffnessMatrix.hpp>
+#include <base/asmb/ForceIntegrator.hpp>
 
 #include <base/io/Format.hpp>
 #include <base/io/vtk/LegacyWriter.hpp>
@@ -30,12 +31,13 @@
 
 #include <base/solver/Eigen3.hpp>
 
+#define INCREMENTAL
+
 //------------------------------------------------------------------------------
 // Function for the point-wise constraint of the Boundary
-//[dirichlet]{
 template<unsigned DIM, typename DOF>
 void dirichletBC( const typename base::Vector<DIM>::Type& x,
-                 DOF* doFPtr ) 
+                  DOF* doFPtr ) 
 {
     const double tol = 1.e-5;
 
@@ -54,7 +56,6 @@ void dirichletBC( const typename base::Vector<DIM>::Type& x,
         if ( doFPtr -> isActive(d) ) doFPtr -> constrainValue( d, value );
     }
 }
-//[dirichlet]}
 
 //------------------------------------------------------------------------------
 int main( int argc, char * argv[] )
@@ -165,70 +166,119 @@ int main( int argc, char * argv[] )
     // define the system blocks (U,U), (U,P), and (P,U)
     typedef Field::TupleBinder<1,1,1>::Type TopLeft;
     typedef Field::TupleBinder<1,2>::Type   TopRight;
-    typedef Field::TupleBinder<2,1>::Type   BottomLeft;
+    typedef Field::TupleBinder<2,1>::Type   BotLeft;
     
-    typedef fluid::VectorLaplace<        TopLeft::Tuple> VecLaplace;
-    typedef fluid::Convection<           TopLeft::Tuple> Convection;
-    typedef fluid::PressureGradient<    TopRight::Tuple> GradP;
-    typedef fluid::VelocityDivergence<BottomLeft::Tuple> DivU;
+    typedef fluid::VectorLaplace<     TopLeft::Tuple>  VecLaplace;
+    typedef fluid::Convection<        TopLeft::Tuple>  Convection;
+    typedef fluid::PressureGradient<  TopRight::Tuple> GradP;
+    typedef fluid::VelocityDivergence<BotLeft::Tuple>  DivU;
 
     VecLaplace vecLaplace( viscosity );
     Convection convection( density );
     GradP      gradP;
     DivU       divU;
 
+    // for fixed-point iterations
+    double prevSolNorm;
+    double prevResNorm;
+
+#ifdef INCREMENTAL
+    const bool incremental = true;
+#else
+    const bool incremental = false;
+#endif
+
     //--------------------------------------------------------------------------
-    // Nonlinear Picard iterations
+    // Nonlinear iterations
     unsigned iter = 0;
-    double prevNorm = 0.;
     while( iter < maxIter ) {
 
         // Create a solver object
         typedef base::solver::Eigen3           Solver;
         Solver solver( numDoFsU + numDoFsP );
+        solver.registerFields<TopLeft>(  field );
+        solver.registerFields<TopRight>( field );
+        solver.registerFields<BotLeft>(  field );
 
-        std::cout << "Iteration " << iter << std::flush;
+        std::cout << "Iteration " << iter << ": " << std::flush;
     
         // Compute system matrix
         base::asmb::stiffnessMatrixComputation<TopLeft>( quadrature, solver,
-                                                         field, vecLaplace );
+                                                         field, vecLaplace, incremental );
 
         base::asmb::stiffnessMatrixComputation<TopLeft>( quadrature, solver,
-                                                         field, convection );
+                                                         field, convection, incremental );
 
         base::asmb::stiffnessMatrixComputation<TopRight>( quadrature, solver,
-                                                          field, gradP );
+                                                          field, gradP, incremental );
 
-        base::asmb::stiffnessMatrixComputation<BottomLeft>( quadrature, solver,
-                                                            field, divU );
+        base::asmb::stiffnessMatrixComputation<BotLeft>( quadrature, solver,
+                                                         field, divU, incremental );
 
+        if ( incremental ) {
+            base::asmb::computeResidualForces<TopLeft >( quadrature, solver, field, vecLaplace );
+            base::asmb::computeResidualForces<TopLeft >( quadrature, solver, field, convection );
+            base::asmb::computeResidualForces<TopRight>( quadrature, solver, field, gradP );
+            base::asmb::computeResidualForces<BotLeft >( quadrature, solver, field, divU );
+        }
+        
         // Finalise assembly
         solver.finishAssembly();
 
+        // check convergence via solver norms
+        const double residualNorm = solver.norm( );
+        std::cout << " |R| = " << residualNorm << std::flush;
+
+        bool isConverged = false;
+        
+        if ( ( incremental ) or ( iter== 0 ) ) {
+            if ( residualNorm < tolerance * viscosity ) isConverged = true;
+        }
+        else {
+            if ( std::abs( (residualNorm - prevResNorm)/prevResNorm ) < tolerance )
+                isConverged = true;
+        }
+
+        if ( isConverged ) { std::cout << std::endl; break; }
+        prevResNorm = residualNorm;
+
         // Solve
         solver.superLUSolve();
+        //solver.umfPackLUSolve();
 
         // distribute results back to dofs
-        base::dof::setDoFsFromSolver( solver, velocity );
-        base::dof::setDoFsFromSolver( solver, pressure );
+        if ( incremental ) {
+            base::dof::addToDoFsFromSolver( solver, velocity );
+            base::dof::addToDoFsFromSolver( solver, pressure );
+        }
+        else {
+            base::dof::setDoFsFromSolver( solver, velocity );
+            base::dof::setDoFsFromSolver( solver, pressure );
+        }
     
         // check convergence via solver norms
-        const double newNorm = solver.norm();
-        const double convCrit = (std::abs( prevNorm - newNorm ) / std::abs( newNorm ) );
-        std::cout << "  convergence criterion = " << convCrit << std::endl;
-        if ( (iter > 2) and (convCrit < tolerance) ) break;
+        const double solNorm = solver.norm( );
+        std::cout << " |dU| = " << solNorm << std::endl;
 
-        // update storage of previous norm
-        prevNorm = newNorm;
-        
+        if ( ( incremental ) or ( iter== 0 ) ) {
+            if ( solNorm < tolerance * viscosity ) isConverged = true;
+        }
+        else {
+            if ( std::abs( (solNorm - prevSolNorm)/prevSolNorm ) < tolerance )
+                isConverged = true;
+        }
+
+        if ( isConverged ) break;
+        prevSolNorm = solNorm;
+
         iter++;
+
     }
 
     // output to a VTK file
     {
         // VTK Legacy
-        const std::string vtkFile = baseName
-            + "." + base::io::leadingZeros( iter ) + ".vtk";
+        const std::string vtkFile = baseName + ".vtk";
         std::ofstream vtk( vtkFile.c_str() );
         base::io::vtk::LegacyWriter vtkWriter( vtk );
         vtkWriter.writeUnstructuredGrid( mesh );

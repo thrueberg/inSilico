@@ -20,6 +20,8 @@
 #include <base/types.hpp>
 // base/kernel includes
 #include <base/kernel/Measure.hpp>
+// base/cut includes
+#include <base/cut/ParametricMeasure.hpp>
 // base/asmb includes
 #include <base/asmb/FieldBinder.hpp>
 
@@ -28,7 +30,7 @@
 namespace base{
     namespace cut{
 
-        template<typename FIELDTUPLE, typename QUADRATURE>
+        template<typename FIELDTUPLE, typename QUADRATURE, typename MEASURE>
         class ComputeSupport;
 
         //----------------------------------------------------------------------
@@ -60,7 +62,10 @@ namespace base{
             typedef typename FieldBinder::template TupleBinder<1>::Type TB;
 
             // support computation object
-            base::cut::ComputeSupport<typename TB::Tuple,QUADRATURE>
+            base::cut::ComputeSupport<typename TB::Tuple,QUADRATURE,
+                                      //base::kernel::Measure<typename TB::Tuple>
+                                      base::cut::ParametricMeasure<typename TB::Tuple>
+                                      >
                 supportComputer( quadrature, supports );
 
             typename FieldBinder::FieldIterator fIter = fieldBinder.elementsBegin();
@@ -89,8 +94,9 @@ namespace base{
  *  for preconditioning of the basis.
  *  \tparam FIELDTUPLE  Tuple of a geometry and a field element
  *  \tparam QUADRATURE  Area integration (most likely a base::cut::Quadrature)
+ *  \tparam MEASURE     Type of measure to be used for the computation
  */
-template<typename FIELDTUPLE, typename QUADRATURE>
+template<typename FIELDTUPLE, typename QUADRATURE, typename MEASURE>
 class base::cut::ComputeSupport
 {
 public:
@@ -98,6 +104,7 @@ public:
     //@{
     typedef FIELDTUPLE FieldTuple;
     typedef QUADRATURE Quadrature;
+    typedef MEASURE    Measure;
     //@}
 
     //! The first field element of the tuple is considered
@@ -132,7 +139,7 @@ public:
     void operator()( const FieldTuple& fieldTuple )
     {
         // compute the 'measure' of the element with a quadrature
-        base::kernel::Measure<FieldTuple> measure;
+        Measure measure;
         double area = 0.;
         quadrature_.apply( measure, fieldTuple, area );
 

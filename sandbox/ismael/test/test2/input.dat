@@ -1,5 +1,11 @@
-density 1
-kappa 1
-meshFile test2geo.tetrahedron.smf
-numSteps 5
-stepSize 0.05
+#MeshFile
+meshFile 	test2geo.tetrahedron.smf
+
+#Difussion
+Default		1.0
+D1			1.0
+D2			0.001
+
+#Time Integration
+numSteps 	50
+stepSize 	0.05 

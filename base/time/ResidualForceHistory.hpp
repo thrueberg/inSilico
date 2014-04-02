@@ -37,7 +37,6 @@ namespace base{
                                           FIELDBINDER&      fieldBinder, 
                                           const unsigned step )
         {
-            typedef typename FIELDTUPLEBINDER::Tuple ElementPtrTuple;
             base::time::ResidualForceHistory<KERNEL,QUADRATURE,SOLVER,MSM>
                 rfh( kernel, quadrature, solver,  step );
             
@@ -180,6 +179,10 @@ public:
     // number of abvailable history terms
     static const unsigned nHist = TrialElement::DegreeOfFreedom::nHist;
 
+    //! Sanity check of history storage
+    STATIC_ASSERT_MSG( nHist >= TimeSteppingMethod::numSteps,
+                       "History storage of DoFs too small" );
+
     //! Constructor
     ResidualForceHistory( const Kernel&       kernel,
                           const Quadrature&    quadrature,
@@ -204,7 +207,7 @@ public:
         // dof IDs
         std::vector<std::size_t> doFIDs;
 
-        // values prescribed to dofs, here unused
+        // values prescribed to dofs, here just a placeholder
         std::vector<base::number> prescribedValues;
 
         // linear constraints on the dofs
@@ -214,7 +217,7 @@ public:
 
         // collect from element's dofs
         base::asmb::collectFromDoFs( testEp, doFStatus, doFIDs,
-                                     prescribedValues, constraints );
+                                     prescribedValues, constraints, false );
 
         // RHS weights for reaction terms
         std::vector<double> forceWeights;

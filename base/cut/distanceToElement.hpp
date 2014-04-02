@@ -23,7 +23,8 @@ namespace base{
         template<typename SELEMENT>
         void distanceToElement( const SELEMENT* surfEp,
                                 const bool isSigned, 
-                                base::cut::LevelSet<SELEMENT::Node::dim>& ls );
+                                base::cut::LevelSet<SELEMENT::Node::dim>& ls,
+                                const double pointIdentityThreshold );
 
         //----------------------------------------------------------------------
         template<typename VECDIM>
@@ -95,9 +96,9 @@ namespace base{
             };
 
             //------------------------------------------------------------------
-            template<unsigned DIM> struct ComputeSide;
-            template<> struct ComputeSide<2>;
-            template<> struct ComputeSide<3>;
+            template<unsigned DIM> struct SignedDistanceToPlane;
+            template<>             struct SignedDistanceToPlane<2>;
+            template<>             struct SignedDistanceToPlane<3>;
             
         } // namespace detail_
 
@@ -117,11 +118,13 @@ namespace base{
  *  \param[in]     surfEp   Pointer to surface element
  *  \param[in]     isSigned Flag if distance function shall be signed
  *  \param[in,out] ls       Old and new level set datum
+ *  \param[in]     pointIdentityThreshold For check of identical closest points
  */
 template<typename SELEMENT>
 void base::cut::distanceToElement( const SELEMENT* surfEp,
                                    const bool isSigned, 
-                                   base::cut::LevelSet<SELEMENT::Node::dim>& ls )
+                                   base::cut::LevelSet<SELEMENT::Node::dim>& ls,
+                                   const double pointIdentityThreshold )
 {
     typedef base::cut::LevelSet<SELEMENT::Node::dim> LevelSet;
         
@@ -146,29 +149,63 @@ void base::cut::distanceToElement( const SELEMENT* surfEp,
     // compute the closest point
     const typename LevelSet::VecDim x = ls.getX();
     typename base::Vector<SELEMENT::dim>::Type xi;
-    const typename LevelSet::VecDim closestPoint =
+    const typename LevelSet::VecDim newClosestPoint =
         detail_::ComputeClosestPoint<LevelSet::dim,
                                      SELEMENT::shape>::apply( globalX, x, xi );
                                                                         
     // distances
     const double oldDistance = ls.getUnsignedDistance();
-    const double newDistance = base::norm(x - closestPoint);
+    const double newDistance = base::norm(x - newClosestPoint);
 
     // if new distances is shorter, update the level set data
-    if ( newDistance < oldDistance ) {
+    if ( ( not isSigned ) and ( newDistance < oldDistance ) ) {
 
         // set closest point and element
-        ls.setClosestPoint( closestPoint );
-        ls.setClosestElement( surfEp -> getID() );
+        ls.setClosestPoint(           newClosestPoint );
+        ls.setClosestElement(         surfEp -> getID() );
         ls.setClosestLocalCoordinate( xi );
 
-        // for signed distances, check the side of point
-        if ( isSigned ) {
-            const bool isInside
-                = detail_::ComputeSide<LevelSet::dim>::apply( globalX, x );
-            if ( isInside ) ls.setInterior();
-            else            ls.setExterior();
+    }
+    else if ( isSigned ) {
+
+        // if distances are of simialar size, check the signed distance to plane
+        const typename LevelSet::VecDim diffClosestPoint =
+            ls.getClosestPoint() - newClosestPoint;
+        const bool decideByDistancesToPlane
+            ( base::norm( diffClosestPoint ) < pointIdentityThreshold );
+
+        if ( decideByDistancesToPlane ) {
+
+            // get old and new signed spanned volumina
+            const double oldDistanceToPlane = ls.getDistanceToPlane();
+            const double newDistanceToPlane =
+                detail_::SignedDistanceToPlane<LevelSet::dim>::apply( globalX, x );
+
+            // if the distance to the plane of the element is larger, update
+            if ( std::abs( newDistanceToPlane ) > std::abs( oldDistanceToPlane ) ) {
+
+                // set new level set data
+                ls.setClosestPoint(           newClosestPoint );
+                ls.setClosestElement(         surfEp -> getID() );
+                ls.setClosestLocalCoordinate( xi );
+                ls.setDistanceToPlane(        newDistanceToPlane );
+
+            }
+            // else leave old datum unchanged
         }
+        else if ( newDistance < oldDistance ) {
+
+            const double newDistanceToPlane =
+                detail_::SignedDistanceToPlane<LevelSet::dim>::apply( globalX, x );
+
+            // set new level set data
+            ls.setClosestPoint(           newClosestPoint );
+            ls.setClosestElement(         surfEp -> getID() );
+            ls.setClosestLocalCoordinate( xi );
+            ls.setDistanceToPlane(        newDistanceToPlane );
+
+        }
+
     }
     
     
@@ -374,75 +411,85 @@ base::cut::closestPointToQuadrilateral( const base::Vector<3,double>::Type& x1,
 
 //------------------------------------------------------------------------------
 template<>
-struct base::cut::detail_::ComputeSide<2>
+struct base::cut::detail_::SignedDistanceToPlane<2>
 {
-    /** Compute the side of the line on which a point lies.
-     *  Check the sign of the dot-product of the normal vector with the
-     *  distance vector. Let \f$ a \f$ and \f$ b \f$ be the lines end vertices,
-     *  then we have \f$ t = b - a \f$ as the tangent vector and by convention
+    /** Compute the signed distance to the plane (here line) that embeds the
+     *  considered element. This distance is used in case of ambiguities when
+     *  the closest point is shared by many elements and the 'correct' closest
+     *  element has to be chose.
+     *  Consider the picture
+     *  \code{.txt}
+     *       .......(A)_____________(B)..............
+     *                      |                 |
+     *                      | n               |
+     *                      V                (P)
+     *  \endcode
+     *  where a point \f$ P\f$ is to be tested against the line segment
+     *  \f$ [A,B] \f$. The vertical line between \f$ p \f$ and the infinite
+     *  extension of \f$ [A,B] \f$ is of interest. The signed distance between
+     *  \f$ P \f$ and that line is given by
      *  \f[
-     *       n_0 = (b_1 - a_1)  \quad n_1 = -(b_0 - a_0)
+     *       d = \frac{ n \cdot (PA) }{ |n| }
      *  \f]
-     *  the components of the normal vector. This vector is obviously
-     *  perpendicular. Moreover, moving from \f$ a \f$ to \f$ b \f$ it points
-     *  to the right. Imagine a circular domain composed of line segments. It
-     *  is common to define the surface orientation as positive if it 'moves'
-     *  counter clockwise around the center. A positive normal vector points
-     *  to the outside of the domain and thus to the right if one moves in
-     *  positive direction along the circle. Here, we test the sign of the
-     *  dot-product of the normal with the vector pointing from \f$ a \f$ to
-     *  \f$ p \f$.  If the sign is positive, the point lies on the side where
-     *  the normal vector points and thus outside of the domain.  Otherwise it
-     *  is inside the domain.
-     *  Convention: inside the domain -> return true
-     *              outside           -> return false
+     *  where \f$ n \f$ is the non-normalised (!) outward normal vector to the
+     *  hyperplane and \f$ PA \f$ the vector from \f$ P \f$ to \f$ A \f$.
+     *  In this picture the result will be negative since the vectors \f$ n \f$
+     *  and \f$ PA \f$ point in opposite directions.
+     *  
      *  \tparam ARRAY Type of arry with element vertices
      *  \param[in] array Element's vertices
-     *  \param[in] p     Point to check
-     *  \return          Boolean indicating the side
+     *  \param[in] P     Point to check
+     *  \return          Signed distance to line
      */
     template<typename ARRAY>
-    static bool apply( const ARRAY& array,
-                       const base::Vector<2,double>::Type& p )
+    static double apply( const ARRAY& array,
+                         const base::Vector<2,double>::Type& P )
     {
-        const double crit =
-            (array[1][1] - array[0][1])*(p[0] - array[0][0]) -
-            (array[1][0] - array[0][0])*(p[1] - array[0][1]);
-                    
-        return  (crit <= 0.);
+        // construct normal vector 
+        base::Vector<2,double>::Type n;
+        n[0] =  array[1][1] - array[0][1];
+        n[1] = -array[1][0] + array[0][0];
+
+        // vector between point and begin of line segment
+        const base::Vector<2,double>::Type PA = array[0] - P;
+        
+        const double numer  = base::dotProduct( n, PA );
+        const double denom2 = base::dotProduct( n, n  );
+        return numer / std::sqrt( denom2 );
     }
 };
 
 //------------------------------------------------------------------------------
 template<>
-struct base::cut::detail_::ComputeSide<3>
+struct base::cut::detail_::SignedDistanceToPlane<3>
 {
-    /** Compute the side of a triangle on which a given point lies.
-     *  By constructing the normal vector as the cross product of the two
-     *  vectors spanning the triangle, the sign of the dot-product of this
-     *  normal with the vector pointing from the triangles origin point to the
-     *  point of interest reveals the side of the point.
-     *  If this product is positive, the point lies in direction of the normal
-     *  and thus outside of the domain (assuming a positive surface
-     *  orientation), otherwise it is inside.
-     *  \tparam ARRAY Type of arry with element vertices
-     *  Convention: inside the domain -> return true
-     *              outside           -> return false
+    /** Compute the signed distance between given point and plane.
+     *  The distance with sign between the given point and the plane which
+     *  embeds a given triangle is of interest. Let \f$ [A,B,C] \f$ denote the
+     *  oriented triangle and \f$ P \f$ the point of interest. Then
+     *  \f[
+     *      d = \frac{ n \cdot PA }{ |n| }
+     *  \f]
+     *  gives the signed distance based on the outward normal vector \f$ n \f$
+     *  (not normaalised) and the vector \f$ PA \f$ pointing from \f$ P \f$ to
+     *  \f$ A \f$.
      *  \param[in] array Element's vertices
-     *  \param[in] p     Point to check
-     *  \return          Boolean indicating the side
+     *  \param[in] P     Point to check
+     *  \return          Signed distance     
      */
     template<typename ARRAY>
-    static bool apply( const ARRAY& array,
-                       const base::Vector<3,double>::Type& p )
+    static double apply( const ARRAY& array,
+                         const base::Vector<3,double>::Type& P )
     {
-        const base::Vector<3,double>::Type
-            normal = base::crossProduct( array[1] - array[0],
-                                         array[2] - array[0] );
-        const base::Vector<3,double>::Type aux = p - array[0];
-        const double crit   = base::dotProduct( normal, aux ); 
+        // normal vector
+        const base::Vector<3,double>::Type n =
+            base::crossProduct( array[1] - array[0], array[2] - array[0] );
 
-        return (crit <= 0.);
+        const base::Vector<3,double>::Type PA = array[0] - P;
+        
+        const double numer  = base::dotProduct( n, PA );
+        const double denom2 = base::dotProduct( n, n  );
+        return numer / std::sqrt( denom2 );
     }
     
 };

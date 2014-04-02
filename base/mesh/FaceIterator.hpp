@@ -52,6 +52,7 @@ namespace base{
                 array[ num ] = index;
             }
 
+            inline
             void assignIndex( std::size_t & result, const unsigned dummy,
                               const std::size_t index )
             {

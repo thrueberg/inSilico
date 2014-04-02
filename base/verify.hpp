@@ -27,7 +27,7 @@ namespace detail_
 
     void assertion_failed_msg( char const * expr, char const * function, 
                                char const * file, long line,
-                               char const * message );
+                               const std::string& message ); 
 } 
 
 //------------------------------------------------------------------------------
@@ -89,7 +89,11 @@ namespace detail_
  *  and causes a run-time error with the message if the expression is false
  *  \note This macro is disabled with the NDEBUG compilation flag.
  */
-#define ASSERT_MSG(expr,message) BOOST_ASSERT_MSG(expr,message)
+#ifdef NDEBUG
+#define ASSERT_MSG(expr,message) ((void)0)
+#else
+#define ASSERT_MSG(expr,message) VERIFY_MSG(expr,message)
+#endif
 
 //------------------------------------------------------------------------------
 /** Macro for compile time assertion.
@@ -113,8 +117,8 @@ namespace detail_
  *  \param[in]  file        File in which verification has been called.
  *  \param[in]  line        Line number on which verification is located.
  */
-void detail_::assertion_failed( char const * expr, char const * function, 
-                                char const * file, long line )
+inline void detail_::assertion_failed( char const * expr, char const * function, 
+                                       char const * file, long line )
 {
     // print error message
     std::cerr << "(EE) Assertion of \"" << expr << "\" in function \"" << function << "\", \n"
@@ -132,9 +136,9 @@ void detail_::assertion_failed( char const * expr, char const * function,
  *  \param[in]  line        Line number on which verification is located.
  *  \param[in]  message     String containing a message from the programmer
  */
-void detail_::assertion_failed_msg( char const * expr, char const * function, 
-                                    char const * file, long line,
-                                    char const * message )
+inline void detail_::assertion_failed_msg( char const * expr, char const * function, 
+                                           char const * file, long line,
+                                           const std::string& message ) 
 {
     // print error message
     std::cerr << "(EE) Assertion of \"" << expr << "\" in function \"" << function << "\", \n"

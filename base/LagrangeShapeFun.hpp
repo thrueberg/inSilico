@@ -119,7 +119,18 @@ public:
     //! Base class contains the parametric shape function implementation
     typedef typename detail_::LagrangeShapeFunImpl<DEGREE,SHAPE>::Type Base;
 
-    //! Evaluate function in physical space
+    //--------------------------------------------------------------------------
+    /** Evaluate function in physical space.
+     *  The function values in the physical coordinate system are defined by
+     *  \f[
+     *        \phi(x) := \phi( \xi(x) ) = \phi \circ x^{-1}
+     *  \f]
+     *  where \f$ x = x(\xi) \f$ is the coordinate map.
+     *  \tparam GEOMELEMENT Type of geometry description element
+     *  \param  geomElemPtr Pointer to geometry element (here unused)
+     *  \param  xi          Local evaluation coordinate
+     *  \param  result      Function values of all shape functions
+     */
     template<typename GEOMELEMENT>
     void evaluate( const GEOMELEMENT* geomElemPtr,
                    const typename Base::VecDim& xi,
@@ -128,12 +139,25 @@ public:
         Base::fun( xi, result );
     }
 
-    //! Evaluate gradient in physical space
+    //--------------------------------------------------------------------------
+    /** Evaluate gradient in physical space.
+     *  Compute the (tangential) gradient of the shape functions
+     *  \f[
+     *       \nabla \phi = g^\alpha \phi_{,\alpha}
+     *  \f]
+     *  where \f$ g^\alpha \f$ are the contra-variante basis vectors and
+     *  \f$ \phi_{,\alpha} \f$ the partial derivatives in parametric coordinates.
+     *  \tparam GEOMELEMENT Type of geometry description element
+     *  \param  geomElemPtr Pointer to geometry element 
+     *  \param  xi          Local evaluation coordinate
+     *  \param  result      Gradient values of all shape functions
+     */
     template<typename GEOMELEM>
     double evaluateGradient( const GEOMELEM* geomElemPtr,
                              const typename Base::VecDim& xi,
                              std::vector<typename GEOMELEM::Node::VecDim>& result ) const
     {
+        // get local gradient
         typename Base::GradArray gradXiPhi;
         Base::gradient( xi, gradXiPhi );
 
@@ -150,7 +174,101 @@ public:
         // return det J
         return detJ;
     }
-        
+
+    //--------------------------------------------------------------------------
+    /** Evaluate Hessian in physical space.
+     *  Compute the (tangential) Hessian of the shape functions
+     *  \f[
+     *       \nabla \otimes \nabla \phi =
+     *       (\phi_{,\alpha\beta} - \Gamma^\delta_{\alpha \beta} \phi_{,\delta})
+     *       g^\alpha \otimes g^\beta
+     *  \f]
+     *  where \f$ g^\alpha \f$ are the contra-variante basis vectors, 
+     *  \f$ \phi_{,\alpha} \f$ the partial derivatives in parametric coordinates,
+     *  and we have the Christoffel symbol
+     *  \f[
+     *       \Gamma^\delta_{\alpha \beta} = g_{\alpha,\beta} g^\delta
+     *  \f]
+     *  based on the partial derivatives of the co-variante basis vectors
+     *  \f$ g_\alpha \f$.
+     *  \tparam GEOMELEMENT Type of geometry description element
+     *  \param  geomElemPtr Pointer to geometry element 
+     *  \param  xi          Local evaluation coordinate
+     *  \param  result      Gradient values of all shape functions
+     */
+    template<typename GEOMELEM>
+    void evaluateHessian( const GEOMELEM* geomElemPtr,
+                          const typename Base::VecDim& xi,
+                          std::vector<typename base::Matrix<
+                          GEOMELEM::Node::dim,GEOMELEM::Node::dim>::Type
+                          >& result ) const
+    {
+        // parameter space gradient
+        typename Base::GradArray gradXi;
+        Base::gradient(xi, gradXi );
+
+        // parameter space Hessian
+        typename Base::HessianArray hessXi;
+        Base::hessian( xi, hessXi );
+
+        // geometry items: contra-variant basis and its derivatives
+        typename base::ContraVariantBasis<GEOMELEM>::MatDimLDim contraBasis;
+        base::ContraVariantBasis<GEOMELEM>()( geomElemPtr, xi, contraBasis );
+
+        typename base::DerivativesOfTangents<GEOMELEM>::result_type tangDeriv =
+            base::DerivativesOfTangents<GEOMELEM>()( geomElemPtr, xi );
+
+        typename base::Vector<GEOMELEM::Node::dim,double>::Type normal;
+        base::SurfaceNormal<GEOMELEM>()( geomElemPtr, xi, normal );
+
+        // 2nd ff
+        typename base::Matrix<Base::dim,Base::dim>::Type FF, Ginv, FF2;
+        for ( unsigned a = 0; a < Base::dim; a++ ) {
+            for ( unsigned b = 0; b < Base::dim; b++ ) {
+                FF(a,b)   = tangDeriv(a,b).dot( normal );
+                Ginv(a,b) = contraBasis.col(a).dot( contraBasis.col(b) );
+            }
+        }
+        FF2 = Ginv * FF;
+
+        result.resize( Base::numFun );
+        for ( unsigned i = 0; i < Base::numFun; i++ ) {
+
+            // initalise with zeros
+            typename base::Matrix<GEOMELEM::Node::dim,
+                                  GEOMELEM::Node::dim>::Type hessX
+                = base::constantMatrix<GEOMELEM::Node::dim,
+                                       GEOMELEM::Node::dim>(0.);
+            
+            for ( unsigned a = 0; a < Base::dim; a++ ) {
+                for ( unsigned b = 0; b < Base::dim; b++ ) {
+                    
+                    // partial second derivative
+                    const double aux1 = hessXi[i](a,b);
+
+                    // Christoffel term
+                    double aux2 = 0.;
+                    for ( unsigned d = 0; d < Base::dim; d++ )
+                        aux2 += gradXi[i][d] *
+                            ( tangDeriv(a,b).dot( contraBasis.col(d) ) );
+
+                    // normal term
+                    double aux3 = gradXi[i][a] * FF2(a,b);
+
+                    //
+                    hessX += (aux1 - aux2) *
+                        (contraBasis.col(a) * contraBasis.col(b).transpose() ) +
+                        aux3 * (contraBasis.col(b) * normal.transpose());
+                }
+            }
+
+            result[i] = hessX;
+        }
+
+
+
+    }
+
 };
 
 #endif

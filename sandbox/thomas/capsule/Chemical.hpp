@@ -99,8 +99,8 @@ public:
         base::mesh::MeshBoundary meshBoundary;
         meshBoundary.create( mesh_.elementsBegin(), mesh_.elementsEnd() );
 
-        base::dof::constrainBoundary<FEBasis>( meshBoundary.boundaryBegin(),
-                                               meshBoundary.boundaryEnd(),
+        base::dof::constrainBoundary<FEBasis>( meshBoundary.begin(),
+                                               meshBoundary.end(),
                                                mesh_, concentration_, fun );
     }
 

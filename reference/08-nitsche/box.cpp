@@ -234,8 +234,10 @@ int main( int argc, char* argv[] )
 
     if ( nitsche ) {
     
-        base::nitsche::energyLHS<STB>( laplace, surfaceQuadrature, solver,
-                                       surfaceFieldBinder, ob );
+        base::nitsche::primalEnergyLHS<STB>( laplace, surfaceQuadrature, solver,
+                                             surfaceFieldBinder, ob );
+        base::nitsche::dualEnergyLHS<STB>(   laplace, surfaceQuadrature, solver,
+                                             surfaceFieldBinder, ob );
     
         base::nitsche::energyRHS<STB>( laplace, surfaceQuadrature, solver,
                                        surfaceFieldBinder,

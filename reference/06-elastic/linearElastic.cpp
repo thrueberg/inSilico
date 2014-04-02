@@ -78,7 +78,7 @@ int main( int argc, char * argv[] )
     // basic attributes of the computation
     const unsigned    geomDeg  = 1;
     const unsigned    fieldDeg = 1;
-    const base::Shape shape    = base::QUAD;
+    const base::Shape shape    = base::HyperCubeShape<SPACEDIM>::value;
 
     typedef mat::hypel::StVenant Material;
 
@@ -171,7 +171,7 @@ int main( int argc, char * argv[] )
     // Number the degrees of freedom
     const std::size_t numDofs =
         base::dof::numberDoFsConsecutively( field.doFsBegin(), field.doFsEnd() );
-    std::cout << "# Number of dofs " << numDofs << std::endl;
+    //std::cout << "# Number of dofs " << numDofs << std::endl;
 
 
     // Create a solver object
@@ -188,7 +188,7 @@ int main( int argc, char * argv[] )
 
 
     // Solve
-    solver.choleskySolve();
+    solver.cgSolve();
             
     // distribute results back to dofs
     base::dof::setDoFsFromSolver( solver, field );
@@ -200,8 +200,7 @@ int main( int argc, char * argv[] )
 
     //--------------------------------------------------------------------------
     // compute L2-error and tell it to the user
-    std::cout << "L2-error =  "
-              << base::post::errorComputation<0>( quadrature, mesh, field, solFun )
+    std::cout << base::post::errorComputation<0>( quadrature, mesh, field, solFun )
               << "\n";
     
     return 0;

@@ -16,13 +16,16 @@
 // base includes
 #include <base/geometry.hpp>
 #include <base/linearAlgebra.hpp>
-#include <base/auxi/EqualPointers.hpp>
 // base/mesh includes
 #include <base/mesh/Size.hpp>
 // base/asmb includes
 #include <base/asmb/StiffnessMatrix.hpp>
 #include <base/asmb/ForceIntegrator.hpp>
-#include <base/asmb/FunEvaluationPolicy.hpp>
+// base/auxi includes
+#include <base/auxi/FunEvaluationPolicy.hpp>
+#include <base/auxi/EqualPointers.hpp>
+// base/post includes
+#include <base/post/evaluateField.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -56,7 +59,7 @@ namespace base{
             typename SysMat::Kernel kernel =
                 boost::bind( &Penalty::tangentStiffness, &penalty, _1, _2, _3, _4 );
 
-            SysMat systemMat( kernel, surfaceQuadrature, solver );
+            SysMat systemMat( kernel, surfaceQuadrature, solver, false );
 
             // apply
             typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
@@ -98,11 +101,11 @@ namespace base{
                     SurfaceForceInt;
                 
                 typename SurfaceForceInt::ForceKernel surfaceForceKernel =
-                    boost::bind( &Penalty::template rhs<EVALUATIONPOLICY>,
+                    boost::bind( &Penalty::template residual<EVALUATIONPOLICY>,
                                  &penalty, _1, _2, _3,
                                  boost::ref( bcFun ), _4 );
                 SurfaceForceInt surfaceForceInt( surfaceForceKernel,
-                                                 surfaceQuadrature, solver );
+                                                  surfaceQuadrature, solver );
                 
                 // apply
                 typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
@@ -138,7 +141,7 @@ namespace base{
         {
             typedef typename SURFACETUPLEBINDER::Tuple::GeomElement::DomainElement
                 DomainElement;
-            typedef base::asmb::EvaluateDirectly<DomainElement,BCFUN>
+            typedef base::auxi::EvaluateDirectly<DomainElement,BCFUN>
                 EvaluationPolicy;
 
             detail_::computePenaltyRHS<SURFACETUPLEBINDER,
@@ -165,7 +168,7 @@ namespace base{
         {
             typedef typename SURFACETUPLEBINDER::Tuple::GeomElement::DomainElement
                 DomainElement;
-            typedef base::asmb::EvaluateViaElement<DomainElement,BCFUN>
+            typedef base::auxi::EvaluateViaElement<DomainElement,BCFUN>
                 EvaluationPolicy;
 
             detail_::computePenaltyRHS<SURFACETUPLEBINDER,
@@ -198,7 +201,7 @@ namespace base{
  *  With the penalty method, the weak statement of the boundary value problem
  *  is augmented by
  *  \f[
- *         p(u,v) - p(\bar{u},v)
+ *         p(u - \bar{u},v)
  *  \f]
  *  This class implements these two terms, one contributing to the system
  *  matrix and the other to the system force vector.
@@ -268,12 +271,6 @@ public:
         const TestElement*    testEp  = surfFieldTuple.testElementPtr();
         const TrialElement*   trialEp = surfFieldTuple.trialElementPtr();
 
-        // check for bubnov case via pointer identity
-        const bool isBubnov =
-            base::auxi::EqualPointers<TestElement,TrialElement>::apply( testEp,
-                                                                       trialEp );
-
-        
         // Get pointer to domain element
         const DomainElement* domainEp = surfEp -> getDomainElementPointer();
 
@@ -294,8 +291,7 @@ public:
         (testEp -> fEFun()).evaluate( domainEp, xi, testFunValues );
 
         typename TrialElement::FEFun::FunArray trialFunValues;
-        if ( isBubnov ) trialFunValues = testFunValues;
-        else (trialEp -> fEFun()).evaluate( domainEp, xi, trialFunValues );
+        (trialEp -> fEFun()).evaluate( domainEp, xi, trialFunValues );
 
         // deduce the size of every contribution
         const unsigned numRowBlocks = static_cast<unsigned>( testFunValues.size()  );
@@ -323,10 +319,13 @@ public:
     }
 
     //--------------------------------------------------------------------------
-    /** Evaluation of the kernel function for the system force term
-     *  \f$ p( \bar{u}, v ) \f$.
-     *
-     *  \tparam BCFUN Type of BC function as a function of \f$ x \f$
+    /** Compute the residual forces due to a Penalty method for BC application.
+     *  The residual force term due to the the penalty method has the form
+     *  \f[
+     *     R_{pen} = -\frac{\gamma}{h} \int_{\Gamma_D} (u-\bar{u}) \cdot v ds
+     *  \f]
+     *  and this function provides the integral kernel of this term.
+     *  \tparam BCFUN Type of BC evaluation policy
      *  \param[in]   surfFieldTuple  Tuple of field element pointers
      *  \param[in]   eta    Local evaluation coordinate
      *  \param[in]   weight Corresponding quadrature weight
@@ -334,15 +333,16 @@ public:
      *  \param[out]  result Result container (pre-sized and zero-initialised)
      */
     template<typename EVALPOL>
-    void rhs( const SurfFieldTuple& surfFieldTuple,
-              const LocalVecDim&    eta,
-              const double                 weight,
-              const typename EVALPOL::Fun& bcFun,
-              base::VectorD&        result ) const
+    void residual( const SurfFieldTuple& surfFieldTuple,
+                   const LocalVecDim& eta,
+                   const double       weight,
+                   const typename EVALPOL::Fun& bcFun,
+                   base::VectorD&        result ) const
     {
         // extract test and trial elements from tuple
         const SurfaceElement* surfEp  = surfFieldTuple.geomElementPtr();
         const TestElement*    testEp  = surfFieldTuple.testElementPtr();
+        const TrialElement*   trialEp = surfFieldTuple.trialElementPtr();
         
         // Get pointer to domain element
         const DomainElement* domainEp = surfEp -> getDomainElementPointer();
@@ -368,6 +368,7 @@ public:
 
         // Evaluate boundary coondition
         const VecDof bc = EVALPOL::apply( domainEp, xi, bcFun );
+        const VecDof  u = base::post::evaluateField( domainEp, trialEp, xi );
 
         // scalar multiplier of the whole entry
         const double aux = weight * detG * (factor_ / h);
@@ -377,7 +378,7 @@ public:
 
             for ( unsigned d = 0; d < doFSize; d++ ) {
 
-                result[ i*doFSize + d ] += testFunValues[i] * bc[d] * aux;
+                result[ i*doFSize + d ] -= testFunValues[i] * (u[d]-bc[d]) * aux;
             }
         }
 

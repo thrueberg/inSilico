@@ -36,10 +36,11 @@ namespace base{
         struct BoundaryMeshBinder
         {
             typedef typename DOMAINMESH::Element DomainElement;
+            // The following static_casts are owed to an INTEL compiler bug
             static const base::Shape shape =
                 (SIMPLEX ?
-                 base::SimplexShape<DomainElement::dim-1>::value :
-                 base::FaceShape<DomainElement::shape>::value );
+                 static_cast<base::Shape>(base::SimplexShape<DomainElement::dim-1>::value) :
+                 static_cast<base::Shape>(base::FaceShape<DomainElement::shape>::value   ) );
             typedef base::mesh::SurfaceElement<DomainElement,shape> BoundaryElement;
             typedef base::mesh::Unstructured<BoundaryElement>       Type;
         };
@@ -314,16 +315,18 @@ void base::mesh::generateBoundaryMesh( BITER first, BITER last,
     // Face extraction object
     typedef base::fe::FaceExtraction<GeomElement,surface> FaceExtraction;
 
-    // Local coordinate type
-    typedef typename GeomFun::VecDim  VecDim;
+    // Coordinate types
+    typedef typename DOMAINMESH::Node::VecDim GlobalVecDim;
+    typedef typename GeomFun::VecDim          LocalVecDim;
         
     // Support points of the geometry shape function
-    boost::array<VecDim,GeomFun::numFun> supportPoints;
+    boost::array<LocalVecDim,GeomFun::numFun> supportPoints;
     GeomFun::supportPoints( supportPoints );
 
     //--------------------------------------------------------------------------
     // Step 1) collect all coordinates and filter them
-    std::vector< std::vector<VecDim> > parameterCoordinates, physicalCoordinates;
+    std::vector< std::vector<LocalVecDim>  > parameterCoordinates;
+    std::vector< std::vector<GlobalVecDim> > physicalCoordinates;
     std::vector<bool>   filterValues;
     
     for ( BITER bIter = first; bIter != last; ++bIter ){ 
@@ -338,16 +341,17 @@ void base::mesh::generateBoundaryMesh( BITER first, BITER last,
 
         bool passesFilter = true;
 
-        std::vector<VecDim> xiTmp, xTmp;
+        std::vector<LocalVecDim> xiTmp;
+        std::vector<GlobalVecDim> xTmp;
         
         // go through all nodes of the face
         for ( unsigned f = 0; f < faceIndices.size(); f++ ) {
 
             // parameter coordinate inherited from the domain element
-            const VecDim xi = supportPoints[ faceIndices[f] ];
+            const LocalVecDim xi = supportPoints[ faceIndices[f] ];
             xiTmp.push_back( xi );
             // physical coordinate via geometry evaluation 
-            const VecDim x  =
+            const GlobalVecDim x  =
                 base::Geometry<DomainElement>()( domainElement, xi );
             xTmp.push_back( x );
             // check filter
@@ -397,8 +401,8 @@ void base::mesh::generateBoundaryMesh( BITER first, BITER last,
         DomainElement* domainElement = domainMesh.elementPtr( bIter -> first );
 
         // extract the parameter and physical coordinates
-        const std::vector<VecDim> xiTmp = parameterCoordinates[ eCtr ];
-        const std::vector<VecDim>  xTmp = physicalCoordinates[  eCtr ];
+        const std::vector<LocalVecDim>  xiTmp = parameterCoordinates[ eCtr ];
+        const std::vector<GlobalVecDim>  xTmp = physicalCoordinates[  eCtr ];
 
         // pass data to node pointers
         std::vector<typename DOMAINMESH::Node*> nodePointers;
@@ -407,7 +411,7 @@ void base::mesh::generateBoundaryMesh( BITER first, BITER last,
             // get node pointer and equip with data
             typename DOMAINMESH::Node* np = boundaryMesh.nodePtr( nodeId );
             np -> setID( nodeId );
-            const VecDim x = xTmp[p];
+            const GlobalVecDim x = xTmp[p];
             np -> setX( &(x[0]) );
 
             // store for later use

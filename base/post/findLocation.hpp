@@ -197,9 +197,6 @@ base::post::findLocationInElement( const ELEMENT* ep,
     // initial guess
     LocalVecDim xi = base::ShapeCentroid<ELEMENT::shape>::apply();
 
-    // flag if point has been found
-    bool success = false;
-
     // store previous residual to check if it increases
     double prevResidual = std::numeric_limits<double>::max();
 
@@ -214,15 +211,14 @@ base::post::findLocationInElement( const ELEMENT* ep,
 
         if ( residual < tolerance )
         {
-            success = true;
-            break;
+            return std::make_pair( xi, true );
         }
 
-        // after two iterations, the residual shall not grow, otherwise quit
-        if ( ( iter > 1 ) and ( residual > prevResidual ) )
+        // after two iterations, the residual has to reduce in size
+        if ( ( iter > 1 ) and
+             ( residual / prevResidual >= 1. - tolerance ) )
         {
-            success = false;
-            break;
+            return std::make_pair( xi, false );
         }
 
         // store new residual
@@ -236,20 +232,26 @@ base::post::findLocationInElement( const ELEMENT* ep,
         LocalVecDim dXi;
         dXi.noalias() = G.transpose() * rhs;
 
-        // check if inside the reference element, if not quit
-        if ( not base::InsideShape<ELEMENT::shape>::apply( xi + dXi, tolerance ) )
-        {
-            success = false;
-            break;
-        }
-
         // update the coordinate
         xi += dXi;
 
+        // range check: if new coordinate is 'miles away', quit
+        if ( not base::InsideShape<ELEMENT::shape>::apply( xi, 1.0 ) )
+        {
+            return std::make_pair( xi, false );
+        }
+        
+        // range chack: if new coordinate is outside, snap to the ref shape
+        if ( not base::InsideShape<ELEMENT::shape>::apply( xi, tolerance ) )
+        {
+            xi = base::SnapToShape<ELEMENT::shape>::apply( xi );
+        }
     }
 
+    std::cerr << "(WW) Reached maximal number of iterations" << std::endl;
+
     // return the latest local coordinate and a success flag
-    return std::make_pair( xi, success );
+    return std::make_pair( xi, false );
 }
 
 #endif

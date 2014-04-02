@@ -191,6 +191,9 @@ int main( int argc, char* argv[] )
         % (*(derivative.doFsBegin())) -> getValue(0);
     std::cout << table;
 
+    // No incremental analysis -> exclude current field value from inertia terms
+    const bool incremental = false;
+
     //--------------------------------------------------------------------------
     // Loop over time steps
     for ( unsigned n = 0; n < numSteps; n ++ ) {
@@ -204,22 +207,22 @@ int main( int argc, char* argv[] )
         //------------------------------------------------------------------
         // system matrix coefficients
         base::asmb::stiffnessMatrixComputation<SS>( quadrature, solver, 
-                                                    fieldBinder, coeff1 );
+                                                    fieldBinder, coeff1 );//, incremental );
         base::asmb::stiffnessMatrixComputation<DD>( quadrature, solver, 
-                                                    fieldBinder, coeff4 );
+                                                    fieldBinder, coeff4 );//, incremental );
 
         // inertia terms
 #if 1
         base::time::computeInertiaTerms<SD,MSM>( quadrature, solver,
-                                                 fieldBinder, deltaT, n, 1.0 );
+                                                 fieldBinder, deltaT, n, 1.0, incremental );
         base::time::computeInertiaTerms<DS,MSM>( quadrature, solver,
-                                                 fieldBinder, deltaT, n, 1.0 );
+                                                 fieldBinder, deltaT, n, 1.0, incremental );
 #else
 
         base::time::computeReactionTerms<SD,MSM>( mass1, quadrature, solver,
-                                                  fieldBinder, deltaT, n );
+                                                  fieldBinder, deltaT, n, incremental );
         base::time::computeReactionTerms<DS,MSM>( mass2, quadrature, solver,
-                                                  fieldBinder, deltaT, n );
+                                                  fieldBinder, deltaT, n, incremental );
 #endif
 
         // force history
@@ -243,10 +246,8 @@ int main( int argc, char* argv[] )
         base::dof::setDoFsFromSolver( solver, derivative );
 
         // push history
-        std::for_each( solution.doFsBegin(),   solution.doFsEnd(),
-                       boost::bind( &DoF::pushHistory, _1 ) );
-        std::for_each( derivative.doFsBegin(), derivative.doFsEnd(),
-                       boost::bind( &DoF::pushHistory, _1 ) );
+        base::dof::pushHistory( solution );
+        base::dof::pushHistory( derivative );
 
         table % time
             % Oscillator::solution( time )

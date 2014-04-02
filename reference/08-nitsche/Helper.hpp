@@ -76,6 +76,9 @@ struct apps::nitsche::StructuredHelper
     {
         static const unsigned doFSize = FIELD::DegreeOfFreedom::size;
         
+        const std::string solName = ( doFSize == 1 ? "heat" : "disp" );
+        const std::string derName = ( doFSize == 1 ? "flux" : "gradU" );
+        
         base::io::vtk::LegacyWriter vtkWriter( vtk );
         vtkWriter.writeStructuredGrid( mesh );
         {
@@ -84,7 +87,8 @@ struct apps::nitsche::StructuredHelper
 
             base::post::sampleField( mesh, field, 
                                      std::back_inserter( nodalValues ) );
-            vtkWriter.writePointData( nodalValues.begin(), nodalValues.end(), "heat" );
+            vtkWriter.writePointData( nodalValues.begin(), nodalValues.end(),
+                                      solName );
         }
 
         {
@@ -93,7 +97,8 @@ struct apps::nitsche::StructuredHelper
 
             base::post::sampleFieldGradient( mesh, field, 
                                              std::back_inserter( cellValues ), 0 );
-            vtkWriter.writeCellData( cellValues.begin(), cellValues.end(), "flux" );
+            vtkWriter.writeCellData( cellValues.begin(), cellValues.end(),
+                                     derName );
         }
     }
 };
@@ -132,10 +137,15 @@ struct apps::nitsche::UnstructuredHelper
     template<typename FIELD>
     static void writeVTK( std::ostream & vtk, Mesh& mesh, FIELD& field )
     {
+        static const unsigned doFSize = FIELD::DegreeOfFreedom::size;
+
         base::io::vtk::LegacyWriter vtkWriter( vtk );
         vtkWriter.writeUnstructuredGrid( mesh );
 
-        base::io::vtk::writePointData( vtkWriter, mesh, field, "heat" );
+        const std::string solName = ( doFSize == 1 ? "heat" : "disp" );
+        const std::string derName = ( doFSize == 1 ? "flux" : "gradU" );
+
+        base::io::vtk::writePointData( vtkWriter, mesh, field, solName );
 
         const typename base::Vector<DIM>::Type xi =
             base::ShapeCentroid<shape>::apply();
@@ -144,7 +154,8 @@ struct apps::nitsche::UnstructuredHelper
                                       boost::bind(
                                           base::post::template
                                           evaluateFieldGradient<typename Mesh::Element,
-                                          typename FIELD::Element>, _1, _2, xi ), "flux" );
+                                          typename FIELD::Element>, _1, _2, xi ),
+                                      derName );
     }
 
 };

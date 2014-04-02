@@ -51,7 +51,7 @@ namespace base{
          *  \param[in] value Value to convert
          *  \return          Converted value in string format
          */
-        template<class T>
+        template<typename T>
         std::string formatWithLocale(T value)
         {
             std::ostringstream oss;
@@ -76,12 +76,35 @@ namespace base{
         }
 
         //----------------------------------------------------------------------
+        /** Convert argument to string.
+         *  This function is just a wrapper for using boost's lexical-cast to
+         *  a string. The motivation is a shorter writing, e.g.,
+         *  \code{.cpp}
+         *  VERIFY_MSG( number < 0, x2s("Bad value of ") + x2s( number ) );
+         *  \endcode
+         *  for quick writing. Note the using declaration
+         *  \code{.cpp}
+         *  using base::io::x2s;
+         *  \endcode
+         *  which reduces the function call to \a x2s without need of
+         *  namespaces.
+         *  \tparam T Type to be converted 
+         *  \param[in] t Some object to be string-converted
+         */
+        template<typename T>
+        std::string x2s( const T& t )
+        {
+            return boost::lexical_cast<std::string>( t );
+        }
+
+        //----------------------------------------------------------------------
         template<unsigned WIDTH> class Table;
  
     }
 }
 
-
+// This declaration reduces the expressions
+using base::io::x2s;
 
 //------------------------------------------------------------------------------
 /** Create a table format for eye-candy output.

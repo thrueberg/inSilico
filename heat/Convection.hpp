@@ -151,7 +151,7 @@ public:
      *  \param[in] weight       Quadrature weight
      *  \param[in] vector       Result container
      */
-    template<typename HIST>
+    template<unsigned HIST>
     void residualForceHistory( const FieldTuple&      fieldTuple,
                                const LocalVecDim&     xi,
                                const double           weight,

@@ -16,7 +16,13 @@ D1    0.01
 D2   20.0
 
 # reaction rate
-rate  0.1
+rate1  0.00
+rate2  0.1
+
+# Darcy flow
+p1   5.0
+p2   1.0
+perm 0.1
 
 # base name of output files
 outFile test123

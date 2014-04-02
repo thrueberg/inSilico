@@ -16,6 +16,7 @@
 // base includes
 #include <base/linearAlgebra.hpp>
 #include <base/auxi/EqualPointers.hpp>
+#include <base/auxi/parallel.hpp>
 // base/asmb includes
 #include <base/asmb/collectFromDoFs.hpp>
 #include <base/asmb/assembleMatrix.hpp>
@@ -41,21 +42,23 @@ namespace base{
                                    const FIELDBINDER& fieldBinder,
                                    const double stepSize,
                                    const unsigned step, 
-                                   const bool zeroConstraints = false )
+                                   const bool incremental = true )
         {
             typedef typename FIELDTUPLEBINDER::Tuple ElementPtrTuple;
             typedef base::time::ReactionTerms<QUADRATURE,SOLVER,MSM,ElementPtrTuple> RT;
             typename RT::Kernel kernelFun = boost::bind( &KERNEL::tangentStiffness,
                                                          &kernel, _1, _2, _3, _4 );
 
-            RT rt( kernelFun, quadrature, solver, stepSize, step, zeroConstraints );
+            RT rt( kernelFun, quadrature, solver, stepSize, step, incremental );
 
-            // Apply to all elements
-            typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
-            typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
-            for ( ; iter != end; ++iter ) {
-                rt( FIELDTUPLEBINDER::makeTuple( *iter ) );
-            }
+            base::auxi::applyToAllFieldTuple<FIELDTUPLEBINDER>( fieldBinder, rt );
+
+            //// Apply to all elements
+            //typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+            //typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+            //for ( ; iter != end; ++iter ) {
+            //    rt( FIELDTUPLEBINDER::makeTuple( *iter ) );
+            //}
 
         }
 
@@ -68,7 +71,7 @@ namespace base{
                                   const double stepSize,
                                   const unsigned step, 
                                   const double density,
-                                  const bool zeroConstraints = false )
+                                  const bool incremental = true )
         {
             typedef typename FIELDTUPLEBINDER::Tuple ElementPtrTuple;
             
@@ -76,14 +79,15 @@ namespace base{
             typedef base::time::ReactionTerms<QUADRATURE,SOLVER,MSM,ElementPtrTuple> RT;
             typename RT::Kernel kernelFun = boost::bind( mass, _1, _2, _3, _4 );
 
-            RT rt( kernelFun, quadrature, solver, stepSize, step, zeroConstraints );
+            RT rt( kernelFun, quadrature, solver, stepSize, step, incremental );
+            base::auxi::applyToAllFieldTuple<FIELDTUPLEBINDER>( fieldBinder, rt );
 
             // Apply to all elements
-            typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
-            typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
-            for ( ; iter != end; ++iter ) {
-                rt( FIELDTUPLEBINDER::makeTuple( *iter ) );
-            }
+            //typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+            //typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+            //for ( ; iter != end; ++iter ) {
+            //    rt( FIELDTUPLEBINDER::makeTuple( *iter ) );
+            //}
 
         }
 
@@ -204,29 +208,30 @@ public:
     typedef typename FieldTuple::TrialElement  TrialElement;
     //@}
 
+    //! Sanity check of history storage
+    STATIC_ASSERT_MSG( TrialElement::DegreeOfFreedom::nHist >=
+                       TimeSteppingMethod::numSteps,
+                       "History storage of DoFs too small" );
+
     //! General Kernel function
     typedef boost::function<void( const FieldTuple&,
                                   const typename Quadrature::VecDim&,
                                   const double,
                                   base::MatrixD& ) >  Kernel;
 
-    //! Class for mass matrix computation
-    typedef base::kernel::Mass<FieldTuple> Mass;
-    
     //! Constructor with use-provided kernel function
     ReactionTerms( const Kernel&        kernel, 
                    const Quadrature&    quadrature,
                    Solver&              solver,
                    const double         stepSize, 
                    const unsigned       step,
-                   const bool           prevIterate = false )
-        : mass_(            base::invalidReal() ), // not used
-          kernel_(          kernel ), 
+                   const bool           incremental = true )
+        : kernel_(          kernel ), 
           quadrature_(      quadrature ),
           solver_(          solver ),
           stepSize_(        stepSize ),
           step_(            step ),
-          prevIterate_(     prevIterate )
+          incremental_( incremental )
     { }
 
     //--------------------------------------------------------------------------
@@ -247,7 +252,7 @@ public:
         // dof IDs
         std::vector<std::size_t> rowDoFIDs, colDoFIDs;
 
-        // dof values (for constraints)
+        // dof values (for constraints, rowDoFValues just a placeholder)
         std::vector<number> rowDoFValues, colDoFValues;
 
         // dof constraints
@@ -258,7 +263,7 @@ public:
         // Collect dof entities from element
         base::asmb::collectFromDoFs( testEp, rowDoFStatus,
                                      rowDoFIDs, rowDoFValues,
-                                     rowConstraints );
+                                     rowConstraints, incremental_ );
 
         if ( isBubnov ) {
             colDoFStatus   = rowDoFStatus;
@@ -269,7 +274,8 @@ public:
         else
             base::asmb::collectFromDoFs( trialEp, colDoFStatus,
                                          colDoFIDs, colDoFValues,
-                                         colConstraints );
+                                         colConstraints,
+                                         incremental_ );
 
         // Compute the element matrix contribution
         base::MatrixD elemMat = base::MatrixD::Zero( rowDoFIDs.size(),
@@ -291,8 +297,7 @@ public:
                                         rowDoFIDs, colDoFIDs,
                                         colDoFValues,
                                         rowConstraints, colConstraints, 
-                                        solver_, isBubnov,
-                                        prevIterate_ );
+                                        solver_, isBubnov );
         }
 
         // RHS
@@ -309,7 +314,7 @@ public:
             base::VectorD resultVec = base::VectorD::Zero( colDoFIDs.size() );
 
             // call solution collector (recursive)
-            if ( prevIterate_ ) {
+            if ( incremental_ ) {
                 // include terms of the previous iterate
 
                 // call recursion beginning with the current iterate
@@ -350,14 +355,13 @@ public:
 
 
 private:
-    const Mass           mass_;        //!< Mass matrix provider
     const Kernel         kernel_;      //!< Kernel function
     const Quadrature&    quadrature_;  //!< Quadrature object
     Solver&              solver_;      //!< Solver object
 
     const double         stepSize_;    //!< Time step size
     const unsigned       step_;        //!< Number of time step
-    const bool           prevIterate_; //!< There is a previous iterate
+    const bool           incremental_; //!< True for incremental analysis
 };
 
 #endif

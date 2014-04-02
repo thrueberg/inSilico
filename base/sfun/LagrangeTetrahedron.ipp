@@ -13,7 +13,7 @@ namespace base{
         //----------------------------------------------------------------------
         //! @name Constant function
         //@{
-        template<>
+        template<> inline
         void LagrangeTetrahedron<0>::fun( const VecDim& xi,
                                                FunArray& values ) const
         {
@@ -27,7 +27,7 @@ namespace base{
         //----------------------------------------------------------------------
         //! @name Linear functions
         //@{
-        template<>
+        template<> inline
         void LagrangeTetrahedron<1>::fun( const VecDim& xi,
                                                FunArray& values ) const
         {
@@ -37,7 +37,7 @@ namespace base{
             values[3] = xi[2];
         }
 
-        template<>
+        template<> inline
         void LagrangeTetrahedron<1>::gradient( const VecDim& xi,
                                                GradArray& values ) const
         {
@@ -47,7 +47,7 @@ namespace base{
             values[3][0] =  0.; values[3][1] =  0.; values[3][2] =  1.;
         }
         
-        template<>
+        template<> inline
         void LagrangeTetrahedron<1>::supportPoints( boost::array<VecDim,
                                                                  numFun> & values )
         {
@@ -61,7 +61,7 @@ namespace base{
         //----------------------------------------------------------------------
         //! @name Quadratic functions
         //@{
-        template<>
+        template<> inline
         void LagrangeTetrahedron<2>::fun( const VecDim& xi,
                                                FunArray& values ) const
         {
@@ -83,7 +83,7 @@ namespace base{
             values[9] = 4. * z2 * z3;
         }
 
-        template<>
+        template<> inline
         void LagrangeTetrahedron<2>:: gradient( const VecDim& xi,
                                                 GradArray& values ) const
         {
@@ -137,7 +137,7 @@ namespace base{
 
         }
 
-        template<>
+        template<> inline
         void LagrangeTetrahedron<2>::supportPoints( boost::array<VecDim,
                                                                  numFun> & values )
         {

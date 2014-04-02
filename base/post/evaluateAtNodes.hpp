@@ -25,6 +25,7 @@ namespace base{
     namespace post{
 
         namespace detail_{
+            // Bind a vector of DoF-size to the type of value
             template<typename FIELD>
             struct ValueTypeBinder
             {
@@ -34,46 +35,85 @@ namespace base{
 
         }
 
-        template<unsigned HIST,typename MESH, typename FIELD>
-        void evaluateHistoryAtNodes( const MESH& mesh,
-                                     const FIELD& field,
-                                     std::vector<typename detail_::ValueTypeBinder<FIELD>::Type>&
-                                     nodalValues );
+        //-----------------------------------------------------------------------
+        template<typename VALUETYPE, typename MESH, typename FIELD, typename OP>
+        void evaluateAtNodes( const MESH& mesh, const FIELD& field,
+                              const OP& doFOperator,
+                              std::vector<VALUETYPE>& nodalValues );
 
-        template<typename MESH, typename FIELD>
-        void evaluateAtNodes( const MESH& mesh,
-                              const FIELD& field,
-                              std::vector<typename detail_::ValueTypeBinder<FIELD>::Type>&
-                              nodalValues )
+        //-----------------------------------------------------------------------
+        /** Simply evaluate the field itself at some point in the past.
+         */
+        template<unsigned HIST,typename MESH, typename FIELD>
+        void evaluateFieldHistoryAtNodes(
+            const MESH& mesh, const FIELD& field,
+            std::vector<typename detail_::ValueTypeBinder<FIELD>::Type>& nodalValues )
         {
-            evaluateHistoryAtNodes<0>( mesh, field, nodalValues );
+            // Functor for the evaluation of the field
+            boost::function<base::number( const typename FIELD::DegreeOfFreedom*,
+                                          const unsigned)> getDoFHistoryComponent =
+                boost::bind( &FIELD::DegreeOfFreedom::template getHistoryValue<HIST>,
+                             _1, _2 );
+            
+            typedef typename detail_::ValueTypeBinder<FIELD>::Type ValueType;
+            evaluateAtNodes<ValueType>( mesh, field, getDoFHistoryComponent,
+                                        nodalValues );
+        }
+
+        //-----------------------------------------------------------------------
+        /** Evaluate the field itself at the current time point.
+         */
+        template<typename MESH, typename FIELD>
+        void evaluateFieldAtNodes(
+            const MESH& mesh, const FIELD& field,
+            std::vector<typename detail_::ValueTypeBinder<FIELD>::Type>& nodalValues )
+        {
+            // delegate call for HIST=0
+            evaluateFieldHistoryAtNodes<0>( mesh, field, nodalValues );
         }
 
     }
 }
 
 //------------------------------------------------------------------------------
-/** Evaluate the field at all nodes of the given mesh.
- *  \tparam MESH  Type of mesh
- *  \tparam FIELD Type of field
+/** Apply a functor to the DoFs and interpolate the result at the nodes.
+ *  Since nodes and DoF locations do not necessarily coincide, the post-
+ *  processing requires to evaluate the field at the locations of the nodes of
+ *  the mesh. This function does that job by going over all elements of field
+ *  and mesh, and interpolating the field at the local coordinates that are
+ *  the nodes of the geometry representation. Moreover, a functor is provided
+ *  by the caller of type
+ *  \code{.cpp}
+ *       ValueComponent doFOperator( const DoFPtr, const unsigned )
+ *  \endcode
+ *  by means of which the some information from the components of the DoFs
+ *  is retrieved.
+ *  Commonly, this functor is just the access to the values of the field but
+ *  could be something different too.
+ *
+ *  \tparam VALUETYPE  Type of the result of the field evaluation
+ *  \tparam MESH       Type of geometry representation
+ *  \tparam FIELD      Type of field to evaluate
+ *  \tparam OP         Type of evaluation functor
+ *  \param[in]  mesh        Geometry representation
+ *  \param[in]  field       The field to evaluate
+ *  \param[in]  doFOperator Evaluation functor 
+ *  \param[out] nodalValues Results at the nodes of the mesh
  */
-template<unsigned HIST,typename MESH, typename FIELD>
-void base::post::evaluateHistoryAtNodes( const MESH& mesh,
-                                         const FIELD& field,
-                                         std::vector<typename base::post::detail_::
-                                         ValueTypeBinder<FIELD>::Type>& nodalValues )
+template<typename VALUETYPE, typename MESH, typename FIELD, typename OP>
+void base::post::evaluateAtNodes( const MESH& mesh, const FIELD& field,
+                                  const OP& doFOperator,
+                                  std::vector<VALUETYPE>& nodalValues )
 {
-    // DoF size
-    static const unsigned doFSize = FIELD::DegreeOfFreedom::size;
-
-    // Value type of the evaluation
-    typedef typename base::post::detail_::ValueTypeBinder<FIELD>::Type ValueType;
+    // The type of the result values
+    typedef VALUETYPE ValueType;
 
     // resize the result container
     const std::size_t numNodes =
         static_cast<std::size_t>( std::distance( mesh.nodesBegin(), mesh.nodesEnd() ) );
     nodalValues.resize( numNodes  );
 
+    // Mesh- and Field-Element iterators
     typename MESH::ElementPtrConstIter  geomElemIter = mesh.elementsBegin();
     typename MESH::ElementPtrConstIter  geomElemLast = mesh.elementsEnd();
     typename FIELD::ElementPtrConstIter fieldElemIter = field.elementsBegin();
@@ -103,9 +143,10 @@ void base::post::evaluateHistoryAtNodes( const MESH& mesh,
               dIter != (*fieldElemIter) -> doFsEnd();
               ++dIter ) {
 
+            // apply functor to get desired value
             ValueType doFValue;
-            for ( unsigned d = 0; d < doFSize; d++ )
-                doFValue[d] = (*dIter) ->template getHistoryValue<HIST>( d );
+            for ( unsigned d = 0; d < FIELD::DegreeOfFreedom::size; d++ ) 
+                doFValue[d] = doFOperator( *dIter, d );
 
             doFValues.push_back( doFValue );
         }
@@ -124,8 +165,9 @@ void base::post::evaluateHistoryAtNodes( const MESH& mesh,
             assert( doFValues.size() == funValues.size() );
                 
             // Linear combination yields the result
-            ValueType result = base::constantVector<FIELD::DegreeOfFreedom::size>( 0. );
-            for ( unsigned f = 0; f < funValues.size(); f ++ ) 
+            ValueType result = funValues[0] * doFValues[0];
+                //base::constantVector<FIELD::DegreeOfFreedom::size>( 0. );
+            for ( unsigned f = 1; f < funValues.size(); f ++ ) 
                 result += funValues[f] * doFValues[f];
 
             // Store result

@@ -1,7 +1,7 @@
 # determine mode of compilation
 DEBUG  = NO
 # choose solver
-SOLVER = 
+SOLVER = SUPERLU
 # name the compilation targets
 TARGET = oneDimensional
 

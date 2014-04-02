@@ -256,11 +256,15 @@ int main( int argc, char * argv[] )
         if ( useNitscheTerms ) {
 
             message("Boundary Nitsche");
-            base::nitsche::energyLHS<STB11>( laplaceIn, surfaceQuadrature, solver,
-                                             boundaryFieldBinder, ob1 );
+            base::nitsche::primalEnergyLHS<STB11>( laplaceIn, surfaceQuadrature, solver,
+                                                   boundaryFieldBinder, ob1 );
+            base::nitsche::dualEnergyLHS<STB11>(   laplaceIn, surfaceQuadrature, solver,
+                                                   boundaryFieldBinder, ob1 );
 
-            base::nitsche::energyLHS<STB22>( laplaceOut, surfaceQuadrature, solver,
-                                             boundaryFieldBinder, ob2 );
+            base::nitsche::primalEnergyLHS<STB22>( laplaceOut, surfaceQuadrature, solver,
+                                                   boundaryFieldBinder, ob2 );
+            base::nitsche::dualEnergyLHS<STB22>(   laplaceOut, surfaceQuadrature, solver,
+                                                   boundaryFieldBinder, ob2 );
 
             base::nitsche::energyRHS<STB11>( laplaceIn, surfaceQuadrature, solver,
                                              boundaryFieldBinder,
@@ -293,17 +297,33 @@ int main( int argc, char * argv[] )
         if ( useNitscheTerms ) {
             message("Interface Nitsche");
             
-            base::nitsche::energyLHS<STB11>( laplaceIn, surfaceQuadrature, solver,
-                                             interfaceFieldBinder, ip, true, true  ); //  kappa1
-        
-            base::nitsche::energyLHS<STB21>( laplaceIn, surfaceQuadrature, solver,
-                                             interfaceFieldBinder, ip, true, false ); //  -kappa1
-            
-            base::nitsche::energyLHS<STB12>( laplaceOut, surfaceQuadrature, solver,
-                                             interfaceFieldBinder, ip, false, true );  //  kappa2
-        
-            base::nitsche::energyLHS<STB22>( laplaceOut, surfaceQuadrature, solver,
-                                             interfaceFieldBinder, ip, false, false ); // -kappa2
+            //   kappa1
+            base::nitsche::primalEnergyLHS<STB11>( laplaceIn, surfaceQuadrature, solver,
+                                                   interfaceFieldBinder, ip, true, true  );
+            //  -kappa1
+            base::nitsche::primalEnergyLHS<STB21>( laplaceIn, surfaceQuadrature, solver,
+                                                   interfaceFieldBinder, ip, true, false ); 
+
+            //   kappa1
+            base::nitsche::dualEnergyLHS<STB11>( laplaceIn, surfaceQuadrature, solver,
+                                                 interfaceFieldBinder, ip, true, true  );
+            //  -kappa1
+            base::nitsche::dualEnergyLHS<STB21>( laplaceIn, surfaceQuadrature, solver,
+                                                 interfaceFieldBinder, ip, true, false ); 
+
+            //   kappa2
+            base::nitsche::primalEnergyLHS<STB12>( laplaceOut, surfaceQuadrature, solver,
+                                                   interfaceFieldBinder, ip, false, true );
+            //  -kappa2
+            base::nitsche::primalEnergyLHS<STB22>( laplaceOut, surfaceQuadrature, solver,
+                                                   interfaceFieldBinder, ip, false, false ); 
+
+            //   kappa2
+            base::nitsche::dualEnergyLHS<STB12>( laplaceOut, surfaceQuadrature, solver,
+                                                 interfaceFieldBinder, ip, false, true );
+            //  -kappa2
+            base::nitsche::dualEnergyLHS<STB22>( laplaceOut, surfaceQuadrature, solver,
+                                                 interfaceFieldBinder, ip, false, false ); 
         }
     }
 #endif

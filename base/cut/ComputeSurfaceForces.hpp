@@ -313,7 +313,7 @@ public:
     typedef base::asmb::SurfaceFieldBinder<SurfaceMesh,ForceField> SFB;
 
     //! Constructor 
-    ComputeSurfaceForces( SurfaceMesh&           surfaceMesh,
+    ComputeSurfaceForces( SurfaceMesh&                 surfaceMesh,
                           ForceField&                  forceField,
                           const SurfaceQuadrature&     surfaceQuadrature,
                           const std::vector<LevelSet>& levelSet,
@@ -325,13 +325,6 @@ public:
           tractionKernel_(    tractionFun ),
           sign_( plusMinus ? +1.0 : -1.0 )
     {
-        std::cout << "Binding "
-                  << std::distance( surfaceMesh.elementsBegin(),
-                                    surfaceMesh.elementsEnd() )
-                  << " surface elements to "
-                  << std::distance( forceField.elementsBegin(),
-                                    forceField.elementsEnd() )
-                  << " field elements\n";
     }
 
     //------------------------------------------------------------------------------

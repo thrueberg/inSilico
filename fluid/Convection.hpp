@@ -26,6 +26,7 @@ namespace fluid{
     class Convection;
 }
 
+//#define NEWTON
 //------------------------------------------------------------------------------
 /** System matrix contribution due to convection.
  *  The convection term in conservative form reads
@@ -97,6 +98,12 @@ public:
 
         // Evaluate its divergence
         const double divUAdv = fluid::velocityDivergence( geomEp, trialEp, xi );
+
+#ifdef NEWTON
+        // Evaluate its gradient
+        const typename base::Matrix<nDoFs,nDoFs>::Type gradU =
+            base::post::evaluateFieldGradient( geomEp, trialEp, xi );
+#endif
         
         // Evaluate gradient of trial functions 
         std::vector<GlobalVecDim> trialGradX;
@@ -115,10 +122,6 @@ public:
         assert( static_cast<unsigned>( matrix.rows() ) == numRowBlocks * nDoFs );
         assert( static_cast<unsigned>( matrix.cols() ) == numColBlocks * nDoFs );
 
-        // identity object
-        const typename base::Matrix<nDoFs,nDoFs,double>::Type eye
-            = base::Matrix<nDoFs,nDoFs,double>::Type::Identity();
-
         // loop over the test and trial functions
         for ( unsigned M = 0; M < numRowBlocks; M++ ) { // test functions
             for ( unsigned N = 0; N < numColBlocks; N++ ) { // trial functions
@@ -129,10 +132,27 @@ public:
                     advTrial += uAdv[k] * trialGradX[N][k];
 
                 const double entry =
-                    testFun[M] * (advTrial + 0.5 * divUAdv * trialFun[N] ) *
-                    density_ * detJ * weight;
+                    testFun[M] * (advTrial
+                                  + 0.5 * divUAdv * trialFun[N]
+                        ) * density_ * detJ * weight;
 
-                matrix.block( M*nDoFs, N*nDoFs, nDoFs, nDoFs ) += entry * eye;
+                for ( unsigned k = 0; k < nDoFs; k++ )
+                    matrix( M*nDoFs+k, N*nDoFs+k ) += entry;
+
+#ifdef NEWTON
+                for ( unsigned i = 0; i < nDoFs; i++ ) {
+                    for ( unsigned j = 0; j < nDoFs; j++ ) {
+                
+                        const double entry2 =
+                            testFun[M] *
+                            ( trialFun[N] * gradU(j,i)
+                              + 0.5 * trialGradX[N][j] * uAdv[i] ) *
+                            density_ * detJ * weight;
+                        
+                        matrix( M*nDoFs+i, N*nDoFs+j ) += entry2;
+                    }
+                }
+#endif 
                 
             } // N
         } // M
@@ -154,7 +174,7 @@ public:
      *      F[Md+i] = \int_\Omega \rho \phi^M (u \cdot \nabla u_i^{n-s}) dx
      *  \f]
      */
-    template<typename HIST>
+    template<unsigned HIST>
     void residualForceHistory( const FieldTuple&      fieldTuple,
                                const LocalVecDim&     xi,
                                const double           weight,
@@ -174,21 +194,22 @@ public:
         
         // Evalute velocity gradient
         const typename base::Matrix<GeomElement::Node::dim,
-                                        TrialElement::DegreeOfFreedom::size,
-                                        double>::Type
+                                    TrialElement::DegreeOfFreedom::size,
+                                    double>::Type
             gradU = fluid::velocityGradientHistory<HIST>( geomEp, velocEp, xi );
 
         // Evalute velocity field
         const typename base::Vector<TrialElement::DegreeOfFreedom::size,
-                                        double>::Type
+                                    double>::Type
             U = fluid::velocityHistory<HIST>( geomEp, trialEp, xi );
 
-        for ( unsigned M = 0; M < testFun.size(); M++ ) {
-            for ( unsigned i = 0; i < nDoFs; i++ ) {
-
-                double convectiveDeriv = 0.;
-                for ( unsigned k = 0; k < nDoFs; k++ )
-                    convectiveDeriv += U[k] * gradU(k,i);
+        for ( unsigned i = 0; i < nDoFs; i++ ) {
+            // (u \nabla) u
+            double convectiveDeriv = 0.;
+            for ( unsigned k = 0; k < nDoFs; k++ )
+                convectiveDeriv += U[k] * gradU(k,i);
+            
+            for ( unsigned M = 0; M < testFun.size(); M++ ) {
                 
                 vector[M*nDoFs + i] += density_ * convectiveDeriv * testFun[M]
                     * detJ * weight;

@@ -17,6 +17,7 @@
 #include <boost/array.hpp>
 // base includes
 #include <base/linearAlgebra.hpp>
+#include <base/verify.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -488,5 +489,62 @@ namespace base{
         };
 
     } // end namespace detail_
+
+    //--------------------------------------------------------------------------
+    /** Second partial derivative of the Geometry represenation.
+     *  Based on the geometry as a linear combination of coordinates and shape
+     *  functions, we get
+     *  \f[
+     *     h_{\alpha\beta} = \frac{\partial^2 x}{\partial \alpha \partial \beta}
+     *     = \sum_{i=1}^N x^i \phi^i_{,\alpha \beta}
+     *  \f]
+     *  \tparam ELEMENT  Geometry representing element
+     */
+    template<typename ELEMENT>
+    struct DerivativesOfTangents
+    {
+        typedef GeomTraits<ELEMENT> GT;
+
+        // Matrix type return value
+        typedef typename base::Matrix<GT::localDim,
+                                      GT::localDim,
+                                      typename GT::GlobalVecDim>::Type result_type;
+
+        /** Overloaded function call operator for the computation of J
+         *  \param[in] ep  Pointer to to element
+         *  \param[in] xi  Local coordinate as evaluation point
+         *  \returns       Second partial derivatives of geometry
+         */
+        result_type operator()( const          ELEMENT*         ep,
+                                const typename GT::LocalVecDim& xi ) const
+        {
+            // Evaluate the geometry shape functions' Hessian
+            typename GT::GeomFun::HessianArray funHessianValues;
+            ( ep -> geomFun() ).hessian( xi, funHessianValues );
+
+            // Collect nodal coordinates
+            const typename NodalCoordinates<ELEMENT>::result_type X
+                = NodalCoordinates<ELEMENT>()( ep );
+
+            // zero-initialised result container
+            result_type result;
+            for ( unsigned a = 0; a < GT::localDim; a++ )
+                for ( unsigned b = 0; b < GT::localDim; b++ )
+                    result(a,b) = base::constantVector<GT::globalDim>( 0. );
+
+            // result = X[i] * (grad grad phi[i])
+            for ( unsigned i = 0; i < ELEMENT::numNodes; i++ ) {
+                
+                for ( unsigned a = 0; a < GT::localDim; a++ )
+                    for ( unsigned b = 0; b < GT::localDim; b++ )
+                        result(a,b) += X[i] * funHessianValues[i](a,b);
+                
+            }
+            
+            return result;
+        }
+       
+    };
+
 }
 #endif

@@ -1,0 +1,15 @@
+A discrete model is proposed to check if a cell can survive given the nutrient concentration conditions. It is considered a threshold of nutrient concentration to determine if the cell is viable or not.\\
+\\
+If a cell is below its threshold concentration value, it would progressively being damaged until it reaches an unsustainable condition and consequently dies. This is a very simple model using a score-based solution to handle cell survivability (CS) that can be easily expanded in the future to consider other parameters. 
+
+
+\begin{equation} \label{eq:viability}
+\frac{d}{dt} (CS) = -k_D\cdot (C_{nutrient}) \qquad
+k_D \left\{\begin{matrix}
+0  {\hskip 2em} if \qquad  C_{nutrient} \geq \lambda_h \\ 
+k_D {\hskip 1em} if \qquad C_{nutrient} < \lambda_h 
+\end{matrix}\right.
+\end{equation}
+\vspace{5mm}
+
+As it is seen on equation \ref{eq:viability}, cell survivability (CS) in a point of time is calculated with health score in the previous step and a time-dependent term. There is a damage parameter ($k_D$) in the second term  that it is defined by the nutrient concentration ($C_{nutrient}$) in that cell position. Therefore, if nutrient concentration is greater or equal than a threshold concentration parameter ($\lambda_h$) cell survivability in the next step will be equal to the previous one. On the other hand, if nutrient concentration is less than one threshold concentration there is a reduction of that cell health score proportional to time elapsed.

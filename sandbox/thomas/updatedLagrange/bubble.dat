@@ -1,0 +1,30 @@
+bbminX      0
+bbminY      0
+bbminZ      0
+bbmaxX      1
+bbmaxY      2
+bbmaxZ      1
+NX          80
+NY          160
+NZ         50
+
+R           0.25
+cX          0.5
+cY          0.5 
+cZ          0 
+
+viscosity1      1.0
+rho1          100
+viscosity2     10.0
+rho2         1000
+sigma          24.5
+
+numLoadSteps     2000
+alpha            0.5
+penaltyFac       1000.0
+dt               0.002
+readMeshFromFile 0
+meshFile         bla.smf
+
+bc               TANK
+ubar             0.

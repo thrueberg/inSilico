@@ -1,0 +1,7 @@
+The main purpose of this work is the development of a multiscale framework capable of simulating multicellular migration in a 3D culture in vitro. We will take into account nutrient diffusion, cell viability and cell to cell interactions. The system is composed by a discrete cell model and a continuum diffusion model, coupled and combined to achieve a full integration of both modules.\\
+\\
+Discrete model calculates cell interaction and movement considering different effects. This model includes a cell viability algorithm that checks concentration in the cell position to determine its viability. Forces exerted by cell-cell interaction are solved by a modified Morse potential equation (\cite{Rey2013}). It also includes scaffold dimensions and medium concentrations of different chemical factors, including nutrients.\\
+\\
+Continuum model uses inSilico library to calculate compounds diffusion (see Appendix \ref{sec:inSilico}). This library is capable to solve diverse physico-chemical systems using finite element method (see Appendix \ref{sec:FEM}).\\
+\\
+Finally, we will focus on the bidirectional feedback between both models. In every step, discrete model will feed continuum model with cell positions and other parameters. After that, continuum model will share concentration values with discrete model to check viability of the cells.\\

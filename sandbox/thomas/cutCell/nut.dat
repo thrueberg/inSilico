@@ -1,0 +1,39 @@
+# Domain specificiation
+
+# box size
+xmax           1.0
+
+# mesh files
+surfaceMeshes  { cylinder.reverse.smf  helix.reverse.smf }
+
+# Application of a fundamental solution as BVP
+# source point
+sX             0.5
+sY             0.5
+sZ             0.5
+
+# Material
+E              50.
+nu             0.3
+
+# force multiplier
+f              1
+
+# stabilisation
+stabilise      1
+
+# mesh file, if wanted
+meshFile      square.0005.smf
+
+# remove cut-cell parts small than this
+cutThreshold   1.e-8
+
+compute       1
+
+# nonlinear stuff
+# load steps and iterations
+numLoadSteps   200
+maxIter        10
+tolerance      1.e-10
+
+findTolerance   1.e-10

@@ -1,0 +1,23 @@
+The importance of in silico experimentation is increasing in both biological and medical fields with the development of more powerful tools and computers at lower costs. It can be found recent numerical implementations that approximate real behavior of cells under different conditions (\cite{Vermolen2013b}, \cite{Milde2014}, \cite{Geris2010}), those are useful to predict and understand several biological processes without costly and time consuming in vitro experimentation.\\
+\\
+As in vitro experimentation, in silico models can be 2D or 3D depending on the processes and conditions they are trying to simulate. There are plenty of 2D model implementations that have been useful to describe basic cell behavior (\cite{Rey2013}, \cite{Vermolen2012}), but their limitations are the same of 2D in vitro cultures and fail to replicate complex in vivo-like conditions.\\
+
+\begin{figure}[h]
+\centering
+\setlength\fboxsep{0pt}
+\setlength\fboxrule{0.5pt}
+\includegraphics[width=240pt]{img/cellmigration}
+\caption{Individual cell migration. CMC, http://www.cellmigration.org}
+\label{fig:cellmigration}
+\end{figure}
+
+Currently, in silico models of 3D are at early stage of development and usually focused on  very specific parameters (\cite{Palumbo2013}). Complex biological systems usually need complex models to reach a reasonable similarity between them, due to this fact it might be needed a simplification into several connected models. In silico implementation of several integrated models can be understood as a multiscale system, its biological analogous can be described as different tissues working together to achieve a functional organ.\\
+\\
+On the other hand, cell migration models can be classified in two major types: continuum and discrete, each one got their own advantages and drawbacks. It is possible to find continuum models that describe collective cellular migration (\cite{Arciero2011}, \cite{Moreo2008}) and some discrete models that aim single cell migration (\cite{Borau2011}), but there is no evidence in the literature of discrete and continuum integrated models that  properly describe collective movement in 3D and consider individual cell information.\\
+\\
+Continuum models describe behavior of cells populations with macroscopic variables, so individual cell properties and cell-cell interaction are not taken into account, therefore, some valuable information is not obtained when is simulated. These models are less expensive from a computational point of view but they cannot track single cell behavior and they need some unacceptable assumptions for some studies purposes. \\
+\\
+The importance of individual cell properties and the interaction between them can be represented by discrete models, these models provide much more information at cell level than continuum ones are able to. Cell migration is also influenced by chemical compounds gradients free or attached to the ECM, substrate stiffness or cell interaction among numerous factors. A proper discrete model can integrate these factors to predict both individual (Figure \ref{fig:cellmigration}) and collective motion. In addition, a discrete model can also include cell nutrient consumption, metabolites production rates, viability of individual cells in a culture or cell proliferation. Despite its flexibility, implementing a diffusion calculation in a discrete model is not the best approach to solve diffusion problem because this physical process rely on conservation laws (continuity equations) in continuum media, commonly fluids. This drawback is easily solved by a proper continuum model (\cite{Chauviere2010}).\\ 
+\\
+As it is said before a multiscale implementation can be useful to simplify complex biological systems, those facts drive to a straightforward conclusion: a multiscale system where diffusion  is solved in continuum and cell behavior is simulated by a discrete model.\\
+\\ 

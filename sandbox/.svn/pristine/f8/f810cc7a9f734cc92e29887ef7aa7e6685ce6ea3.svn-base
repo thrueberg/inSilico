@@ -1,0 +1,7 @@
+* test linear triangles on a mesh from gmesh [x]
+* test 3D [run on hermes]
+* Check condition numbers
+* Read Kirkpatrick's paper
+* Think of doing higher order geometry immersion in 2D
+* Immersion intersecting the boundary?
+* Showcase: non-linear elasticity

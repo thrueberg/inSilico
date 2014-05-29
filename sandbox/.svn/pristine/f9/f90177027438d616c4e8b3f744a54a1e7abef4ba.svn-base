@@ -1,0 +1,204 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <boost/lexical_cast.hpp>
+
+#include <base/shape.hpp>
+#include <base/Unstructured.hpp>
+
+#include <base/mesh/MeshBoundary.hpp>
+#include <base/Quadrature.hpp>
+#include <base/io/smf/Reader.hpp>
+#include <base/io/Format.hpp>
+#include <base/io/PropertiesParser.hpp>
+
+#include <base/fe/Basis.hpp>
+#include <base/Field.hpp>
+#include <base/dof/numbering.hpp>
+#include <base/dof/generate.hpp>
+
+#include <base/dof/Distribute.hpp>
+#include <base/dof/constrainBoundary.hpp>
+#include <base/asmb/FieldBinder.hpp>
+#include <base/asmb/StiffnessMatrix.hpp>
+#include <base/asmb/ForceIntegrator.hpp>
+
+#include <base/io/Format.hpp>
+#include <base/io/vtk/LegacyWriter.hpp>
+
+#include <fluid/Stokes.hpp>
+#include <fluid/Convection.hpp>
+
+#include <base/solver/Eigen3.hpp>
+
+#include "StiffnessMatrix2.hpp"
+#include "Stabil.hpp"
+
+//------------------------------------------------------------------------------
+// Function for the point-wise constraint of the Boundary
+template<unsigned DIM, typename DOF>
+void dirichletBC( const typename base::Vector<DIM>::Type& x,
+                  DOF* doFPtr ) 
+{
+    const double tol = 1.e-5;
+
+    // if d-th coordinate has the value 1.0
+    bool onLid = ( std::abs( x[DIM-1] - 1.0 ) < tol );
+    // remove the corner/edge locations
+    for ( unsigned d = 0; d < DIM-1; d ++ ) {
+        if ( std::abs( x[d] - 0.0 ) < tol ) onLid = false;
+        if ( std::abs( x[d] - 1.0 ) < tol ) onLid = false;
+    }
+
+    // boundary condition is either 0 or the e_1 vector 
+    for ( unsigned d = 0; d < DIM; d ++ ) {
+        const double value = ( (d==0) and onLid ) ? 1.0 : 0.0;
+        
+        if ( doFPtr -> isActive(d) ) doFPtr -> constrainValue( d, value );
+    }
+}
+
+//------------------------------------------------------------------------------
+int main( int argc, char * argv[] )
+{
+    //--------------------------------------------------------------------------
+    const unsigned    geomDeg   = 1;
+    const unsigned    fieldDegU = 1; 
+    const unsigned    fieldDegP = 1;
+    const base::Shape shape     = base::QUAD;
+
+    const double viscosity = 1.0;
+    
+    //--------------------------------------------------------------------------
+    if ( argc != 2 ) {
+        std::cout << "Usage:  " << argv[0] << " meshFile.smf \n";
+        return -1;
+    }
+
+    const std::string meshFile = boost::lexical_cast<std::string>( argv[1] );
+    const std::string baseName = base::io::baseName( meshFile, ".smf" );
+
+    //--------------------------------------------------------------------------
+    typedef base::Unstructured<shape,geomDeg>     Mesh;
+    const unsigned dim = Mesh::Node::dim;
+
+    Mesh mesh;
+    {
+        std::ifstream smf( meshFile.c_str() );
+        VERIFY_MSG( smf.is_open(), "Cannot open mesh file" );
+        base::io::smf::readMesh( smf, mesh );
+        smf.close();
+    }
+
+    // Quadrature 
+    const unsigned kernelDegEstimate = 3;
+    typedef base::Quadrature<kernelDegEstimate,shape> Quadrature;
+    Quadrature quadrature;
+
+    // Finite element basis
+    const unsigned    doFSizeU = dim;
+    typedef base::fe::Basis<shape,fieldDegU>         FEBasisU;
+    typedef base::Field<FEBasisU,doFSizeU>           Velocity;
+    typedef Velocity::DegreeOfFreedom                DoFU;
+    Velocity velocity;
+    base::dof::generate<FEBasisU>( mesh, velocity );
+    
+    const unsigned    doFSizeP = 1;
+    typedef base::fe::Basis<shape,fieldDegP>         FEBasisP;
+    typedef base::Field<FEBasisP,doFSizeP>           Pressure;
+    Pressure pressure;
+    base::dof::generate<FEBasisP>( mesh, pressure );
+
+    // Creates a list of <Element,faceNo> pairs
+    base::mesh::MeshBoundary meshBoundary;
+    meshBoundary.create( mesh.elementsBegin(), mesh.elementsEnd() );
+
+    // Object to constrain the boundary 
+    base::dof::constrainBoundary<FEBasisU>( meshBoundary.begin(),
+                                            meshBoundary.end(),
+                                            mesh, velocity,
+                                            boost::bind( &dirichletBC<dim,DoFU>, _1, _2 ) );
+
+    // Fix one pressure dof
+    Pressure::DoFPtrIter pIter = pressure.doFsBegin();
+    std::advance( pIter, std::distance( pressure.doFsBegin(), pressure.doFsEnd() )/2 );
+    (*pIter) -> constrainValue( 0, 0.0 );
+
+    // Number of DoFs after constraint application!
+    const std::size_t numDoFsU =
+        base::dof::numberDoFsConsecutively( velocity.doFsBegin(), velocity.doFsEnd() );
+    std::cout << " Number of velocity dofs " << numDoFsU << std::endl;
+
+    const std::size_t numDoFsP =
+        base::dof::numberDoFsConsecutively( pressure.doFsBegin(), pressure.doFsEnd(),
+            numDoFsU );
+    std::cout << " Number of pressure dofs " << numDoFsP << std::endl;
+
+    // the composite field with geometry, velocity and pressure
+    typedef base::asmb::FieldBinder<Mesh,Velocity,Pressure> Field;
+    Field field( mesh, velocity, pressure );
+
+    // define the system blocks (U,U), (U,P), and (P,U)
+    typedef Field::TupleBinder<1,1>::Type   TopLeft;
+    typedef Field::TupleBinder<1,2>::Type   TopRight;
+    typedef Field::TupleBinder<2,1>::Type   BotLeft;
+    typedef Field::TupleBinder<2,2>::Type   BotRight;
+    
+    //typedef fluid::VectorLaplace<     TopLeft::Tuple>  VecLaplace;
+    typedef fluid::StressDivergence<  TopLeft::Tuple>  StressDiv;
+    typedef fluid::PressureGradient< TopRight::Tuple>  GradP;
+    typedef fluid::VelocityDivergence<BotLeft::Tuple>  DivU;
+    typedef Stabil1<BotRight::Tuple,Quadrature>        Stabil1;
+
+    //VecLaplace vecLaplace( viscosity );
+    StressDiv  stressDiv( viscosity );
+    GradP      gradP;
+    DivU       divU;
+    Stabil1    stabil1;
+
+    //--------------------------------------------------------------------------
+    // Create a solver object
+    typedef base::solver::Eigen3           Solver;
+    Solver solver( numDoFsU + numDoFsP );
+    solver.registerFields<TopLeft>(  field );
+    solver.registerFields<TopRight>( field );
+    solver.registerFields<BotLeft>(  field );
+    solver.registerFields<BotRight>( field );
+
+    // Compute system matrix
+    base::asmb::stiffnessMatrixComputation<TopLeft>( quadrature, solver,
+                                                     field, stressDiv );
+
+    base::asmb::stiffnessMatrixComputation<TopRight>( quadrature, solver,
+                                                      field, gradP);
+
+    base::asmb::stiffnessMatrixComputation<BotLeft>( quadrature, solver,
+                                                     field, divU );
+
+
+    base::asmb::stiffnessMatrixComputation2<BotRight>( quadrature, solver, field, stabil1 );
+
+    // Finalise assembly
+    solver.finishAssembly();
+
+    // Solve
+    solver.superLUSolve();
+
+    // distribute results back to dofs
+    base::dof::setDoFsFromSolver( solver, velocity );
+    base::dof::setDoFsFromSolver( solver, pressure );
+
+    // output to a VTK file
+    {
+        // VTK Legacy
+        const std::string vtkFile = baseName + ".vtk";
+        std::ofstream vtk( vtkFile.c_str() );
+        base::io::vtk::LegacyWriter vtkWriter( vtk );
+        vtkWriter.writeUnstructuredGrid( mesh );
+        base::io::vtk::writePointData( vtkWriter, mesh, velocity, "U" );
+        base::io::vtk::writePointData( vtkWriter, mesh, pressure, "P" );
+        vtk.close();
+    }
+
+    return 0;
+}

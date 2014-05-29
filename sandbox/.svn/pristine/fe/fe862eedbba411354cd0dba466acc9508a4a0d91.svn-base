@@ -1,0 +1,31 @@
+#Data Input
+
+#Number of initial Cells
+N_Cells 5000
+
+#Nutrient Comsumption rate per cell
+Coms_Rate 1.0
+
+#Step configuration in hours
+N_Steps	500
+Step_Size 0.1
+
+#Mesh Parameters
+Num_Elements 20
+
+#Scaffold data
+Size_x	1000
+Size_y	20
+Size_z	1000
+#Diff Cnst. µm²/h
+Dmax	1e3 
+Dmin	1
+
+#Medium concentrations
+CS_Conc 1.0
+O2_Conc 0.01
+
+#Health Parameters
+Nutr_Threshold 0.1
+Health_Rate 5
+Damage_Rate 5

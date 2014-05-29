@@ -1,0 +1,38 @@
+\textbf{C} is a high-level programming language that was developed in the mid-1970s and it was originally used for writing Unix programs. Nowadays, this language is mainly used to program applications for a very wide range of platforms. Taking in account older programming languages, \textbf{C} is much easier to read, more flexible (used for a lot of diverse purposes), and highly efficient managing computer memory.\\
+\\
+\textbf{C++} is a programming language that was built off the \textbf{C} language as a natural evolution. The syntax of \textbf{C++} keeps very similar to \textbf{C}, but it adds object-oriented features common in modern languages, which allow the programmer to create objects and relate them in the code. This makes programming noticeable easier and also more efficient. Therefore, the power and versatility of the language are the main influeces to the fact that most software programs today are written in \textbf{C++}.\\
+\\
+\textbf{C++} has noticeable advantages over other programming languages, both older and newer. Some of these characteristics are:
+
+\begin{itemize}
+\item \emph{Object-oriented paradigm} \vspace{2mm}\\ 
+	Object-oriented features allow programmers to develop applications much more flexible and reusable at code level. The method of working with objects and build communication streams between them achieve a better intelligible structure in the program. \textbf{C++} language brings also the possibility to use several paradigms as traditional structured code or meta-programming with the use of templates.
+	    
+\item \emph{Portability} \vspace{2mm}\\
+	The code can be compiled to run in almost any type of computer operating system or processor architecture making very few or none changes in it. At the present day, \textbf{C++} is one of the most used and maybe the most ported programming language all around the globe.
+
+\item \emph{Code Lenght}\vspace{2mm}\\
+    Compared to other languages, \textbf{C++} code is shorter than several other languages due to the use of special characters and not only reserved words.
+
+\item \emph{Modular}\vspace{2mm}\\
+	It is possible to develop an application that uses several source code files, when the program is compiled are joint together. In addition, these source files can be compiled separately and then link them together with the proper compiler configuration. This characteristic allow to save time avoiding the whole code compilation, it is possible to make changes in the different source code files and then compile only these modified files. \textbf{C++} also include the feature to link code produce in other languages.
+
+\item \emph{\textbf{C} Compatibility}\vspace{2mm}\\
+    \textbf{C++} is fully compatible with code written in \textbf{C} language. A lot of applications are already programmed in \textbf{C}, this code can be reused without any modification in \textbf{C++}.
+    
+\item \emph{Speed}\vspace{2mm}\\
+	Applications coded in \textbf{C++} are really efficient at execution time considering computer resources consumption. Despite being high-level language, this language contains low-level characteristics making fast and low-sized executables.
+\end{itemize}
+
+This language is also in constant development, in 2011 was released a new \textbf{C++} standard that brings a lot of new features. Many of these features are adapted from some popular libraries as \textit{Boost library}. This is the version used to develop this project and some of them are:
+
+\begin{itemize}
+\item Regular expression support.
+\item Number randomization library.[random]
+\item A new library to handle time.[chrono]
+\item Standard threading library.[threads]
+\item New for loop syntax that expand its functionality.
+\item Container classes to wrap variables and objects.
+\item New templates to several specific purposes.
+\end{itemize}
+

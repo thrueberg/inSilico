@@ -1,0 +1,64 @@
+#ifndef movesurface_h
+#define movesurface_h
+
+#include <vector>
+
+#include <base/linearAlgebra.hpp>
+#include <base/cut/generateSurfaceMesh.hpp>
+#include <base/post/evaluateField.hpp>
+
+//------------------------------------------------------------------------------
+/** Move the immersed surface by evaluation of the displacement increment.
+ *  Any point on the immersed surface was initially placed at \f$ X \f$ and
+ *  moves in the increment \f$ t_n \to t_{n+1} \f$ as follows
+ *  \f[
+ *      X + u_n \to X + u_{n+1} = X + u_n + (u_{n+1} - u_n)
+ *  \f]
+ *  This function evaluates the previous and current displacement solutions at
+ *  \f$ X \f$ and shifts the point coordinates.
+ */
+template<typename MESH, typename FIELD>
+void moveSurface( const MESH& mesh,
+                  const FIELD& displacement,
+                  typename base::cut::SurfaceMeshBinder<MESH>::SurfaceMesh &surfaceMesh,
+                  const double factor,
+                  const typename MESH::Node::VecDim &centroid )
+{
+    typedef typename base::cut::SurfaceMeshBinder<MESH>::SurfaceMesh SurfaceMesh;
+    typedef typename base::Vector<MESH::Node::dim>::Type             VecDim;
+    
+    // go through all elements of the surface mesh
+    typename SurfaceMesh::ElementPtrIter eIter = surfaceMesh.elementsBegin();
+    typename SurfaceMesh::ElementPtrIter eEnd  = surfaceMesh.elementsEnd();
+    for ( ; eIter != eEnd; ++eIter )
+    {
+        const std::size_t elemID = (*eIter) -> getID();
+            
+        const typename MESH::Element*  geomElem = mesh.elementPtr( elemID );
+        const typename FIELD::Element* dispElem = displacement.elementPtr( elemID );
+
+        typename SurfaceMesh::Element::ParamIter   pIter = (*eIter) -> parametricBegin();
+        typename SurfaceMesh::Element::ParamIter   pEnd  = (*eIter) -> parametricEnd();
+        typename SurfaceMesh::Element::NodePtrIter nIter = (*eIter) -> nodesBegin();
+        for ( ; pIter != pEnd; ++pIter, ++nIter ) {
+
+            // evaluate displacement at parameter coordinate
+            const VecDim du =
+                base::post::evaluateFieldHistory<0>( geomElem, dispElem, *pIter );
+
+            // get old location
+            VecDim x;
+            (*nIter) -> getX( &(x[0]) );
+            
+            // add value to nodal coordinate
+            //const VecDim xNew = x + du;
+            const VecDim xNew = centroid + factor * (x-centroid) + du;
+            
+            (*nIter) -> setX( &(xNew[0]) );
+        }
+    }
+
+    return;
+}
+
+#endif

@@ -1,0 +1,149 @@
+\definecolor{gray97}{gray}{.97}
+\definecolor{gray65}{gray}{.65}
+\definecolor{gray20}{gray}{.20}
+\definecolor{gray30}{gray}{.30}
+
+\lstset{
+    language=C++,
+    basicstyle=\ttfamily\tiny\color{gray20},
+    frame=Ltb,
+    breakatwhitespace=false,         
+  	breaklines=true,
+	showspaces=false,                
+	showstringspaces=false,          
+	showtabs=false,
+	tabsize=2,
+	%	
+	framerule=0pt,
+    aboveskip=0.5cm,
+    framextopmargin=3pt,
+    framexbottommargin=3pt,
+    framexleftmargin=0.4cm,
+    framesep=0pt,
+    rulesep=.4pt,
+    backgroundcolor=\color{gray97},
+    rulesepcolor=\color{black},                     
+	%
+	stringstyle=\ttfamily\tiny\textit,
+    showstringspaces = false,
+    commentstyle=\color{gray65},
+    keywordstyle=\bfseries\color{black},
+	%	
+	numbers=left,
+    numbersep=15pt,
+    numberstyle=\tiny,
+    numberfirstline = false,
+	%	
+	literate=
+	{µ}{{$\mu$}}1 	{·}{{$\cdot$}}1
+	{º}{{$\phantom{a}^{\circ}$}}1
+	{²}{{$\phantom{a}^2$}}1
+ 	}
+
+
+Model file tree of this project is shown in Figure \ref{fig:filetree}. Source files are grouped by their function in the software. Inside \textit{src} folder can be found \textit{class} folder that contents all classes headers and definitions, \textit{auxi} folder that contents all auxiiliar functions headers and definitions and finally main and input files.\\
+\\
+This software uses links to several libraries (\textit{STL, inSilico, OMP,}...) that are not included in this appendix, but can be found in their respectives websites. The whole code programmed specifically to this project is shown in the following sections. Some comments are included in the code to explain most of the program functionality.\\
+
+
+\begin{figure}[h]
+\centering
+\setlength\fboxsep{0pt}
+\setlength\fboxrule{0.5pt}
+\fbox{\includegraphics[width=200pt]{img/FileTree}}
+\caption{Project File tree}
+\label{fig:filetree}
+\end{figure}
+
+
+\newpage
+\subsection{Main File}
+This file contains all the information to simulate the configured biological system. It is also the file where most important links to other libraries are present. At compilation time, this file is the main and will use information from rest of files to build up the simulation system and run it.\\
+\\
+Program's main file: \textbf{main.cpp}
+\lstinputlisting[language=C++]{../src/main.cpp} 	
+
+
+\newpage
+\subsection{Input File}
+Input file will be used to configure a lot of important parameters of the simulation as is shown below in the code. Parameters changed in this file do not require a binary recompilation, although more parameters can be modified in the source code but in this case will require a recompilation to take this changes in account.\\
+\\
+Input file example: \textbf{input.dat}
+\lstinputlisting[language=C++]{../input.dat} 	
+
+
+\newpage
+\subsection{Classes} 
+In this folder is included all classes headers and definitions that are used in the program. These classes represent an abstration of physical entities.
+
+\subsubsection{Cell Class}
+This class will handle all cell objects used in the simulation. Parameters and functions related with the individual cells are coded in these files. Some functionally includes cell to cell force calculation, position tracking, health system, cell physical properties or clustering variable.\\
+\\
+Cell Class header: \textbf{cells.hpp}
+\lstinputlisting[language=C++]{../src/class/cells.hpp} 	
+
+Cell Class definitions: \textbf{cells.cpp}
+\lstinputlisting[language=C++]{../src/class/cells.cpp} 	
+
+
+\newpage
+\subsubsection{Scaffold Class}
+This class will handle all scaffold objects used in the simulation. Parameters and functions related with the scaffold are coded in these files. Scaffold size and diffusion constants are included in this class.\\
+\\
+Scaffold Class header: \textbf{scaffold.hpp}
+\lstinputlisting[language=C++]{../src/class/scaffold.hpp} 
+
+Scaffold Class definitions: \textbf{scaffold.cpp}
+\lstinputlisting[language=C++]{../src/class/scaffold.cpp} 
+
+
+\newpage
+\subsubsection{Medium Class}
+This class will handle all medium objects used in the simulation. Medium objects will only use concentrations at this moment.\\
+\\
+Medium Class header: \textbf{medium.hpp}
+\lstinputlisting[language=C++]{../src/class/medium.hpp} 
+
+Medium Class definitions: \textbf{medium.cpp}
+\lstinputlisting[language=C++]{../src/class/medium.cpp} 		
+
+
+\newpage
+\subsubsection{Pool Class}
+This class will handle all pool objects used in the simulation. Pool objects are wrappers the whole system, they will join together cell, scaffold and medium objects. Each pool can be considered as a separate \textit{in vitro} experience and it will connect information streams between objects and classes. For example, pool object will handle cell to cell interaction calculation directives to obtain results from all possible binary combinations.\\
+\\
+Pool Class header: \textbf{pool.hpp}
+\lstinputlisting[language=C++]{../src/class/pool.hpp} 
+
+Pool Class definitions: \textbf{pool.cpp}
+\lstinputlisting[language=C++]{../src/class/pool.cpp} 		
+
+
+\newpage
+\subsection{Auxiliar Functions}
+In this folder is included all auxiiliar functions headers and definitions that are used in the program. These functions will handle models's connections and also information streams of external files. 
+
+\subsubsection{File Manager Functions}
+Functions included in these files will be used to export simulation results to a proper VTK file format to be represented by a proper visualizer. Output file will be formatted taking into account several variables to improve further manipulation of data.\\
+\\ 
+File Manager functions header: \textbf{filem.hpp}
+\lstinputlisting[language=C++]{../src/auxi/filem.hpp} 
+
+File Manager functions definitions: \textbf{filem.cpp}
+\lstinputlisting[language=C++]{../src/auxi/filem.cpp} 
+
+
+\newpage
+\subsubsection{Model Integration Functions}
+These functions are the main connection between discrete and continous models, streaming data from one to another to properly accomplish simulation. It is use meta-programming techniques as templates in C++.\\
+\\
+Models integration functions: \textbf{diffusion.hpp}
+\lstinputlisting[language=C++]{../src/auxi/diffusion.hpp} 
+
+
+\newpage
+\subsubsection{Mesh Generation Functions}
+This file is used to create a mesh with scaffold dimensions to be the base of diffusion model calculations. FEM requires an addequate mesh with defined elements to achieve its objetive.\\
+\\
+Mesh generation functions: \textbf{generateMesh.hpp}
+\lstinputlisting[language=C++]{../src/auxi/generateMesh.hpp} 						

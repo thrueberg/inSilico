@@ -1,0 +1,550 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   geometry.hpp
+//! @author Thomas Rueberg
+//! @date   2012
+
+#ifndef base_geometry_hpp
+#define base_geometry_hpp
+
+//------------------------------------------------------------------------------
+// std includes
+#include <cmath>
+// boost includes
+#include <boost/array.hpp>
+// base includes
+#include <base/linearAlgebra.hpp>
+#include <base/verify.hpp>
+
+//------------------------------------------------------------------------------
+namespace base{
+
+    // Specialised implementations
+    namespace detail_{
+
+        template<unsigned DIM, unsigned LDIM> struct ContraVariantBasisComputation;
+        template<unsigned DIM>                struct ContraVariantBasisComputation<DIM,DIM>;
+
+        template<unsigned DIM, unsigned LDIM> struct MetricComputation;
+        template<unsigned DIM>                struct MetricComputation<DIM,DIM>;
+    }
+
+    //--------------------------------------------------------------------------
+    //! Traits object for easier type definitions.
+    template<typename ELEMENT>
+    struct GeomTraits
+    {
+        //! @name Basic items
+        //@{
+        typedef          ELEMENT          Element;
+        typedef typename Element::Node    Node;
+        typedef typename Element::GeomFun GeomFun;
+        //@}
+
+        //! @name Coordinate types
+        //@{
+        typedef typename Node::VecDim    GlobalVecDim;
+        typedef typename GeomFun::VecDim LocalVecDim;
+        //@}
+
+        //! @name Involved dimensions
+        //@{
+        static const unsigned globalDim = Node::dim;
+        static const unsigned localDim  = GeomFun::dim;
+        //@}
+    };
+
+    //--------------------------------------------------------------------------
+    //! Collect nodal coordinates from an element as columns of a matrix.
+    template<typename ELEMENT>
+    struct NodalCoordinates
+    {
+        //! returns an array of coordinates
+        typedef boost::array<typename ELEMENT::Node::VecDim,
+                             ELEMENT::numNodes>  result_type;
+        
+        /** Overloaded function call operator for achieving the task
+         *  \param[in]  ep   Pointer considered element
+         *  \returns         Matrix with columns containing the nodal coordinates
+         */
+        result_type operator()( const ELEMENT* ep ) const
+        {
+            result_type result;
+
+            // Ask every node for its coordinates and store them in the array
+            typename ELEMENT::NodePtrConstIter first = ep -> nodesBegin();
+            typename ELEMENT::NodePtrConstIter  last = ep -> nodesEnd();
+            for ( unsigned c = 0; first != last; ++first, c++ )
+                result[ c ] = (*first) -> getX();
+
+            return result;
+        }
+        
+    };
+
+    //--------------------------------------------------------------------------
+    /** Evaluation of the element's geometry approximation.
+     *  In detail, the following linear combination is evaluated at a given
+     *  coordinate
+     *  \f[
+     *      x_h (\xi) = \sum_i x^i \phi^i (\xi)
+     *  \f]
+     *  \tparam ELEMENT Type of element
+     */
+    template<typename ELEMENT>
+    struct Geometry
+    {
+        typedef GeomTraits<ELEMENT> GT;
+
+        //! Use result_type for bind purposes
+        typedef typename GT::GlobalVecDim result_type;
+
+        /** Overloaded function call operator which evaluates the geometry
+         *  \param[in] ep  Pointer to considered element
+         *  \param[in] xi  Local coordinate at which to evaluate
+         *  \returns       Global coordinate value \f$ x_h(\xi) \f$
+         */
+        result_type operator()( const          ELEMENT*         ep,
+                                const typename GT::LocalVecDim& xi ) const
+        {
+            // Evaluate the geometry shape function
+            typename GT::GeomFun::FunArray funValues;
+            ( ep -> geomFun() ).fun( xi, funValues );
+
+            // Collect nodal coordinates
+            const typename NodalCoordinates<ELEMENT>::result_type X
+                = NodalCoordinates<ELEMENT>()( ep );
+
+            // result = sum X[i] * phi[i]
+            result_type result = base::constantVector<GT::globalDim>( 0. );
+            for ( unsigned i = 0; i < ELEMENT::numNodes; i++ )
+                result += X[i] * funValues[i];
+            
+            return result;
+        }
+        
+    };
+
+    //--------------------------------------------------------------------------
+    /** Compute Jacobi-matrix (AKA co-variant basis).
+     *  For the transformation between parametric and reference configurations,
+     *  the Jacobi matrix is needed
+     *  \f[
+     *      J[i, \alpha] = \frac{ \partial x_i }{ \partial \xi^\alpha }
+     *  \f]
+     *  i.e., the columns of \f$ J \f$ are the tangent-span of the element
+     *  at the point \f$ \xi \f$.
+     *  \tparam ELEMENT Type of element
+     */
+    template<typename ELEMENT>
+    struct JacobiMatrix
+    {
+        typedef GeomTraits<ELEMENT> GT;
+
+        //! Matrix type return value
+        typedef typename base::Matrix<GT::globalDim,
+                                      GT::localDim>::Type result_type;
+
+        /** Overloaded function call operator for the computation of J
+         *  \param[in] ep  Pointer to to element
+         *  \param[in] xi  Local coordinate as evaluation point
+         *  \returns       Jacobi matrix
+         */
+        result_type operator()( const          ELEMENT*         ep,
+                                const typename GT::LocalVecDim& xi ) const
+        {
+            // Evaluate the geometry shape functions' gradient
+            typename GT::GeomFun::GradArray funGradValues;
+            ( ep -> geomFun() ).gradient( xi, funGradValues );
+
+
+            // Collect nodal coordinates
+            const typename NodalCoordinates<ELEMENT>::result_type X
+                = NodalCoordinates<ELEMENT>()( ep );
+
+            // result = X[i] * (grad phi[i])'
+            result_type result = base::constantMatrix<GT::globalDim,
+                                                      GT::localDim>( 0. );
+            for ( unsigned i = 0; i < ELEMENT::numNodes; i++ )
+                result += X[i] * (funGradValues[i]).transpose();
+
+            return result;
+        }
+       
+    };
+
+    //--------------------------------------------------------------------------
+    /** Compute the contra-variant basis as a given local coordinate.
+     *  (Note: the contra-variant basis reduces to the inverse Jacobian in
+     *   the case of DIM == LDIM)
+     *  Definitions are given in detail_::ContraVariantBasisComputation
+     *  \tparam ELEMENT Type of element
+     */
+    template<typename ELEMENT>
+    struct ContraVariantBasis
+    {
+        typedef GeomTraits<ELEMENT> GT;
+
+        //! Return value is the Jacobian
+        typedef double result_type;
+
+        //! Type of third arguement which is the contra-variant basis
+        typedef typename base::Matrix<GT::globalDim,
+                                      GT::localDim>::Type MatDimLDim;
+
+        /** Overloaded function call operator producing the basis
+         *  \param[in]  ep  Pointer to element
+         *  \param[in]  xi  Local evaluation point coordinate
+         *  \param[out] contraVariant Matrix with the result
+         *  \returns    metric value of the given basis (AKA Jacobian)
+         */
+        result_type operator()( const          ELEMENT*         ep,
+                                const typename GT::LocalVecDim& xi,
+                                MatDimLDim& contraVariant ) const
+        {
+            // Get Jacobi matrix
+            typename base::Matrix<GT::globalDim,
+                                  GT::localDim>::Type J
+                = JacobiMatrix<ELEMENT>()( ep, xi );
+
+            // Use specfic implementation
+            return
+                detail_::ContraVariantBasisComputation<GT::globalDim,
+                                                       GT::localDim>::
+                apply( J, contraVariant  );
+        }
+       
+    };
+
+    //--------------------------------------------------------------------------
+    /** Compute the element's metric (reduces to the Jacobian for DIM == LDIM).
+     *  \tparam ELEMENT Type of element
+     */
+    template<typename ELEMENT>
+    struct Jacobian
+    {
+        typedef GeomTraits<ELEMENT> GT;
+
+        typedef double result_type;
+
+        /** Overloaded function call operator for computation of Jacobian
+         *  \param[in] ep Pointer to element
+         *  \param[in] xi Local evaluation point
+         *  \returns      Value of the Jacobian or metric
+         */
+        result_type operator()( const          ELEMENT*         ep,
+                                const typename GT::LocalVecDim& xi ) const
+        {
+            // Get Jacobi matrix
+            const typename base::Matrix<GT::globalDim,
+                                        GT::localDim>::Type J
+                = JacobiMatrix<ELEMENT>()( ep, xi );
+
+            // result = | J |
+            return detail_::MetricComputation<GT::globalDim,
+                                              GT::localDim>::apply( J );
+        }
+       
+    };
+
+    //--------------------------------------------------------------------------
+    namespace detail_{
+
+        //! Compute normal via cross product of surface jacobi-matrix
+        template<typename SELEMENT,unsigned LOCALDIM>
+        struct EvaluateNormal
+        {
+            typedef GeomTraits<SELEMENT> GT;
+
+            static typename GT::GlobalVecDim apply( const SELEMENT* sep,
+                                                    const typename GT::LocalVecDim& eta )
+            {
+                // Get the Jacobi matrix
+                const typename base::Matrix<GT::globalDim,
+                                            GT::localDim>::Type J
+                    = JacobiMatrix<SELEMENT>()( sep, eta );
+
+                // Un-normalised normal vector is the cross product of J's columns
+                return base::crossProduct( J );
+            }
+            
+        };
+
+        //! Case of one-dimensional domain: normal is +/- 1
+        template<typename SELEMENT>
+        struct EvaluateNormal<SELEMENT,0>
+        {
+            typedef GeomTraits<SELEMENT> GT;
+
+            STATIC_ASSERT_MSG( GT::globalDim < 2, "This case is not implemented" );
+
+            static typename GT::GlobalVecDim apply( const SELEMENT* sep,
+                                                    const typename GT::LocalVecDim& eta )
+            {
+                const bool isRight =
+                    ( ( *(sep -> parametricBegin()) )[0] > 0.0 );
+
+                typename GT::GlobalVecDim normal;
+                if ( isRight ) normal[0] = +1.0;
+                else           normal[0] = -1.0;
+
+                return normal;
+            }
+            
+        };
+        
+    }
+
+    //--------------------------------------------------------------------------
+    /** Computation of the normal vector on a surface element.
+     *  In three space dimensions, the two columns of the Jacobi matrix are
+     *  span the tangent space of the surface element at the considered point.
+     *  Therefore, their cross product yields the normal vector to the element.
+     *  Morover, the modulus of that cross product is the surface metric.
+     *  In two space dimension, one simply constructs a vector orthogonal to
+     *  the tangent which is the one column of the Jacobi matrix.
+     *  Note that the resulting metric is always positive (by definition). It
+     *  does \em not yield an orientation check.
+     *  \tparam SELEMENT Type of surface element
+     */
+    template<typename SELEMENT>
+    struct SurfaceNormal
+    {
+        typedef GeomTraits<SELEMENT> GT;
+
+        //! Result type: the surface metric
+        typedef double result_type;
+
+        //! Sanity check: codimension has to be one
+        STATIC_ASSERT_MSG( (GT::globalDim == GT::localDim+1),
+                           "Cannot compute a normal vector for this case" );
+
+        /** Actual computation of the surface normal and metric.
+         *  \param[in]  sep     Pointer to surface element
+         *  \param[in]  eta     Local coordinate for point of interest
+         *  \param[out] normal  Normal vector (result is normalised)
+         *  \returns            Surface metric.
+         */
+        result_type operator()( const          SELEMENT*        sep,
+                                const typename GT::LocalVecDim& eta,
+                                typename GT::GlobalVecDim& normal ) const
+        {
+            // un-normalised normal vector
+            normal =
+                detail_::EvaluateNormal<SELEMENT,GT::localDim>::apply( sep, eta );
+            
+            // Normalise the normal vector (sic)
+            const result_type length = base::norm( normal );
+            normal /= length;
+
+            // Return the length as the surface metric
+            return length;
+        }
+    };
+
+
+    //==========================================================================
+    // Detailed implementation for cases LDIM != DIM and LDIM == DIM
+    //--------------------------------------------------------------------------
+    namespace detail_{
+        
+        //----------------------------------------------------------------------
+        //! @name Computation of the contra-variant basis and Jacobian
+        //@{
+        
+        /** Computation where the dimensions of the manifold is lower
+         *  than the dimension of the embedding space.     
+         *  \tparam DIM  Dimension of the embedding space
+         *  \tparam LDIM Dimension of the embedded manifold
+         */
+        template<unsigned DIM, unsigned LDIM>
+        struct ContraVariantBasisComputation
+        {
+            /** Compute the contra-variant basis and Jacobian via the metric tensor
+             *  \param[in]  coVariant     Co-variant basis: 
+             *                            \f$ g_\alpha [i] = d x_i / d \xi_\alpha \f$
+             *  \param[out] contraVariant Contra-variant basis:
+             *                            \f$ g^\alpha [i] = d \xi_\alpha / d x_i \f$
+             *  \return     Jacobian
+             */
+            static double
+            apply( const typename base::Matrix<DIM,LDIM>::Type& coVariant,
+                   typename base::Matrix<DIM,LDIM>::Type& contraVariant )
+            {
+                // - Co-variant metric coefficients:
+                //   \f$ G_{\alpha\beta} = <g_\alpha, g_\beta> \f$
+                typename Matrix<LDIM,LDIM>::Type metricTens;
+                metricTens.noalias() = coVariant.transpose() * coVariant;
+
+                // - Inverse of the basis (inplace): 
+                //   \f$ G^{\alpha\beta} = (G_{\alpha\beta})^{-1}\f$
+                //
+                // - Determinant (metric) is computed at the same time:
+                //   \f$ det J = \sqrt{ | (G_{\alpha\beta}) |} \f$
+                typename Matrix<LDIM,LDIM>::Type metricTensInv;
+                double detG;
+                bool dummy;
+                metricTens.computeInverseAndDetWithCheck( metricTensInv, detG, dummy );
+        
+                // - Contra-variant basis: 
+                //   \f$ g^\alpha = G^{\alpha\beta} g_\beta\f$
+                //   Note: G^{\alpha\beta} = G^{\beta\alpha}
+                contraVariant = coVariant * metricTensInv;
+
+                return std::sqrt( detG );
+            }
+        };
+
+        /** Computation with equal dimensions of manifold and embedding space
+         *  In this case, the relation between the partial derivatives is
+         *  simply inverted. Consider the relation
+         *  \f[
+         *    \partial_{\xi_\alpha}
+         *      = \sum_j \frac{\partial x_j}{\partial \xi_\alpha} \partial_{x_j}
+         *  \f]
+         *  which can also be written as
+         *  \f[
+         *       \nabla_\xi = J^T  \nabla_x
+         *  \f]
+         *  with the Jacobi matrix which is square in this case. Simple inversion
+         *  leads to
+         *  \f[
+         *       \nabla_x = J^{-T} \nabla_\xi
+         *  \f]
+         *  \tparam DIM  Spatial dimension
+         */
+        template<unsigned DIM>
+        struct ContraVariantBasisComputation<DIM,DIM>
+        {
+            /** Compute the co-variant basis by simple inversion
+             *  \param[in]  coVariant     Co-variant basis: 
+             *                            \f$ g_\alpha [i] = d x_i / d \xi_\alpha \f$
+             *  \param[out] contraVariant Contra-variant basis:
+             *                            \f$ g^\alpha [i] = d \xi_\alpha / d x_i \f$
+             *  \return     Jacobian
+             */
+            static double
+            apply( const typename base::Matrix<DIM,DIM>::Type& coVariant,
+                   typename base::Matrix<DIM,DIM>::Type& contraVariant )
+            {
+                // - Co-variante basis gives a square matrix, simply transpose and invert:
+                //   \f$  (g^\alpha [i] ) = (g_\alpha [i])^{-T} \f$
+                //
+                // - the determinant is computed at the same time:
+                //   \f$ det J = | (g_\alpha [ i ]) | \f$
+                typename base::Matrix<DIM,DIM>::Type aux
+                    = coVariant.transpose();
+                double detJ;
+                bool dummy;
+                aux.computeInverseAndDetWithCheck( contraVariant, detJ, dummy );
+                return detJ;
+            }
+        };
+        //@}
+
+        //----------------------------------------------------------------------
+        /** Compute the 'metric' of a given (rectangular) matrix
+         *  Such metric is defined as
+         *  \f[
+         *       |M| = \sqrt( det( M^T M ) )
+         *  \f]
+         *  \tparam  DIM  Number of rows of M
+         *  \tparam LDIM  Number of columns of M
+         */
+        template<unsigned DIM, unsigned LDIM>
+        struct MetricComputation
+        {
+            static double
+            apply( const typename base::Matrix<DIM,LDIM>::Type& coVariant )
+            {
+                // Metric tensor
+                typename base::Matrix<LDIM,LDIM>::Type metricTens;
+                metricTens.noalias() = coVariant.transpose() * coVariant;
+
+                // Square-root of metric tensor's determinant
+                return std::sqrt( metricTens.determinant() );
+            }
+                              
+        };
+
+        //----------------------------------------------------------------------
+        /** In case of a square matrix, the metric computation reduces to
+         *  \f[
+         *      |M| = det( M )
+         *  \f]
+         *  \tparam DIM  Number of rows and columns of M
+         */
+        template<unsigned DIM>
+        struct MetricComputation<DIM,DIM>
+        {
+            static double
+            apply( const typename base::Matrix<DIM,DIM>::Type& coVariant )
+            {
+                return coVariant.determinant();
+            }
+        
+        };
+
+    } // end namespace detail_
+
+    //--------------------------------------------------------------------------
+    /** Second partial derivative of the Geometry represenation.
+     *  Based on the geometry as a linear combination of coordinates and shape
+     *  functions, we get
+     *  \f[
+     *     h_{\alpha\beta} = \frac{\partial^2 x}{\partial \alpha \partial \beta}
+     *     = \sum_{i=1}^N x^i \phi^i_{,\alpha \beta}
+     *  \f]
+     *  \tparam ELEMENT  Geometry representing element
+     */
+    template<typename ELEMENT>
+    struct DerivativesOfTangents
+    {
+        typedef GeomTraits<ELEMENT> GT;
+
+        // Matrix type return value
+        typedef typename base::Matrix<GT::localDim,
+                                      GT::localDim,
+                                      typename GT::GlobalVecDim>::Type result_type;
+
+        /** Overloaded function call operator for the computation of J
+         *  \param[in] ep  Pointer to to element
+         *  \param[in] xi  Local coordinate as evaluation point
+         *  \returns       Second partial derivatives of geometry
+         */
+        result_type operator()( const          ELEMENT*         ep,
+                                const typename GT::LocalVecDim& xi ) const
+        {
+            // Evaluate the geometry shape functions' Hessian
+            typename GT::GeomFun::HessianArray funHessianValues;
+            ( ep -> geomFun() ).hessian( xi, funHessianValues );
+
+            // Collect nodal coordinates
+            const typename NodalCoordinates<ELEMENT>::result_type X
+                = NodalCoordinates<ELEMENT>()( ep );
+
+            // zero-initialised result container
+            result_type result;
+            for ( unsigned a = 0; a < GT::localDim; a++ )
+                for ( unsigned b = 0; b < GT::localDim; b++ )
+                    result(a,b) = base::constantVector<GT::globalDim>( 0. );
+
+            // result = X[i] * (grad grad phi[i])
+            for ( unsigned i = 0; i < ELEMENT::numNodes; i++ ) {
+                
+                for ( unsigned a = 0; a < GT::localDim; a++ )
+                    for ( unsigned b = 0; b < GT::localDim; b++ )
+                        result(a,b) += X[i] * funHessianValues[i](a,b);
+                
+            }
+            
+            return result;
+        }
+       
+    };
+
+}
+#endif

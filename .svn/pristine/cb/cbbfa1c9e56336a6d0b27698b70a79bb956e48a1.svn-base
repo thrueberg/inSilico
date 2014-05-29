@@ -1,0 +1,61 @@
+//------------------------------------------------------------------------------
+// <preamble>
+// </preamble>
+//------------------------------------------------------------------------------
+
+//! @file   parallel.hpp
+//! @author Thomas Rueberg
+//! @date   2013
+
+#ifndef base_auxi_parallel_hpp
+#define base_auxi_parallel_hpp
+
+#include <iterator>
+
+#ifdef _OPENMP
+   #include <omp.h>
+#endif
+
+//------------------------------------------------------------------------------
+namespace base{
+    namespace auxi{
+
+        //----------------------------------------------------------------------
+        //! Outsourced function from assembly routines in order to employ openMP
+        template<typename FIELDTUPLEBINDER,typename FIELDBINDER,typename OPERATOR>
+        void applyToAllFieldTuple( const FIELDBINDER& fieldBinder,
+                                   OPERATOR& op )
+        {
+            // total number of elements = size of loop
+            const std::size_t numElements =
+                std::distance( fieldBinder.elementsBegin(),
+                               fieldBinder.elementsEnd() );   
+
+
+            //----------------------------------------------------------------------
+            // Compilation with OPENMP shall define the '_OPENMP' flag
+#ifdef _OPENMP
+
+            //----------------------------------------------------------------------
+#if NTHREADS==0
+            // if the number of threads is set to 0 use all processors (convention)
+            omp_set_num_threads( omp_get_num_procs() );
+#else
+            // otherwise use the number as given by the compilation
+            omp_set_num_threads( NTHREADS );
+#endif
+            //----------------------------------------------------------------------
+            // PRAGMA directive for a parallel for-loop
+#pragma omp parallel for
+#endif 
+            for ( std::size_t e = 0; e < numElements; e++ ) {
+                op( FIELDTUPLEBINDER::makeTuple( fieldBinder.elementPtr( e ) ) );
+            }
+
+            return;
+        }
+        
+    }
+}
+
+#endif

@@ -1,0 +1,9 @@
+E              1000.
+nu             0.3
+maxIter        30
+loadSteps      5
+pull           3.0
+traction       300.0
+dispControlled 0
+tolerance      1.e-12
+isIncompressible 0

@@ -1,0 +1,5 @@
+! elementShape tetrahedron
+! elementNumPoints 10
+! externalNodes sphere.coords
+! externalElements sphere.tetrahedron.conn
+  2270  1215

@@ -1,0 +1,4 @@
+# Computation of volume and area with a quadrature rule 
+Degree         1              2              3              4              5  
+Volume         8.90126e-05    0.000240783    0.000241114    0.000241114    0.000241114  
+Area           0.023913       0.000380368    0.000417674    0.000425573    0.000425528  

@@ -1,0 +1,23 @@
+We use three different culture types as examples: a typical 2D culture plate, 3D culture scaffold and a micro-encapsulated culture. These examples differ between them in shape and size of the cell substrate, we will use similar cell density for a subsequent comparative data analysis.\\
+\\
+First example is designed as a simulation of a small region of a full culture plate in 2D full covered with media (\cite{Trepat2009}, \cite{Trepat2011}). Height of the scaffold is set just a bit bigger than the maximum cell radius to approximate 2D conditions. Diffusion will not be relevant in this example because one of the scaffold dimensions is really low, nutrient has uniform distribution through whole ECM.\\
+\\
+Second example is designed as a 3D culture scaffold submerged in media (\cite{Ramanujan2002}). Absolute cell position in this scaffold is now important because diffusion will be not negligible, cells near scaffold-media interface receive more nutrients than cells in the scaffold center. Scaffold size and number of cells in this example is kept at minimum possible in order to properly display results in 3D, but enough to notice diffusion effects.\\
+\\
+Third example is designed as micro-encapsulated cells, capsules are made of ECM and in media suspension (\cite{Sakai2010}, \cite{Sakai2011}). This method of cultivation allow cells to form three dimensional structures without the main drawback of poor nutrient diffusion occurring in bigger scaffolds.\\
+\\
+Common model parameters used for all the examples can be checked at Figure \ref{fig:table-1}. Specific parameters for each example are registered in Figure \ref{fig:table-2}.\\
+
+\begin{figure}[h]
+\centering
+\includegraphics{img/table-1}
+\caption{Common model parameters.}
+\label{fig:table-1}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics{img/table-2}
+\caption{Specific model parameters.}
+\label{fig:table-2}
+\end{figure}

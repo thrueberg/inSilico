@@ -1,0 +1,13 @@
+In this work, we focus on the mechanical interaction between cells and interaction with the ECM. We also take into account diffusion of nutrients through ECM and cell influence on the diffusion, including nutrient consumption and its influence on the local diffusivity. Finally, cell viability is also considered analyzing local concentration of nutrients.\\
+\\
+We use a multiscale approach to simulate a complex 3D culture in vitro, our system is divided into several simpler models coupled to accomplish a global representation of the biological processes. This system is basically divided in three connected models: cell migration model, diffusion model and cell viability model. In Figure \ref{fig:physics} is shown a simplified representation.\\
+
+
+\begin{figure}[h]
+\centering
+\setlength\fboxsep{0pt}
+\setlength\fboxrule{0.5pt}
+\includegraphics[width=300pt]{img/Physics}
+\caption{Multiphysics model that represents a 3D culture, it is considered nutrient diffusion, nutrient consumption, cell interactions and cell viability.}
+\label{fig:physics}
+\end{figure}

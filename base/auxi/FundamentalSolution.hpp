@@ -26,6 +26,15 @@ namespace base{
             template<unsigned DIM> struct LaplaceKernel;
 
             template<>
+            struct LaplaceKernel<1>
+            {
+                static double apply( const double dist )
+                {
+                    return -dist;
+                }
+            };
+
+            template<>
             struct LaplaceKernel<2>
             {
                 static double apply( const double dist )
@@ -41,6 +50,18 @@ namespace base{
                 {
                     return 1./dist;
                 }
+            };
+
+            template<unsigned DIM>
+            struct UnitSphere
+            {
+                static double surface() { return 2.*(DIM-1.)*M_PI; }
+            };
+            
+            template<>
+            struct UnitSphere<1>
+            {
+                static double surface() { return 2.; }
             };
 
         }
@@ -92,7 +113,7 @@ public:
     VecDoF fun( const VecDim& x, const VecDim& y ) const
     {
         const double dist = base::norm(y - x);
-        const double factor = 1./(2.*(dim-1.)*M_PI);
+        const double factor = 1./ detail_::UnitSphere<dim>::surface();
         VecDoF result;
         result[0] = factor * detail_::LaplaceKernel<dim>::apply( dist );
         return result;
@@ -103,8 +124,8 @@ public:
     {
         const double dist = base::norm(y - x);
         const double factor =
-            1./(2.*(dim-1.)*M_PI) / (base::Power<dim>::apply( dist ) );
-
+            1./detail_::UnitSphere<dim>::surface()/(base::Power<dim>::apply( dist ) );
+        
         Grad result;
         for ( unsigned d = 0; d < dim; d++ )
             result(d,0) = factor * (y[d] - x[d]);
@@ -138,20 +159,19 @@ public:
     typedef typename base::Vector<dim,    double>::Type     VecDim;
     typedef typename base::Vector<doFSize,double>::Type     VecDoF;
     typedef typename base::Matrix<dim,doFSize,double>::Type Grad;
+    typedef          Grad                                   MatDimDim;
+
 
     FundSolElastoStatic( const double lambda, const double mu )
         : lambda_( lambda ), mu_( mu ) { }
-    
 
-    VecDoF fun( const VecDim& x, const VecDim& y, const VecDim& dir ) const
+    MatDimDim U( const VecDim& x, const VecDim& y ) const
     {
         const double factor =
             1. /(4. * (dim-1) * M_PI ) *
             (lambda_ + mu_) / (lambda_ + 2.* mu_) / mu_;
 
         const double dist   = base::norm(y - x);
-
-        typedef Grad MatDimDim;
 
         MatDimDim U;
         for ( unsigned i = 0; i < dim; i++ ) {
@@ -167,8 +187,14 @@ public:
             }
         }
 
+        return U;
+    }
+    
+
+    VecDoF fun( const VecDim& x, const VecDim& y, const VecDim& dir ) const
+    {
         VecDoF result;
-        result.noalias() = U * dir;
+        result.noalias() = U( x, y ) * dir;
         return result;
     }
 

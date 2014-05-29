@@ -101,7 +101,7 @@ namespace base{
                     SurfaceForceInt;
                 
                 typename SurfaceForceInt::ForceKernel surfaceForceKernel =
-                    boost::bind( &Penalty::template residual<EVALUATIONPOLICY>,
+                    boost::bind( &Penalty::template residualBoundary<EVALUATIONPOLICY>,
                                  &penalty, _1, _2, _3,
                                  boost::ref( bcFun ), _4 );
                 SurfaceForceInt surfaceForceInt( surfaceForceKernel,
@@ -159,12 +159,12 @@ namespace base{
                  typename SURFACEQUADRATURE, typename SOLVER,
                  typename BOUNDFIELD,        typename BCFUN,
                  typename PARAMETER>
-        void penaltyRHS2( const SURFACEQUADRATURE& surfaceQuadrature,
-                          SOLVER&                  solver, 
-                          const BOUNDFIELD&        boundField,
-                          const BCFUN&             bcFun,
-                          const PARAMETER&         parameter,
-                          const double             multiplier )
+        void penaltyRHSViaElement( const SURFACEQUADRATURE& surfaceQuadrature,
+                                   SOLVER&                  solver, 
+                                   const BOUNDFIELD&        boundField,
+                                   const BCFUN&             bcFun,
+                                   const PARAMETER&         parameter,
+                                   const double             multiplier )
         {
             typedef typename SURFACETUPLEBINDER::Tuple::GeomElement::DomainElement
                 DomainElement;
@@ -179,6 +179,49 @@ namespace base{
             return;
         }
 
+        //----------------------------------------------------------------------
+        /** Convenience function for the RHS term of the penalty method */
+        template<typename SURFACETUPLEBINDER,
+                 typename SURFACEQUADRATURE, typename SOLVER,
+                 typename BOUNDFIELD,        
+                 typename PARAMETER>
+        void penaltyRHSInterface( const SURFACEQUADRATURE& surfaceQuadrature,
+                                  SOLVER&                  solver, 
+                                  const BOUNDFIELD&        boundField,
+                                  const PARAMETER&         parameter,
+                                  const double             multiplier )
+        {
+            // object to compute the LHS penalty term
+            typedef base::nitsche::Penalty<typename SURFACETUPLEBINDER::Tuple> Penalty;
+            Penalty penalty( multiplier );
+
+            // integrator and assembler object
+            typedef base::asmb::ForceIntegrator<SURFACEQUADRATURE,SOLVER,
+                                                typename SURFACETUPLEBINDER::Tuple>
+                SurfaceForceInt;
+                
+            typename SurfaceForceInt::ForceKernel surfaceForceKernel =
+                boost::bind( &Penalty::residualInterface, &penalty, _1, _2, _3, _4 );
+            SurfaceForceInt surfaceForceInt( surfaceForceKernel,
+                                             surfaceQuadrature, solver );
+                
+            // apply
+            typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
+            typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+
+                const double factor = multiplier * parameter.penaltyWeight( iter );
+                    
+                penalty.setFactor( factor );
+                    
+                surfaceForceInt( SURFACETUPLEBINDER::makeTuple( *iter ) );
+            }
+            
+            return;
+        }
+
+        
+        
         
     } // namespace asmb
 } // namespace base
@@ -245,7 +288,7 @@ public:
     static const unsigned doFSize = TestElement::DegreeOfFreedom::size;
 
     //! Type of DoF value vector
-    typedef typename base::Vector<doFSize,base::number>::Type VecDof;
+    typedef typename base::Vector<doFSize,base::number>::Type VecDoF;
 
     //--------------------------------------------------------------------------
     Penalty( const double factor ) : factor_( factor ) { }
@@ -333,16 +376,82 @@ public:
      *  \param[out]  result Result container (pre-sized and zero-initialised)
      */
     template<typename EVALPOL>
-    void residual( const SurfFieldTuple& surfFieldTuple,
-                   const LocalVecDim& eta,
-                   const double       weight,
-                   const typename EVALPOL::Fun& bcFun,
-                   base::VectorD&        result ) const
+    void residualBoundary( const SurfFieldTuple& surfFieldTuple,
+                           const LocalVecDim& eta,
+                           const double       weight,
+                           const typename EVALPOL::Fun& bcFun,
+                           base::VectorD&        result ) const
+    {
+        // extract test and trial elements from tuple
+        const SurfaceElement* surfEp  = surfFieldTuple.geomElementPtr();
+        const TrialElement*   trialEp = surfFieldTuple.trialElementPtr();
+        
+        // Get pointer to domain element
+        const DomainElement* domainEp = surfEp -> getDomainElementPointer();
+
+        // Get local domain coordinate
+        typename DomainElement::GeomFun::VecDim xi =
+            surfEp -> localDomainCoordinate( eta );
+                
+        // Evaluate boundary coondition
+        const VecDoF bc = EVALPOL::apply( domainEp, xi, bcFun );
+        const VecDoF  u = base::post::evaluateField( domainEp, trialEp, xi );
+        const VecDoF  funResidual = u - bc;
+
+        this -> evaluateResidual_( surfFieldTuple, eta, weight, funResidual, result );
+
+        return;
+    }
+
+    //--------------------------------------------------------------------------
+    /** Compute the residual forces due to a Penalty method for interfaces.
+     *  The residual force term due to the the penalty method has the form
+     *  \f[
+     *     R_{pen} = -\frac{\gamma}{h} \int_{\Gamma_D} u \cdot v ds
+     *  \f]
+     *  and this function provides the integral kernel of this term.
+     *  \param[in]   surfFieldTuple  Tuple of field element pointers
+     *  \param[in]   eta    Local evaluation coordinate
+     *  \param[in]   weight Corresponding quadrature weight
+     *  \param[in]   bcFun  Function describing the boundary condition
+     *  \param[out]  result Result container (pre-sized and zero-initialised)
+     */
+    void residualInterface( const SurfFieldTuple& surfFieldTuple,
+                            const LocalVecDim&    eta,
+                            const double          weight,
+                            base::VectorD&        result ) const
+    {
+        // extract test and trial elements from tuple
+        const SurfaceElement* surfEp  = surfFieldTuple.geomElementPtr();
+        const TrialElement*   trialEp = surfFieldTuple.trialElementPtr();
+        
+        // Get pointer to domain element
+        const DomainElement* domainEp = surfEp -> getDomainElementPointer();
+
+        // Get local domain coordinate
+        typename DomainElement::GeomFun::VecDim xi =
+            surfEp -> localDomainCoordinate( eta );
+                
+        // Evaluate boundary coondition
+        const VecDoF  u = base::post::evaluateField( domainEp, trialEp, xi );
+
+        this -> evaluateResidual_( surfFieldTuple, eta, weight, u, result );
+
+        return;
+    }
+
+private:
+
+    // Helper to reduce implementation
+    void evaluateResidual_( const SurfFieldTuple& surfFieldTuple,
+                            const LocalVecDim& eta,
+                            const double       weight,
+                            const VecDoF&      funResidual,
+                            base::VectorD&     result ) const
     {
         // extract test and trial elements from tuple
         const SurfaceElement* surfEp  = surfFieldTuple.geomElementPtr();
         const TestElement*    testEp  = surfFieldTuple.testElementPtr();
-        const TrialElement*   trialEp = surfFieldTuple.trialElementPtr();
         
         // Get pointer to domain element
         const DomainElement* domainEp = surfEp -> getDomainElementPointer();
@@ -366,23 +475,17 @@ public:
         // deduce the size of every contribution
         const unsigned numRowBlocks = static_cast<unsigned>( testFunValues.size() );
 
-        // Evaluate boundary coondition
-        const VecDof bc = EVALPOL::apply( domainEp, xi, bcFun );
-        const VecDof  u = base::post::evaluateField( domainEp, trialEp, xi );
-
         // scalar multiplier of the whole entry
         const double aux = weight * detG * (factor_ / h);
-
+        
         // Loop over shape functions
         for ( unsigned i = 0; i < numRowBlocks; i++ ) {
 
             for ( unsigned d = 0; d < doFSize; d++ ) {
 
-                result[ i*doFSize + d ] -= testFunValues[i] * (u[d]-bc[d]) * aux;
+                result[ i*doFSize + d ] -= testFunValues[i] * funResidual[d] * aux;
             }
         }
-
-        return;
     }
 
 private:

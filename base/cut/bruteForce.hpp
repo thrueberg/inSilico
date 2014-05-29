@@ -28,7 +28,9 @@ namespace base{
                          const SURFMESH&   surfaceMesh,
                          const bool        isSigned, 
                          std::vector< base::cut::LevelSet<DOMAINMESH::Node::dim> >&
-                         levelSet );
+                         levelSet,
+                         const double pointIdentityTolerance = 
+                         std::sqrt( std::numeric_limits<double>::epsilon() ) );
     }
 }
 
@@ -57,13 +59,15 @@ namespace base{
  *  \param[in]   surfaceMesh Access to the surface mesh
  *  \param[in]   isSigned    Flag for signed/unsigned distance function
  *  \param[out]  levelSet    Vector with level set data
+ *  \param[in]   pointIdentityTolerance Tolerance for point comparison
  */
 template<typename DOMAINMESH, typename SURFMESH>
 void base::cut::bruteForce( const DOMAINMESH& domainMesh,
                             const SURFMESH&   surfaceMesh,
                             const bool        isSigned, 
                             std::vector< base::cut::LevelSet<DOMAINMESH::Node::dim> >&
-                            levelSet )
+                            levelSet,
+                            const double pointIdentityTolerance )
 {
     // convenience typedef
     typedef base::cut::LevelSet<DOMAINMESH::Node::dim> LevelSet;
@@ -81,20 +85,8 @@ void base::cut::bruteForce( const DOMAINMESH& domainMesh,
         levelSet.push_back( ls );
     }
 
-    // Go through the surface elements and get minimal size
     typename SURFMESH::ElementPtrConstIter seIter = surfaceMesh.elementsBegin();
     typename SURFMESH::ElementPtrConstIter seEnd  = surfaceMesh.elementsEnd();
-    double minEdgeLength = base::invalidNumber();
-    for ( ; seIter != seEnd; ++seIter ) {
-        const double candidate = base::mesh::minimalEdgeLength( *seIter );
-        if ( candidate < minEdgeLength ) minEdgeLength = candidate;
-    }
-
-    // threshold for checking of two closest points are identical
-    const double pointIdentityThreshold = minEdgeLength / 2.;
-
-
-    seIter = surfaceMesh.elementsBegin();
     for ( ; seIter != seEnd; ++seIter ) {
 
         // get pointer to surface element
@@ -108,7 +100,7 @@ void base::cut::bruteForce( const DOMAINMESH& domainMesh,
 
             // compute distance data
             base::cut::distanceToElement( surfEp, isSigned, ls,
-                                          pointIdentityThreshold );
+                                          pointIdentityTolerance );
 
             // set level set
             levelSet[el] = ls;

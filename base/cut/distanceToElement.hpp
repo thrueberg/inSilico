@@ -10,11 +10,14 @@
 #ifndef base_cut_distanceToElement_hpp
 #define base_cut_distanceToElement_hpp
 //------------------------------------------------------------------------------
+// boost inclues
 #include <boost/array.hpp>
-
+// base includes
 #include <base/geometry.hpp>
+#include <base/linearAlgebra.hpp>
 #include <base/fe/LagrangeElement.hpp>
 #include <base/cut/LevelSet.hpp>
+#include <base/auxi/compareNumbers.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -24,7 +27,7 @@ namespace base{
         void distanceToElement( const SELEMENT* surfEp,
                                 const bool isSigned, 
                                 base::cut::LevelSet<SELEMENT::Node::dim>& ls,
-                                const double pointIdentityThreshold );
+                                const double pointIdentityTolerance );
 
         //----------------------------------------------------------------------
         template<typename VECDIM>
@@ -118,13 +121,13 @@ namespace base{
  *  \param[in]     surfEp   Pointer to surface element
  *  \param[in]     isSigned Flag if distance function shall be signed
  *  \param[in,out] ls       Old and new level set datum
- *  \param[in]     pointIdentityThreshold For check of identical closest points
+ *  \param[in]     pointIdentityTolerance Tolerance for point comparison
  */
 template<typename SELEMENT>
 void base::cut::distanceToElement( const SELEMENT* surfEp,
                                    const bool isSigned, 
                                    base::cut::LevelSet<SELEMENT::Node::dim>& ls,
-                                   const double pointIdentityThreshold )
+                                   const double pointIdentityTolerance )
 {
     typedef base::cut::LevelSet<SELEMENT::Node::dim> LevelSet;
         
@@ -168,11 +171,11 @@ void base::cut::distanceToElement( const SELEMENT* surfEp,
     }
     else if ( isSigned ) {
 
-        // if distances are of simialar size, check the signed distance to plane
-        const typename LevelSet::VecDim diffClosestPoint =
-            ls.getClosestPoint() - newClosestPoint;
-        const bool decideByDistancesToPlane
-            ( base::norm( diffClosestPoint ) < pointIdentityThreshold );
+        // if closest points are numerically equal, decide by distance to plane
+        const bool decideByDistancesToPlane =
+            base::auxi::almostEqualVectors<SELEMENT::Node::dim>(
+                ls.getClosestPoint(), newClosestPoint,
+                pointIdentityTolerance );
 
         if ( decideByDistancesToPlane ) {
 

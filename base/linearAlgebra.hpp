@@ -146,12 +146,12 @@ namespace base{
 
     //--------------------------------------------------------------------------
     //! Compute the inner product of two vectors / matrices
-    template<typename VEC>
-    double dotProduct( const VEC& a, const VEC& b )
+    template<typename VEC1, typename VEC2>
+    double dotProduct( const VEC1& a, const VEC2& b )
     {
         double result = 0.;
-        for ( int i = 0; i < base::MatRows<VEC>::value; i++ )
-            for ( int j = 0; j < base::MatCols<VEC>::value; j++ )
+        for ( int i = 0; i < base::MatRows<VEC1>::value; i++ )
+            for ( int j = 0; j < base::MatCols<VEC1>::value; j++ )
                 result += a(i,j) * b(i,j);
         
         return result;

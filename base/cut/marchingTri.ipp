@@ -35,10 +35,11 @@ namespace base{
              *   exactly the same way with the meanings of 'in' and 'out' reversed.
              *   But in that case the surface line needs to be reversed !!
              */
+            template<unsigned SDIM>
             void cutTriangle( const unsigned I,
                               const USimplex<2>::Type& indexSimplex,
                               const DSimplex<2>::Type& distances,
-                              std::vector<base::Vector<2,double>::Type>& nodes,
+                              std::vector<typename base::Vector<SDIM,double>::Type>& nodes,
                               std::map<base::cut::Edge,unsigned>&        uniqueNodes,
                               USimplex<2>::Type&  inSimplex,
                               USimplex<2>::Type& outSimplex1,
@@ -51,25 +52,21 @@ namespace base{
                 
                 // generate the intersection nodes
                 const unsigned C1 =
-                    detail_::intersect<2>( indexSimplex[I], indexSimplex[O1],
-                                           distances[I],    distances[O1],
-                                           nodes, uniqueNodes );
+                    detail_::intersect<SDIM>( indexSimplex[I], indexSimplex[O1],
+                                              distances[I],    distances[O1],
+                                              nodes, uniqueNodes );
                 const unsigned C2 =
-                    detail_::intersect<2>( indexSimplex[I], indexSimplex[O2],
-                                           distances[I],    distances[O2],
-                                           nodes, uniqueNodes );
+                    detail_::intersect<SDIM>( indexSimplex[I], indexSimplex[O2],
+                                              distances[I],    distances[O2],
+                                              nodes, uniqueNodes );
                 
                 // inside is only one triangle
                 inSimplex = USimplex<2>::create( indexSimplex[I], C1, C2 );
-                //        = {{ indexSimplex[I], C1, C2 }};
-                
                 // outside are two triangles (choice seems arbitrary)
                 outSimplex1 = USimplex<2>::create( C1, indexSimplex[O1], C2 );
-                //          = {{ C1,               indexSimplex[O1], C2 }};
                 outSimplex2 = USimplex<2>::create( indexSimplex[O1], indexSimplex[O2], C2 );
-                //          = {{ indexSimplex[O1], indexSimplex[O2], C2 }};
                 // surface simplex
-                surfSimplex = USimplex<1>::create( C1, C2 ); // = {{ C1, C2 }};
+                surfSimplex = USimplex<1>::create( C1, C2 ); 
 
                 return;
             }
@@ -109,9 +106,10 @@ namespace base{
  *  \param[out]    volumeIn       Connectivity of the volume inside the domain
  *  \param[out]    volumeOut      Connectivity of the volume outside the domain
  */
+template<unsigned SDIM>
 void base::cut::marchingTri( const base::cut::USimplex<2>::Type& indexSimplex,
                              const base::cut::DSimplex<2>::Type&   distances,
-                             std::vector<base::Vector<2,double>::Type>&  nodes,
+                             std::vector<typename base::Vector<SDIM,double>::Type>&  nodes,
                              std::map<base::cut::Edge,unsigned>&         uniqueNodes,
                              std::vector<base::cut::USimplex<1>::Type>& surface,
                              std::vector<base::cut::USimplex<2>::Type>& volumeIn, 
@@ -138,8 +136,8 @@ void base::cut::marchingTri( const base::cut::USimplex<2>::Type& indexSimplex,
 
         USimplex<2>::Type inSimplex, outSimplex1, outSimplex2;
         USimplex<1>::Type surfSimplex;
-        detail_::cutTriangle( in, indexSimplex, distances, nodes, uniqueNodes,
-                              inSimplex, outSimplex1, outSimplex2, surfSimplex );
+        detail_::cutTriangle<SDIM>( in, indexSimplex, distances, nodes, uniqueNodes,
+                                    inSimplex, outSimplex1, outSimplex2, surfSimplex );
         
         volumeIn.push_back(   inSimplex );
         volumeOut.push_back( outSimplex1 );
@@ -155,8 +153,8 @@ void base::cut::marchingTri( const base::cut::USimplex<2>::Type& indexSimplex,
 
         USimplex<2>::Type outSimplex, inSimplex1, inSimplex2;
         USimplex<1>::Type surfSimplex;
-        detail_::cutTriangle( out, indexSimplex, distances, nodes, uniqueNodes,
-                              outSimplex, inSimplex1, inSimplex2, surfSimplex );
+        detail_::cutTriangle<SDIM>( out, indexSimplex, distances, nodes, uniqueNodes,
+                                    outSimplex, inSimplex1, inSimplex2, surfSimplex );
         
         volumeIn.push_back(  inSimplex1 );
         volumeIn.push_back(  inSimplex2 );

@@ -72,8 +72,8 @@ namespace base{
         template<>
         const DecomposeHyperCube<2>::SimplexTable
         DecomposeHyperCube<2>::simplexTable_ = {{
-                {{ 0, 1, 2 }},
-                {{ 3, 2, 1 }}
+                {{ 0, 1, 3 }},
+                {{ 2, 3, 1 }}
             }};
 
         //----------------------------------------------------------------------
@@ -81,12 +81,12 @@ namespace base{
         template<>
         const DecomposeHyperCube<3>::SimplexTable
         DecomposeHyperCube<3>::simplexTable_ = {{
-                {{ 0, 1, 2, 4 }},  // first  wedge 0-1-2=4-5-6
-                {{ 1, 2, 4, 5 }},
-                {{ 2, 4, 5, 6 }},
-                {{ 1, 2, 5, 3 }},  // second wedge 1-3-2=5-7-6
-                {{ 2, 5, 3, 6 }},
-                {{ 5, 3, 6, 7 }}
+                {{ 0, 1, 3, 4 }},  // first  wedge 0-1-3=4-5-7
+                {{ 1, 3, 4, 5 }},
+                {{ 3, 4, 5, 7 }},
+                {{ 1, 3, 5, 2 }},  // second wedge 1-2-3=5-6-7
+                {{ 3, 5, 2, 7 }},
+                {{ 5, 2, 7, 6 }}
             }};
         
     }

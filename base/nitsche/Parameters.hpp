@@ -65,6 +65,7 @@ public:
     double energyWeight( const ITER dummy,
                          const bool inOut ) const
     {
+        if ( not inOut ) return 1. - kappa_;
         return kappa_;
     }
 
@@ -119,7 +120,7 @@ public:
         const std::size_t elemID = iter -> geomElementPtr() -> getID();
         
         const double sizeSurface = cells_[elemID].surfaceArea();
-        const double sizeVolume  = cells_[elemID].parameterArea( inside );
+        const double sizeVolume  = cells_[elemID].parameterVolume( inside );
 
         VERIFY_MSG( cells_[elemID].isCut(), "something wrong here" );
 
@@ -157,8 +158,8 @@ public:
 
         const bool inside = true;
         const double sizeSurface = cells_[elemID].surfaceArea();
-        const double sizeVolume1 = cells_[elemID].parameterArea( inside );
-        const double sizeVolume2 = cells_[elemID].parameterArea( not inside );
+        const double sizeVolume1 = cells_[elemID].parameterVolume( inside );
+        const double sizeVolume2 = cells_[elemID].parameterVolume( not inside );
 
         VERIFY_MSG( cells_[elemID].isCut(), "something wrong here" );
 
@@ -173,8 +174,8 @@ public:
         const std::size_t elemID =  iter -> geomElementPtr() -> getID();
 
         const bool inside = true;
-        const double sizeVolume1  = cells_[elemID].parameterArea( inside );
-        const double sizeVolume2  = cells_[elemID].parameterArea( not inside );
+        const double sizeVolume1  = cells_[elemID].parameterVolume( inside );
+        const double sizeVolume2  = cells_[elemID].parameterVolume( not inside );
 
         const double numer = (inOut ? sizeVolume1 * alpha2_ : sizeVolume2 * alpha1_ );
         const double denom = (sizeVolume1 * alpha2_ + sizeVolume2 * alpha1_);

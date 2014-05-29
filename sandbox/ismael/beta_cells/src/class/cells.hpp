@@ -20,7 +20,7 @@ private:
 	double position[3];		// Cell position vector [x y z]
 	double force[3];		// Force applied to this cell
 	double velocity[3];		// Velocity
-	int health;
+	double health;			// Health
 
 	// Force Model Constants
 	static double A;			//dyne	
@@ -51,17 +51,18 @@ public:
 	void printInfo();
 	
 	// Getters
-		int getID() { return id; };
-		int getRadius() { return radius; };
-		int getAge() { return age; };
-		int getCluster() { return cluster; };
+		int getID() 			{ return id; };
+		int getRadius() 		{ return radius; };
+		int getAge() 			{ return age; };
+		int getCluster() 		{ return cluster; };
 		int getStatus();
-		int getCounter() { return counter; };
-		int getDCounter() { return dcounter; };
-		double getRate() { return cRate; };
-		double* getPosition() { return position; };
-		double* getForce() { return force; };
-		double* getVelocity() { return velocity; };
+		int getCounter() 		{ return counter; };
+		int getDCounter() 		{ return dcounter; };
+		double getHealth() 		{ return health; };
+		double getRate() 		{ return cRate; };
+		double* getPosition() 	{ return position; };
+		double* getForce() 		{ return force; };
+		double* getVelocity() 	{ return velocity; };
 
 	// Data manipulation Methods
 		// Set position
@@ -74,6 +75,10 @@ public:
 		void setCluster( int n_cluster ) { cluster = n_cluster; };
 		// Set Comsuption rate
 		static void setRate ( double tRate ) { cRate = tRate; };
+		// Set Nutrient Threshold
+		static void setThreshold ( double nutrT ) { concT = nutrT; };
+		// Set Health Rates
+		static void setHPR ( double hR, double dR ) { hRate = hR; dRate = dR; };
 		// Duplicate Cell
 		void duplicateCell();
 		// Size growth

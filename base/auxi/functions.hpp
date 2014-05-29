@@ -14,8 +14,8 @@
 namespace base{
     namespace auxi{
 
-    template<typename RETURNTYPE>
-    class ConstantFun;
+        template<typename RETURNTYPE>
+        class ConstantFun;
     }
 }
 

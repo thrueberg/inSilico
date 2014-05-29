@@ -19,6 +19,7 @@
 #include <base/dof/generate.hpp>
 #include <base/dof/Distribute.hpp>
 #include <base/cut/ScaledField.hpp>
+#include <base/cut/tagBasis.hpp>
 
 #include <base/Quadrature.hpp>
 #include <base/cut/Quadrature.hpp>
@@ -195,8 +196,8 @@ int main( int argc, char * argv[] )
 
     fieldIn.scaleAndTagBasis(  supportsIn,  1.e-10 );
     fieldOut.scaleAndTagBasis( supportsOut, 1.e-10 );
-    //fieldIn.tagBasis( supportsIn, 1.e-10 );
-    //fieldOut.tagBasis( supportsOut, 1.e-10 );
+    // base::cut::tagBasis( fieldIn,  supportsIn, 1.e-10 );
+    // base::cut::tagBasis( fieldOut, supportsOut, 1.e-10 );
     
     // number DoFs, create solver
     const std::size_t activeDoFsIn = 

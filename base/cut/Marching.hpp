@@ -19,264 +19,109 @@
 // boost includes
 #include <boost/array.hpp>
 // base/cut includes
-#include <base/cut/HyperCube.hpp>
 #include <base/cut/DecomposeHyperCube.hpp>
+#include <base/cut/MarchingUtils.hpp>
+#include <base/cut/NonLinearCutCellUtils.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
     namespace cut{
 
-        template<unsigned DIM> struct MarchingCube;
-        template<unsigned DIM> struct MarchingSimplex;
-
-        //------------------------------------------------------------------------
-        //! Marching scheme in function of the shape
-        template<base::Shape SHAPE>
-        struct Marching
-            : base::IfElse<SHAPE==base::SimplexShape<ShapeDim<SHAPE>::value>::value,
-                           MarchingSimplex<ShapeDim<SHAPE>::value>,
-                           MarchingCube<   ShapeDim<SHAPE>::value> >::Type
-        { };
-
-        
-        //----------------------------------------------------------------------
-        //! Define a simplex to be a fixed-size array
-        template<unsigned DIM, typename VAL=unsigned>
-        struct Simplex
-        {
-            typedef boost::array<VAL,DIM+1> Type;
-        };
-
-        template<unsigned DIM>
-        struct USimplex
-        {
-            typedef typename Simplex<DIM,unsigned>::Type Type;
-
-            static Type create( const unsigned i1,
-                                const unsigned i2 = base::invalidInt,
-                                const unsigned i3 = base::invalidInt,
-                                const unsigned i4 = base::invalidInt );
-        };
-
-        template<>
-        USimplex<0>::Type USimplex<0>::create( const unsigned i1, const unsigned i2,
-                                               const unsigned i3, const unsigned i4 )
-        {
-            Type result;
-            result[0] = i1;
-            return result;
-        }
-
-        template<>
-        USimplex<1>::Type USimplex<1>::create( const unsigned i1, const unsigned i2,
-                                               const unsigned i3, const unsigned i4 )
-        {
-            Type result;
-            result[0] = i1; result[1] = i2;
-            return result;
-        }
-
-        template<>
-        USimplex<2>::Type USimplex<2>::create( const unsigned i1, const unsigned i2,
-                                               const unsigned i3, const unsigned i4 )
-        {
-            Type result;
-            result[0] = i1; result[1] = i2; result[2] = i3;
-            return result;
-        }
-
-        template<>
-        USimplex<3>::Type USimplex<3>::create( const unsigned i1, const unsigned i2,
-                                               const unsigned i3, const unsigned i4 )
-        {
-            Type result;
-            result[0] = i1; result[1] = i2; result[2] = i3; result[3] = i4;
-            return result;
-        }
-
-
-        template<unsigned DIM>
-        struct DSimplex
-        {
-            typedef typename Simplex<DIM,double>::Type Type;
-        };
-
-        //----------------------------------------------------------------------
-        /** Edge with comparison operator, allows unique identification of
-         *  vertices and cut points.
-         */
-        class Edge
-        {
-        public:
-            //! Construct from one vertex
-            Edge( const unsigned v1 )
-                : vertices_( std::make_pair( v1, base::invalidInt ) ) { }
-
-            //! Construct from the line between two vertices
-            Edge( const unsigned v1, const unsigned v2 )
-                : vertices_( std::make_pair( (v1 < v2? v1 : v2),
-                                             (v1 < v2? v2 : v1) ) ) { }
-
-            //! Use build-in comparison for unique sorting
-            bool operator<( const Edge& other ) const
-            {
-                return vertices_ < other.vertices_;
-            }
-
-        private:
-            //! (v1,v2) denotes an oriented edge
-            const std::pair<unsigned,unsigned> vertices_;
-        };
-
-        //----------------------------------------------------------------------
-        //! @name Dimension-dependent algorithms
-        //@{
-        void bisect( const USimplex<1>::Type& indexSimplex,
-                     const DSimplex<1>::Type&   distances,
-                     std::vector<base::Vector<1,double>::Type>& nodes,
-                     std::map<Edge,unsigned>& uniqueNodes,
-                     std::vector<USimplex<0>::Type>& surface,
-                     std::vector<USimplex<1>::Type>& volumeIn, 
-                     std::vector<USimplex<1>::Type>& volumeOut );
-
-        void marchingTri( const USimplex<2>::Type& indexSimplex,
-                          const DSimplex<2>::Type&   distances,
-                          std::vector<base::Vector<2,double>::Type>& nodes,
-                          std::map<Edge,unsigned>& uniqueNodes,
-                          std::vector<USimplex<1>::Type>& surface,
-                          std::vector<USimplex<2>::Type>& volumeIn, 
-                          std::vector<USimplex<2>::Type>& volumeOut );
-
-        void marchingTet( const USimplex<3>::Type& indexSimplex,
-                          const DSimplex<3>::Type&   distances,
-                          std::vector<base::Vector<3,double>::Type>& nodes,
-                          std::map<Edge,unsigned>& uniqueNodes,
-                          std::vector<USimplex<2>::Type>& surface,
-                          std::vector<USimplex<3>::Type>& volumeIn, 
-                          std::vector<USimplex<3>::Type>& volumeOut );
-        //@}
-
         //----------------------------------------------------------------------
         namespace detail_{
+            template<unsigned DIM, bool ISSIMPLEX>
+            struct Decompose;
             
-            //------------------------------------------------------------------
-            // Apply the right marching scheme in function of the dimension
-            template<unsigned DIM> struct ApplyMarchingSimplex;
-
-            //------------------------------------------------------------------
-            // DIM = 1
-            template<>
-            struct ApplyMarchingSimplex<1>
+            template<unsigned DIM>
+            struct Decompose<DIM,true>
             {
-                static void apply( const USimplex<1>::Type& indexSimplex,
-                                   const DSimplex<1>::Type&   distances,
-                                   std::vector<base::Vector<1,double>::Type>& nodes,
-                                   std::map<Edge,unsigned>& uniqueNodes,
-                                   std::vector<USimplex<0>::Type>& surface,
-                                   std::vector<USimplex<1>::Type>& volumeIn, 
-                                   std::vector<USimplex<1>::Type>& volumeOut )
+                static const unsigned numSimplices = 1;
+                static unsigned apply( const unsigned s, const unsigned v )
                 {
-                    bisect( indexSimplex, distances, nodes, uniqueNodes,
-                            surface, volumeIn, volumeOut );
+                    return v;
                 }
             };
 
-            //------------------------------------------------------------------
-            // DIM = 2
-            template<>
-            struct ApplyMarchingSimplex<2>
+            template<unsigned DIM>
+            struct Decompose<DIM,false>
             {
-                static void apply( const USimplex<2>::Type& indexSimplex,
-                                   const DSimplex<2>::Type&   distances,
-                                   std::vector<base::Vector<2,double>::Type>& nodes,
-                                   std::map<Edge,unsigned>& uniqueNodes,
-                                   std::vector<USimplex<1>::Type>& surface,
-                                   std::vector<USimplex<2>::Type>& volumeIn, 
-                                   std::vector<USimplex<2>::Type>& volumeOut )
+                typedef base::cut::DecomposeHyperCube<DIM>   DHC;
+                static const unsigned numSimplices = DHC::numSimplices;
+                static unsigned apply( const unsigned s, const unsigned v )
                 {
-                    marchingTri( indexSimplex, distances, nodes, uniqueNodes,
-                                 surface, volumeIn, volumeOut );
+                    return  DHC::apply( s, v );
                 }
             };
-
-            //------------------------------------------------------------------
-            // DIM = 3
-            template<>
-            struct ApplyMarchingSimplex<3>
-            {
-                static void apply( const USimplex<3>::Type& indexSimplex,
-                                   const DSimplex<3>::Type&   distances,
-                                   std::vector<base::Vector<3,double>::Type>& nodes,
-                                   std::map<Edge,unsigned>& uniqueNodes,
-                                   std::vector<USimplex<2>::Type>& surface,
-                                   std::vector<USimplex<3>::Type>& volumeIn, 
-                                   std::vector<USimplex<3>::Type>& volumeOut )
-                {
-                    marchingTet( indexSimplex, distances, nodes, uniqueNodes,
-                                 surface, volumeIn, volumeOut );
-                }
-            };
-
-            //------------------------------------------------------------------
             
-        
-        } // namespace detail_
+        }
+
+        //----------------------------------------------------------------------
+        template<base::Shape SHAPE> struct Marching;
+
+        //----------------------------------------------------------------------
+        template<base::Shape SHAPE, unsigned DEGREE>
+        struct MarchingProxy;
+
+        // Specialisation for linear elements
+        template<base::Shape SHAPE>
+        struct MarchingProxy<SHAPE,1>
+            : base::cut::Marching<SHAPE>
+        { };
+
+        template<base::Shape SHAPE, unsigned DEGREE>
+        struct GetInteriorSurface;
+
 
     }
 }
 
 //------------------------------------------------------------------------------
-/** Reconstruct surface and partial volumina for a hyper-cube.
- *  Note that the input and output arrays are based on a lexicographic ordering.
- *  \tparam DIM Dimension of the shape manifold
- */
-template<unsigned DIM>
-struct base::cut::MarchingCube
+template<base::Shape SHAPE>
+struct base::cut::Marching
 {
-    static const unsigned dim         = DIM;
-    static const unsigned numVertices = base::cut::HyperCube<dim>::numVertices;
+    typedef base::LagrangeShapeFun<1,SHAPE> LinearLagrange;
+    static const unsigned dim         = base::ShapeDim<SHAPE>::value;
+    static const unsigned numVertices = LinearLagrange::numFun;
 
     typedef typename base::Vector<dim,double>::Type     VecDim;
     typedef typename base::cut::USimplex<dim  >::Type   VolSimplex;
     typedef typename base::cut::USimplex<dim-1>::Type   SurfSimplex;
 
-    static void apply( const boost::array<double,numVertices>& signedDistances,
+
+    static void apply( const boost::array<double,numVertices>&   signedDistances,
+                       const boost::array<unsigned,numVertices>& vertexIndices,
                        std::vector<VecDim>& nodes,
+                       std::map<base::cut::Edge,unsigned>&  uniqueNodes,
                        std::vector<SurfSimplex>& surface,
                        std::vector<VolSimplex>&  volumeIn,
-                       std::vector<VolSimplex>&  volumeOut )
+                       std::vector<VolSimplex>&  volumeOut,
+                       const bool update = false )
     {
-        typedef base::cut::HyperCube<dim>            HC;
-        typedef base::cut::DecomposeHyperCube<dim>   DHC;
+        typedef detail_::Decompose<dim,
+                                   SHAPE==base::SimplexShape<dim>::value
+                                   > Decompose;
             
-        // remember the edges / vertices that are already in the
-        std::map<base::cut::Edge,unsigned> uniqueNodes;
-            
-        // fill nodes with the vertices of the HyperCube
-        for ( unsigned v = 0; v < numVertices; v++ ) {
-            // store 
-            nodes.push_back( HC::vertex(v) );
-            base::cut::Edge edge( v );
-            uniqueNodes[ edge ] = v;
-        }
-
         // go through all sub-simplices
-        for ( unsigned s = 0; s < DHC::numSimplices; s++ ) {
+        for ( unsigned s = 0; s < Decompose::numSimplices; s++ ) {
 
             // generate index set of volume simplex and the distances
-            VolSimplex                   indexSimplex;
+            VolSimplex                        indexSimplex;
             typename DSimplex<dim>::Type distances;
             
             for ( unsigned v = 0; v < dim+1; v++ ) {
-                indexSimplex[v] = DHC::apply( s, v );
-                distances[v] = signedDistances[ indexSimplex[v] ];
+                const unsigned index = Decompose::apply( s, v );
+                indexSimplex[v] = vertexIndices[ index ];
+                if ( update )
+                    distances[v] = signedDistances[v];
+                else 
+                    distances[v] = signedDistances[ indexSimplex[v] ];
             }
 
             // apply marching to volume simplex
-            detail_::ApplyMarchingSimplex<dim>::apply( indexSimplex, distances, nodes,
-                                                       uniqueNodes,
-                                                       surface,
-                                                       volumeIn, volumeOut );
+            detail_::ApplyMarchingSimplex<dim,dim>::apply(
+                indexSimplex, distances, nodes,
+                uniqueNodes, surface,
+                volumeIn, volumeOut );
         }
 
         return;
@@ -285,130 +130,308 @@ struct base::cut::MarchingCube
 };
 
 //------------------------------------------------------------------------------
-template<unsigned DIM>
-struct base::cut::MarchingSimplex
+template<base::Shape SHAPE, unsigned DEGREE>
+struct base::cut::MarchingProxy
 {
-    static const unsigned dim         = DIM;
-    static const unsigned numVertices = dim+1;
+    static const base::Shape shape  = SHAPE;
+    static const unsigned    degree = DEGREE;
+    static const unsigned       dim = base::ShapeDim<shape>::value;
 
-    typedef typename base::Vector<dim,double>::Type     VecDim;
-    typedef typename base::cut::USimplex<dim  >::Type   VolSimplex;
-    typedef typename base::cut::USimplex<dim-1>::Type   SurfSimplex;
+    //! @name Simplex shapes
+    //@{
+    static const base::Shape  volSimplex = base::SimplexShape<dim>::value;
+    static const base::Shape surfSimplex = base::SimplexShape<dim-1>::value;
+    //@}
 
-    typedef base::LagrangeShapeFun<1,base::SimplexShape<dim>::value>
-    LinearLagrange;
+    //! Coordinate type
+    typedef typename base::Vector<dim,double>::Type VecDim;
 
-    static void apply( const boost::array<double,numVertices>& signedDistances,
+    //! @name Given element type of the cell
+    //@{
+    typedef base::fe::LagrangeElement<volSimplex,degree>  VolElement;
+    static const unsigned numNodes =
+        base::fe::LagrangeElement<SHAPE,degree>::numTotalDoFs;
+    static const unsigned numVertices =
+        base::NumNFaces<shape,base::VERTEX>::value;
+    //@}
+
+
+    //! @name Higher-order simplex elements
+    //@{
+    typedef base::LagrangeShapeFun<degree,volSimplex>  LagrangeVolSimplexFun;
+    typedef base::LagrangeShapeFun<degree,surfSimplex> LagrangeSurfSimplexFun;
+    static const unsigned nVolSimplexNodes  = LagrangeVolSimplexFun::numFun;
+    static const unsigned nSurfSimplexNodes = LagrangeSurfSimplexFun::numFun;
+    typedef boost::array<unsigned,nVolSimplexNodes>  VolumeSimplex;
+    typedef boost::array<unsigned,nSurfSimplexNodes> SurfaceSimplex;
+    //@}
+
+    //! @name Linear simplex elements
+    //@{
+    static const unsigned nVolSimplexVerts  =
+        base::NumNFaces<volSimplex,base::VERTEX>::value;
+    static const unsigned nSurfSimplexVerts =
+        base::NumNFaces<surfSimplex,base::VERTEX>::value;
+    typedef boost::array<unsigned,nVolSimplexVerts>  LinearVolumeSimplex;
+    typedef boost::array<unsigned,nSurfSimplexVerts> LinearSurfaceSimplex;
+    //@}
+
+
+    static void apply( const boost::array<double,numNodes>& signedDistances,
+                       const boost::array<unsigned,numVertices>& vertexIndices,
                        std::vector<VecDim>& nodes,
-                       std::vector<SurfSimplex>& surface,
-                       std::vector<VolSimplex>&  volumeIn,
-                       std::vector<VolSimplex>&  volumeOut )
+                       std::map<base::cut::Edge,unsigned>& uniqueNodes,
+                       std::vector<SurfaceSimplex>& surface,
+                       std::vector<VolumeSimplex>&  volumeIn,
+                       std::vector<VolumeSimplex>&  volumeOut,
+                       const bool update = false )
     {
-        // remember the edges / vertices that are already in the
-        std::map<base::cut::Edge,unsigned> uniqueNodes;
+        //
+        const unsigned maxIter = 10;
+        const double   tolerance = 1.e-8;
 
-        // get the vertices of the simplex
-        typename base::cut::Simplex<dim,VecDim>::Type vertices;
-        LinearLagrange::supportPoints( vertices );
+        //
+        const std::size_t numOldNodes = nodes.size() - numVertices;
         
-        // fill nodes with the vertices of the HyperCube
-        for ( unsigned v = 0; v < numVertices; v++ ) {
-            // store
-            nodes.push_back( vertices[v] );
-            base::cut::Edge edge( v );
-            uniqueNodes[ edge ] = v;
+
+        //----------------------------------------------------------------------
+        // do first a linear marching operation
+        std::vector<LinearSurfaceSimplex> surfaceLinear;
+        std::vector<LinearVolumeSimplex>  volumeInLinear, volumeOutLinear;
+
+        boost::array<double,numVertices> signedDistancesLinear;
+        for ( unsigned v = 0; v < numVertices; v++ )
+            signedDistancesLinear[v] = signedDistances[v];
+
+        Marching<shape>::apply( signedDistancesLinear,
+                                vertexIndices,
+                                nodes,
+                                uniqueNodes, surfaceLinear,
+                                volumeInLinear, volumeOutLinear, update );
+
+        //----------------------------------------------------------------------
+        // non-linear update of the intersection points
+        typename std::map<base::cut::Edge,unsigned>::iterator iIter = uniqueNodes.begin();
+        typename std::map<base::cut::Edge,unsigned>::iterator iEnd  = uniqueNodes.end();
+        for ( ; iIter != iEnd; ++iIter ) {
+            // Index of the intersecting node
+            const unsigned nodeNum = iIter -> second;
+            // act only, if this node is new
+            if ( nodeNum >= numOldNodes ) {
+                // Indices of edge
+                const unsigned v1 = (iIter -> first).first();
+                const unsigned v2 = (iIter -> first).second();
+                // Edge initial point and tangent, current point
+                const VecDim xi1 = nodes[v1];
+                const VecDim tan = nodes[v2] - xi1;
+                VecDim        xi = nodes[nodeNum];
+                // perform non-linear intersection
+                nodes[nodeNum] =
+                    NonLinearIntersection<shape,degree>::apply( xi1, tan, xi, 
+                                                                signedDistances,
+                                                                tolerance, maxIter );
+            }
         }
 
-        // generate index set of volume simplex and the distances
-        VolSimplex                   indexSimplex;
-        typename DSimplex<dim>::Type distances;
+        //----------------------------------------------------------------------
+        // generate higher-order simplices
+        
+        // make a mesh object from the entire cell-mesh
+        std::vector<LinearVolumeSimplex> volume;
+        volume.insert( volume.end(), volumeInLinear.begin(),  volumeInLinear.end() );
+        volume.insert( volume.end(), volumeOutLinear.begin(), volumeOutLinear.end() );
+
+        typedef base::cut::SimplexMesh<dim,dim> LinearSimplexMesh;
+        LinearSimplexMesh dummyMesh( nodes, volume );
+
+        // find the surface of the inside mesh
+        std::vector<std::pair<std::size_t,unsigned> > surfacePart, boundaryPart;
+        base::cut::FindSurface<dim>::apply( nodes, volumeInLinear,
+                                            surfaceLinear,
+                                            surfacePart, boundaryPart );
+        VERIFY_MSG( surfacePart.size() == surfaceLinear.size(),
+                    "Could not find the surface elements" );
+
+        // create a higher-order simplex mesh
+        nodes.resize( numOldNodes );
+        //nodes.clear();
+        base::cut::MakeHigherOrderSimplices<dim,degree>::apply(
+            dummyMesh, volumeInLinear.size(),
+            nodes, volumeIn, volumeOut );
+
+        // extract the surface
+        base::cut::ExtractSurface<dim,degree>::apply(
+            volumeIn, surfacePart, surface );
+
+        //----------------------------------------------------------------------
+        // update 'secondary' nodes of the surface
+
+        // extract the boundary
+        std::vector<SurfaceSimplex> boundaryIn;
+        base::cut::ExtractSurface<dim,degree>::apply(
+            volumeIn, boundaryPart, boundaryIn );
+
+
+        // collect normal vectors for all surface nodes
+        std::vector<VecDim> normals;
+        base::cut::CreateNodeNormals<degree,dim>::apply( nodes,
+                                                         surface,
+                                                         normals );
+
+        // modify the normals of the nodes along the surface boundary
+        base::cut::ModifyNormalsAlongBoundary<degree,dim>::apply( nodes,
+                                                                  boundaryIn,
+                                                                  normals );
+
+        // go through nodes of the surface
+        for ( std::size_t s = 0; s < surface.size(); s++ ) {
+
+            const SurfaceSimplex ss = surface[s];
             
-        for ( unsigned v = 0; v < numVertices; v++ ) {
-            indexSimplex[v] = v; 
-            distances[v] = signedDistances[ v ];
+            // go through secondary nodes
+            for ( unsigned n = dim; n < ss.size(); n++ ) {
+                // ID of node to update
+                const unsigned nodeNum = ss[ n ];
+
+                // node location and direction
+                const VecDim node = nodes[ nodeNum ];
+                const VecDim dir  = normals[ nodeNum ];
+
+                // perform non-linear intersection
+                nodes[nodeNum] =
+                    NonLinearIntersection<shape,degree>::apply( node, dir, node, 
+                                                                signedDistances,
+                                                                tolerance, maxIter );
+            }
         }
-
-        // apply marching to volume simplex
-        detail_::ApplyMarchingSimplex<dim>::apply( indexSimplex, distances, nodes,
-                                                   uniqueNodes,
-                                                   surface,
-                                                   volumeIn, volumeOut );
+        
         return;
+      
     }
-
 };
 
-
 //------------------------------------------------------------------------------
-// Helper functions used by the algorithms
-namespace base{
-    namespace cut{
-        namespace detail_{
+template<base::Shape SHAPE, unsigned DEGREE>
+struct base::cut::GetInteriorSurface
+{
+    static const unsigned dim = base::ShapeDim<SHAPE>::value;
 
-            //------------------------------------------------------------------
-            /** Generate a cut point between two given vertices by linear
-             *  interpolation of the signed distances. For uniqueness, the
-             *  edge between the vertices is used as a key value of the cut
-             *  point in a map.
-             *  \tparam DIM Spatial dimension
-             *  \param[in]     i1, i2  Indices of the end vertices of the edge
-             *  \param[in]     d1, d2  Signed distances of these vertices
-             *  \param[in,out] nodes   Vertex and cut point coordinates
-             *  \param[in,out] uniqueNodes Map for uniqueness of the cut points
-             */
-            template<unsigned DIM>
-            unsigned intersect( const unsigned i1, const unsigned i2,
-                                const double   d1, const double   d2,
-                                std::vector<typename base::Vector<DIM,double>::Type>& nodes,
-                                std::map<base::cut::Edge,unsigned>& uniqueNodes )
-            {
-                // New node lies on this edge
-                base::cut::Edge edge( i1, i2 );
-                // Find edge in map of unique nodes
-                std::map<base::cut::Edge,unsigned>::iterator iter = uniqueNodes.find( edge );
-                // If already exists pass back number of existing node
-                if ( iter != uniqueNodes.end() ) {
-                    return iter -> second;
-                }
-                // else create a new node
-                else {
-                    // with the number
-                    const unsigned numNewNode = static_cast<unsigned>( nodes.size() );
-                    // Store in map (cannot exist already!)
-                    uniqueNodes[ edge ] = numNewNode;
-                    // line coordinate of the intersection point by linear interpolation
-                    const double xi = d1 / (d1 - d2);
-                    // new node
-                    const typename base::Vector<DIM,double>::Type newNode =
-                        (1.-xi) * nodes[ i1 ] + xi * nodes[ i2 ];
-                    // Store new node
-                    nodes.push_back( newNode );
-                    // pass back the number of the new node to the caller
-                    return numNewNode;
-                }
-                return base::invalidInt;
-            }
+    typedef typename base::Vector<dim>::Type VecDim;
+    
+    //! @name Simplex shapes
+    //@{
+    static const base::Shape  volSimplex = base::SimplexShape<dim>::value;
+    static const base::Shape surfSimplex = base::SimplexShape<dim-1>::value;
+    //@}
 
-            //------------------------------------------------------------------
-            //! Change orientation of a simplex
-            template<unsigned DIM>
-            void reverseSimplex( typename USimplex<DIM>::Type& toBeReversed )
-            {
-                const unsigned tmp = toBeReversed[0];
-                toBeReversed[0] = toBeReversed[1];
-                toBeReversed[1] = tmp;
-                return;
-            }
+    //! @name Higher-order simplex elements
+    //@{
+    typedef base::LagrangeShapeFun<DEGREE,volSimplex>  LagrangeVolSimplexFun;
+    typedef base::LagrangeShapeFun<DEGREE,surfSimplex> LagrangeSurfSimplexFun;
+    static const unsigned nVolSimplexNodes  = LagrangeVolSimplexFun::numFun;
+    static const unsigned nSurfSimplexNodes = LagrangeSurfSimplexFun::numFun;
+    typedef boost::array<unsigned,nVolSimplexNodes>  VolumeSimplex;
+    typedef boost::array<unsigned,nSurfSimplexNodes> SurfaceSimplex;
+    //@}
 
+    //! @name Boundary of the mesh
+    //@{
+    typedef base::mesh::MeshBoundary MeshBoundary;
+    typedef typename MeshBoundary::BoundaryElementContainer BEC;
+    typedef typename MeshBoundary::BoundConstIter           BECIter;
+    //@}
+
+    //! @name Face extraction
+    //@{
+    typedef base::fe::LagrangeElement<volSimplex,DEGREE> GeomElement;
+    static const base::NFace surface =
+        base::ShapeSurface<GeomElement::shape>::value;
+    typedef base::fe::FaceExtraction<GeomElement,surface> FaceExtraction;
+    //@}
+    
+    static void apply( const std::vector<VecDim>& nodes,
+                       std::vector<SurfaceSimplex>& surface,
+                       const std::vector<VolumeSimplex>& volumeIn,
+                       const std::vector<VolumeSimplex>& volumeOut )
+    {
+        // make a mesh objects from the entire cell-mesh and the inside part
+        std::vector<VolumeSimplex> volume;
+        volume.insert( volume.end(),  volumeIn.begin(),  volumeIn.end() );
+        volume.insert( volume.end(), volumeOut.begin(), volumeOut.end() );
+        typedef base::cut::SimplexMesh<dim,dim,DEGREE> SimplexMesh;
+        SimplexMesh meshAll( nodes, volume );
+        SimplexMesh meshIn(  nodes, volumeIn );
+
+        // extract boundary faces from volume mesh
+        MeshBoundary boundaryAll, boundaryIn;
+        boundaryAll.create( meshAll.elementsBegin(), meshAll.elementsEnd() );
+        boundaryIn.create(  meshIn.elementsBegin(),  meshIn.elementsEnd() );
+
+        // sort does not help for finding?
+        //std::sort( boundaryAll.begin(), boundaryAll.end() );
+        //std::sort( boundaryIn.begin(),  boundaryIn.end()  );
+        // find the faces in boundaryIn, which are not in boundaryAll
+        BEC difference;
+        BECIter biIter = boundaryIn.begin();
+        BECIter biEnd  = boundaryIn.end();
+        for ( ; biIter != biEnd; ++biIter ) {
+            BECIter find = std::find( boundaryAll.begin(), boundaryAll.end(), *biIter );
+            if ( find == boundaryAll.end() ) difference.push_back( *biIter );
         }
-    }
-}
 
-//------------------------------------------------------------------------------
-// Include implementation files
-#include <base/cut/bisect.ipp>
-#include <base/cut/marchingTri.ipp>
-#include <base/cut/marchingTet.ipp>
+        {
+            std::cout << "BoundaryIn:  ";
+            BECIter biIter = boundaryIn.begin();
+            BECIter biEnd  = boundaryIn.end();
+            for ( ; biIter != biEnd; ++biIter )
+                std::cout << "(" << biIter->first << "," << biIter->second << "), ";
+            std::cout << std::endl;
+        }
+        {
+            std::cout << "BoundaryAll:  ";
+            BECIter biIter = boundaryAll.begin();
+            BECIter biEnd  = boundaryAll.end();
+            for ( ; biIter != biEnd; ++biIter )
+                std::cout << "(" << biIter->first << "," << biIter->second << "), ";
+            std::cout << std::endl;
+        }
+        {
+            std::cout << "Difference:  ";
+            BECIter biIter = difference.begin();
+            BECIter biEnd  = difference.end();
+            for ( ; biIter != biEnd; ++biIter )
+                std::cout << "(" << biIter->first << "," << biIter->second << "), ";
+            std::cout << std::endl;
+        }
+        
+        // extract the surface
+        surface.clear();
+        for ( std::size_t b = 0; b < difference.size(); b++ ) {
+
+            const std::size_t elemNum = difference[b].first;
+            const unsigned    faceNum = difference[b].second;
+
+            std::vector<unsigned> faceIndices;
+            FaceExtraction::apply( faceNum, faceIndices );
+
+
+            typename SimplexMesh::Element* elemPtr =
+                meshIn.elementPtr( elemNum );
+
+            SurfaceSimplex surfaceSimplex;
+            for ( std::size_t n = 0; n < faceIndices.size(); n++ ) {
+                surfaceSimplex[n] =
+                    static_cast<unsigned>(
+                        elemPtr -> nodePtr( faceIndices[n] ) -> getID() );
+            }
+
+            surface.push_back( surfaceSimplex );
+        }
+        
+        return;
+    }
+    
+};
 
 
 #endif

@@ -28,6 +28,10 @@ namespace base{
                 static const unsigned value = NNODES;
             };
 
+            // POINTS ONLY
+            template<>
+            struct CellType<base::POINT,1> { static const unsigned value =  1; };
+            
             //------------------------------------------------------------------
             // LINE ELEMENTS
             template<>

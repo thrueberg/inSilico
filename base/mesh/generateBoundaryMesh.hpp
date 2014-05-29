@@ -388,6 +388,7 @@ void base::mesh::generateBoundaryMesh( BITER first, BITER last,
     // ID of the nodes of the surface mesh
     std::size_t nodeId = 0;
     std::size_t eCtr   = 0;
+    std::size_t boundaryElementID = 0;
 
     // Go through all boundary elements and new boundary elements
     typename BOUNDARYMESH::ElementPtrIter bdryElemIter =
@@ -450,6 +451,8 @@ void base::mesh::generateBoundaryMesh( BITER first, BITER last,
                                                 
             } // end loop over boundary element's nodes
 
+            (*bdryElemIter) -> setSurfaceID( boundaryElementID++ );
+            
             // increment iterator over boundary elements
             ++bdryElemIter;
             

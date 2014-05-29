@@ -11,9 +11,15 @@
 #define base_cut_levelset_hpp
 
 //------------------------------------------------------------------------------
+// std   includes
+#include <vector>
+// boost includes
+#include <boost/array.hpp>
 // base includes
+#include <base/shape.hpp>
 #include <base/linearAlgebra.hpp>
 #include <base/LagrangeShapeFun.hpp>
+#include <base/auxi/compareNumbers.hpp>
 
 //------------------------------------------------------------------------------
 namespace base{
@@ -21,6 +27,16 @@ namespace base{
 
         template<unsigned DIM>
         class LevelSet;
+
+        template<unsigned DIM>
+        LevelSet<DIM> setUnion( const LevelSet<DIM>& a, const LevelSet<DIM>& b );
+
+        template<base::Shape SHAPE>
+        double interpolatedDistance(
+            const typename base::Vector<base::ShapeDim<SHAPE>::value>::Type& xi,
+            const boost::array<double,
+            base::NumNFaces<SHAPE,base::VERTEX>::value>& distances );
+
 
         template<typename ELEMENT>
         double signedDistance( const ELEMENT* ep,
@@ -120,6 +136,46 @@ private:
     //@}
 };
 
+//------------------------------------------------------------------------------
+template<unsigned DIM>
+base::cut::LevelSet<DIM>
+base::cut::setUnion( const base::cut::LevelSet<DIM>& a,
+                     const base::cut::LevelSet<DIM>& b )
+{
+    VERIFY_MSG( base::auxi::almostEqualVectors<DIM>( a.getX(), b.getX() ),
+                "Cannot add level set data of different mesh points" );
+
+    if ( a.getSignedDistance() < b.getSignedDistance() ) return a;
+    return b;
+}
+
+
+//------------------------------------------------------------------------------
+//! Linear interpolation of given vertex distance values
+template<base::Shape SHAPE>
+double base::cut::interpolatedDistance(
+    const typename base::Vector<base::ShapeDim<SHAPE>::value>::Type& xi,
+    const boost::array<double, base::NumNFaces<SHAPE,base::VERTEX>::value>& distances )
+{
+    // Linear function for interpolation
+    typedef base::LagrangeShapeFun<1,SHAPE> LinFun;
+    LinFun linFun;
+
+    // Linear interpolation function values
+    typename LinFun::FunArray geomFun;
+    linFun.fun( xi, geomFun );
+
+    // Result initialised to zero
+    double result = 0.;
+
+    // go through vertices of element and interpolate the distance function
+    for ( unsigned v = 0; v < LinFun::numFun; v++ ) {
+        result += geomFun[v] * distances[v];
+    }
+
+    // pass back to caller
+    return result;
+}
 
 //------------------------------------------------------------------------------
 /** Give the interpolated signed distance function for a point.
@@ -142,26 +198,16 @@ double base::cut::signedDistance( const ELEMENT* ep,
                                   const std::vector<LevelSet<ELEMENT::Node::dim> >&
                                   vertexLevelSets )
 {
-    // Result initialised to zero
-    double result = 0.;
-
     // Linear function for interpolation
     typedef base::LagrangeShapeFun<1,ELEMENT::shape> LinFun;
-    LinFun linFun;
+    boost::array<double,LinFun::numFun> signedDistances;
 
-    // Linear interpolation function values
-    typename LinFun::FunArray geomFun;
-    linFun.evaluate( ep, xi, geomFun );
-
-    // go through vertices of element and interpolate the distance function
     typename ELEMENT::NodePtrConstIter nIter = ep -> nodesBegin();
-    for ( unsigned v = 0; v < LinFun::numFun; v++, ++nIter ) {
-        result += geomFun[v] *
-            vertexLevelSets[ (*nIter) -> getID() ].getSignedDistance();
-    }
-
+    for ( unsigned v = 0; v < LinFun::numFun; v++, ++nIter )
+        signedDistances[v] = vertexLevelSets[ (*nIter) -> getID() ].getSignedDistance();
+    
     // pass back to caller
-    return result;
+    return base::cut::interpolatedDistance<ELEMENT::shape>( xi, signedDistances );
 }
 
 //------------------------------------------------------------------------------

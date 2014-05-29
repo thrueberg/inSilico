@@ -62,7 +62,7 @@ namespace base{
         //----------------------------------------------------------------------
         /** Look-up table for conversion from lexicographic to hierarchic order.
          *  The Lagrange elements with the geometry shape LINE, QUAD, and HEX
-         *  are equipped with shape functions in lexicographic order. This is
+         *  can be equipped with shape functions in lexicographic order. This is
          *  done in order to make use of the tensor-product structure. But
          *  when generating and handling degrees of freedom, it has to be
          *  differentiated between shape functions associated with a VERTEX,
@@ -81,14 +81,6 @@ namespace base{
         class HierarchicOrder
         {
         public:
-
-            //! Access operation
-            static unsigned apply( const unsigned i )
-            {
-                return lookUpTable_[i];
-            }
-
-        private:
             static const unsigned shapeDim = base::ShapeDim<SHAPE>::value;
             
             //! Lookup Table for external access            
@@ -97,6 +89,13 @@ namespace base{
                   base::MToTheN<DEGREE+1,shapeDim>::value :
                   base::Binomial<DEGREE+shapeDim,DEGREE>::value );
 
+            //! Access operation
+            static unsigned apply( const unsigned i )
+            {
+                return lookUpTable_[i];
+            }
+
+        private:
             typedef boost::array<unsigned,numNodes> LookUpTable;
             
             static const boost::array<unsigned,numNodes> lookUpTable_;

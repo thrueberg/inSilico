@@ -14,8 +14,8 @@ Scaffold::Scaffold()
 	size[1] = 5000;
 	size[2] = 1000;
 	porosity = 0.5;
-	Dmin = 0.001;
-	Dmax = 0.00001;
+	Dmin = 1.0;
+	Dmax = 10.0;
 };
 
 // Destructor
@@ -48,9 +48,9 @@ double Scaffold::getDiffConst ( int choice )
 	switch ( choice )
 	{
 		case 1:
-			return Dmin;
-		case 2:
 			return Dmax;
+		case 2:
+			return Dmin;
 	};
 };
 

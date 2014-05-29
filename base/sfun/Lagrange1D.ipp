@@ -22,8 +22,19 @@ namespace base{
             values[0] = 1.;
         }
 
-        // gradient and Hessian are not implemented on purpose
-        // (trigger compile-time error)
+        template<> inline
+        void Lagrange1D<0>::gradient( const VecDim& xi,
+                                      GradArray& values ) const
+        {
+            values[0][0] = 0.;
+        }
+
+        template<> inline
+        void Lagrange1D<0>::hessian(  const VecDim& xi,
+                                      HessianArray& values ) const
+        {
+            values[0](0,0) = 0.;
+        }
         //@}
 
         //----------------------------------------------------------------------
@@ -40,14 +51,20 @@ namespace base{
         }
 
         template<>  inline
-        void Lagrange1D<1>:: gradient( const VecDim& xi,
-                                       GradArray& values ) const
+        void Lagrange1D<1>::gradient( const VecDim& xi,
+                                      GradArray& values ) const
         {
             values[0][0] = -1.;
             values[1][0] =  1.;
         }
 
-        // Hessian not implement on purpose
+        template<> inline
+        void Lagrange1D<1>::hessian(  const VecDim& xi,
+                                      HessianArray& values ) const
+        {
+            values[0](0,0) = 0.;
+            values[1](0,0) = 0.;
+        }
         //@}
 
         //----------------------------------------------------------------------

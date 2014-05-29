@@ -87,6 +87,32 @@ namespace base{
         };
     }
 
+    namespace detail_{
+        template<typename SELEMENT,bool ISSURF>
+        struct EnableSurfaceNormal
+        {
+            static double apply( const SELEMENT* sep,
+                                 const typename base::GeomTraits<SELEMENT>::LocalVecDim& xi,
+                                 typename base::GeomTraits<SELEMENT>::GlobalVecDim& normal )
+            {
+                return base::SurfaceNormal<SELEMENT>()( sep, xi, normal );
+            }
+        };
+
+        template<typename SELEMENT>
+        struct EnableSurfaceNormal<SELEMENT,false>
+        {
+            static double apply( const SELEMENT* sep,
+                                 const typename base::GeomTraits<SELEMENT>::LocalVecDim& xi,
+                                 typename base::GeomTraits<SELEMENT>::GlobalVecDim& normal )
+            {
+                normal = base::constantVector<base::GeomTraits<SELEMENT>::globalDim>( 0. );
+                return 0.;
+            }
+        };
+
+    }
+
     template<unsigned DEGREE, base::Shape SHAPE>
     class LagrangeShapeFun;
 }
@@ -181,27 +207,35 @@ public:
      *  \f[
      *       \nabla \otimes \nabla \phi =
      *       (\phi_{,\alpha\beta} - \Gamma^\delta_{\alpha \beta} \phi_{,\delta})
-     *       g^\alpha \otimes g^\beta
+     *       g^\alpha \otimes g^\beta +
+     *       \phi_{,alpha} L^\alpha_\beta g^\beta \otimes n
      *  \f]
      *  where \f$ g^\alpha \f$ are the contra-variante basis vectors, 
      *  \f$ \phi_{,\alpha} \f$ the partial derivatives in parametric coordinates,
      *  and we have the Christoffel symbol
      *  \f[
-     *       \Gamma^\delta_{\alpha \beta} = g_{\alpha,\beta} g^\delta
+     *       \Gamma^\delta_{\alpha \beta} = g_{\alpha,\beta} \cdot g^\delta
      *  \f]
      *  based on the partial derivatives of the co-variante basis vectors
-     *  \f$ g_\alpha \f$.
+     *  \f$ g_\alpha \f$. Moreover, the second fundamental form
+     *  \f[
+     *       L^\alpha_\beta
+     *         = G^{\alpha \gamma} L_{\gamma \beta}
+     *         = G^{\alpha \gamma} (g_{\gamma, \beta} \cdot n)
+     *  \f]
+     *  is used for the case of surface derivatives.
+     *
      *  \tparam GEOMELEMENT Type of geometry description element
      *  \param  geomElemPtr Pointer to geometry element 
      *  \param  xi          Local evaluation coordinate
      *  \param  result      Gradient values of all shape functions
      */
     template<typename GEOMELEM>
-    void evaluateHessian( const GEOMELEM* geomElemPtr,
-                          const typename Base::VecDim& xi,
-                          std::vector<typename base::Matrix<
-                          GEOMELEM::Node::dim,GEOMELEM::Node::dim>::Type
-                          >& result ) const
+    double evaluateHessian( const GEOMELEM* geomElemPtr,
+                            const typename Base::VecDim& xi,
+                            std::vector<typename base::Matrix<
+                            GEOMELEM::Node::dim,GEOMELEM::Node::dim>::Type
+                            >& result ) const
     {
         // parameter space gradient
         typename Base::GradArray gradXi;
@@ -213,13 +247,19 @@ public:
 
         // geometry items: contra-variant basis and its derivatives
         typename base::ContraVariantBasis<GEOMELEM>::MatDimLDim contraBasis;
-        base::ContraVariantBasis<GEOMELEM>()( geomElemPtr, xi, contraBasis );
+        const double detJ = 
+            base::ContraVariantBasis<GEOMELEM>()( geomElemPtr, xi, contraBasis );
 
         typename base::DerivativesOfTangents<GEOMELEM>::result_type tangDeriv =
             base::DerivativesOfTangents<GEOMELEM>()( geomElemPtr, xi );
 
+        // compute normal vector in case of a surface derivative
+        static const bool isSurf =
+            (base::GeomTraits<GEOMELEM>::globalDim ==
+             base::GeomTraits<GEOMELEM>::localDim+1);
         typename base::Vector<GEOMELEM::Node::dim,double>::Type normal;
-        base::SurfaceNormal<GEOMELEM>()( geomElemPtr, xi, normal );
+        detail_::EnableSurfaceNormal<GEOMELEM,isSurf>::
+            apply( geomElemPtr, xi, normal );
 
         // 2nd ff
         typename base::Matrix<Base::dim,Base::dim>::Type FF, Ginv, FF2;
@@ -253,7 +293,7 @@ public:
                             ( tangDeriv(a,b).dot( contraBasis.col(d) ) );
 
                     // normal term
-                    double aux3 = gradXi[i][a] * FF2(a,b);
+                    const double aux3 = gradXi[i][a] * FF2(a,b);
 
                     //
                     hessX += (aux1 - aux2) *
@@ -266,7 +306,7 @@ public:
         }
 
 
-
+        return detJ;
     }
 
 };

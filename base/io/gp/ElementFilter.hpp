@@ -56,6 +56,16 @@ namespace base{
             //------------------------------------------------------------------
             // SHAPE==LINE
             
+            // <POINT,1>
+            template<>
+            ElementFilter<base::POINT,1>::ElementFilter()
+            {
+                filter_.push_back( 0 ); 
+            }
+
+            //------------------------------------------------------------------
+            // SHAPE==LINE
+            
             // <LINE,2>
             template<>
             ElementFilter<base::LINE,2>::ElementFilter()

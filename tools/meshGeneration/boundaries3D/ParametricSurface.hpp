@@ -82,12 +82,16 @@ struct tools::meshGeneration::ParametricSurface
                 const std::size_t jNext = 
                     ( j < n2 - 1 ? j+1 :
                       (surf.periodic2() ? 0 : j+1) );
+
+                // index shift to next line
+                const unsigned stride =
+                    n1 + static_cast<unsigned>(not surf.periodic1());
                 
                 // the four vertices of a quadrilateral
-                const std::size_t i1 = j     * n1 + i;
-                const std::size_t i2 = j     * n1 + iNext;
-                const std::size_t i4 = jNext * n1 + i;
-                const std::size_t i3 = jNext * n1 + iNext;
+                const std::size_t i1 = j     * stride + i;
+                const std::size_t i2 = j     * stride + iNext;
+                const std::size_t i4 = jNext * stride + i;
+                const std::size_t i3 = jNext * stride + iNext;
 
                 if ( surf.withTriangles() ) {
                     // generate two triangles

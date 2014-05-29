@@ -147,7 +147,7 @@ public:
      *  The local storage contains element-pointer tuples which belong
      *  the surface (boundary or immersed) of the domain. Consequently
      *  they are not sorted by their ID. The parameter e is the ID of
-     *  a volume element and all stored elements will be check in order
+     *  a volume element and all stored elements will be checked in order
      *  to find this value.
      *  \param[in] e  ID of volume element to search among surface elements
      */

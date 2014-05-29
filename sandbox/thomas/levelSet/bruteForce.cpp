@@ -18,29 +18,34 @@
 
 #include <base/cut/generateCutCells.hpp>
 #include <base/cut/extractMeshFromCutCells.hpp>
+#include <base/cut/evaluateOnCutCells.hpp>
 
 #include <base/cut/Quadrature.hpp>
 #include <base/asmb/FieldBinder.hpp>
 #include <base/asmb/SimpleIntegrator.hpp>
 #include <base/kernel/Measure.hpp>
 
+
 //------------------------------------------------------------------------------
 int main( int argc, char * argv[] )
 {
     //--------------------------------------------------------------------------
     // User input
-    if ( argc != 3 ) {
-        std::cout << "Usage:  " << argv[0] << " file.smf surf.smf \n\n";
+    if ( argc < 3 ) {
+        std::cout << "Usage:  " << argv[0] << " file.smf surf.smf [surf2.smf] \n\n";
         return -1;
     }
-        
-    const std::string smfFile          = boost::lexical_cast<std::string>( argv[1] );
-    const std::string surfMeshFileName = boost::lexical_cast<std::string>( argv[2] );
-    const std::string baseName         = base::io::baseName( smfFile, ".smf" );
+
+    // volume mesh and basename
+    const std::string smfFile  = boost::lexical_cast<std::string>( argv[1] );
+    const std::string baseName = base::io::baseName( smfFile, ".smf" );
+
+    // number of surface
+    const unsigned numSurfaces = static_cast<unsigned>( argc ) - 2;
 
     //--------------------------------------------------------------------------
     const unsigned    geomDeg   = 1;
-    const unsigned    dim       = 2;
+    const unsigned    dim       = 3;
     const bool        isSigned  = true;
     
     const base::Shape shape     = base::HyperCubeShape<dim>::value;
@@ -58,65 +63,68 @@ int main( int argc, char * argv[] )
         smf.close();
     }
 
-    //--------------------------------------------------------------------------
-    // Surface mesh
-    typedef base::Unstructured<surfShape,1,dim>    SurfMesh;
-
-    SurfMesh surfMesh;
+    // Boundary mesh
+    typedef base::mesh::BoundaryMeshBinder<Mesh,true>::Type BoundaryMesh;
+    BoundaryMesh boundaryMesh;
     {
-        std::ifstream smf( surfMeshFileName.c_str() );
-        base::io::smf::readMesh( smf, surfMesh );
-        smf.close();
+        base::mesh::MeshBoundary meshBoundary;
+        meshBoundary.create( mesh.elementsBegin(), mesh.elementsEnd() );
+        base::mesh::generateBoundaryMesh( meshBoundary.begin(),
+                                          meshBoundary.end(),
+                                          mesh, boundaryMesh );
+        
     }
 
-    //--------------------------------------------------------------------------
-    // Compute the level set data
-    typedef base::cut::LevelSet<dim> LevelSet;
-    std::vector<LevelSet> levelSet;
-    base::cut::bruteForce( mesh, surfMesh, isSigned, levelSet );
-
-    //--------------------------------------------------------------------------
-    // Make cut cell structure
+    // Cell structures
     typedef base::cut::Cell<shape> Cell;
     std::vector<Cell> cells;
-    base::cut::generateCutCells( mesh, levelSet, cells );
+
+    typedef base::cut::Cell<surfShape> SurfCell;
+    std::vector<SurfCell> surfCells;
+
+    // union of all level sets
+    typedef base::cut::LevelSet<dim> LevelSet;
+    std::vector<LevelSet> levelSetUnion;
 
     //--------------------------------------------------------------------------
-    {
-        typedef base::cut::SurfaceSimplexMesh<Mesh>::Type SurfaceSimplexMesh;
-        SurfaceSimplexMesh surfaceSimplexMesh;
-        base::cut::extractSurfaceMeshFromCutCells( mesh, cells, surfaceSimplexMesh );
+    // Surface meshes
+    typedef base::Unstructured<surfShape,1,dim>    SurfMesh;
 
-        const std::string smfSurf = baseName + ".surf.smf";
-        std::ofstream smf( smfSurf.c_str() );
-        base::io::smf::writeMesh( surfaceSimplexMesh, smf );
-        smf.close();
-    }
+
+    for ( unsigned s = 0; s < numSurfaces; s++ ) {
+
+        // surface mesh from input
+        const std::string surfMeshFileName =
+            boost::lexical_cast<std::string>( argv[2+s] );
     
-    //--------------------------------------------------------------------------
-    {
-        typedef base::cut::VolumeSimplexMesh<Mesh>::Type VolumeSimplexMesh;
-        VolumeSimplexMesh volumeSimplexMesh;
-        base::cut::extractVolumeMeshFromCutCells( mesh, cells, volumeSimplexMesh,
-                                                  true );
+        SurfMesh surfMesh;
+        {
+            std::ifstream smf( surfMeshFileName.c_str() );
+            base::io::smf::readMesh( smf, surfMesh );
+            smf.close();
+        }
 
-        const std::string smfVol = baseName + ".volin.smf";
-        std::ofstream smf( smfVol.c_str() );
-        base::io::smf::writeMesh( volumeSimplexMesh, smf );
-        smf.close();
-    }
+        //----------------------------------------------------------------------
+        // Compute the level set data
+        std::vector<LevelSet> levelSet;
+        base::cut::bruteForce( mesh, surfMesh, isSigned, levelSet );
 
-    //--------------------------------------------------------------------------
-    {
-        typedef base::cut::VolumeSimplexMesh<Mesh>::Type VolumeSimplexMesh;
-        VolumeSimplexMesh volumeSimplexMesh;
-        base::cut::extractVolumeMeshFromCutCells( mesh, cells, volumeSimplexMesh,
-                                                  false );
+        //--------------------------------------------------------------------------
+        // Make cut cell structure (volume)
+        base::cut::generateCutCells( mesh, levelSet, cells, s>0 );
 
-        const std::string smfVol = baseName + ".volout.smf";
-        std::ofstream smf( smfVol.c_str() );
-        base::io::smf::writeMesh( volumeSimplexMesh, smf );
-        smf.close();
+        // Make cut cell structure (surface)
+        base::cut::generateCutCells( boundaryMesh, levelSet, surfCells, s>0 );
+
+        // merge level set
+        if ( s == 0 ) levelSetUnion = levelSet;
+        else 
+            std::transform( levelSetUnion.begin(), levelSetUnion.end(),
+                            levelSet.begin(),
+                            levelSetUnion.begin(),
+                            boost::bind( base::cut::setUnion<dim>, _1, _2 ) );
+        
+
     }
 
     //--------------------------------------------------------------------------
@@ -127,37 +135,42 @@ int main( int argc, char * argv[] )
     std::vector<std::size_t>      closestElements;
     std::vector<double>           distancesToPlane;
     {
-        std::transform( levelSet.begin(), levelSet.end(),
+        std::transform( levelSetUnion.begin(), levelSetUnion.end(),
                         std::back_inserter( distances ),
                         boost::bind( &LevelSet::getSignedDistance, _1 ) );
 
-        std::transform( levelSet.begin(), levelSet.end(),
+        std::transform( levelSetUnion.begin(), levelSetUnion.end(),
                         std::back_inserter( closestPoints ),
                         boost::bind( &LevelSet::getClosestPoint, _1 ) );
 
-        std::transform( levelSet.begin(), levelSet.end(),
+        std::transform( levelSetUnion.begin(), levelSetUnion.end(),
                         std::back_inserter( location ),
                         boost::bind( &LevelSet::isInterior, _1 ) );
 
-        std::transform( levelSet.begin(), levelSet.end(),
+        std::transform( levelSetUnion.begin(), levelSetUnion.end(),
                         std::back_inserter( closestElements ),
                         boost::bind( &LevelSet::getClosestElement, _1 ) );
 
-        std::transform( levelSet.begin(), levelSet.end(),
+        std::transform( levelSetUnion.begin(), levelSetUnion.end(),
                         std::back_inserter( distancesToPlane ),
                         boost::bind( &LevelSet::getDistanceToPlane, _1 ) );
     }
 
-    // compute element areas in parameter coordinates (in- and outside)
-    std::vector<double> areaIn, areaOut;
-    std::transform( cells.begin(), cells.end(), std::back_inserter( areaIn ),
-                    boost::bind( &Cell::parameterArea, _1, true ) );
-    std::transform( cells.begin(), cells.end(), std::back_inserter( areaOut ),
-                    boost::bind( &Cell::parameterArea, _1, false ) );
-    
     //--------------------------------------------------------------------------
-    // output to a VTK file
+    // Evaluate distances at cut cell nodes
+    std::vector<double> cutCellDistance;
+    base::cut::evaluateCutCellNodeDistances( mesh, levelSetUnion, cells,
+                                             cutCellDistance );
+    //--------------------------------------------------------------------------
+    // VTK file -- bulk mesh
     {
+        // compute element areas in parameter coordinates (in- and outside)
+        std::vector<double> areaIn, areaOut;
+        std::transform( cells.begin(), cells.end(), std::back_inserter( areaIn ),
+                        boost::bind( &Cell::parameterArea, _1, true ) );
+        std::transform( cells.begin(), cells.end(), std::back_inserter( areaOut ),
+                        boost::bind( &Cell::parameterArea, _1, false ) );
+    
         const std::string vtkFile = baseName + ".vtk";
         std::ofstream vtk( vtkFile.c_str() );
         base::io::vtk::LegacyWriter vtkWriter( vtk );
@@ -176,6 +189,70 @@ int main( int argc, char * argv[] )
         vtk.close();
     }
 
+    //--------------------------------------------------------------------------
+    // VTK file -- extracted surface
+    {
+        typedef base::cut::SurfaceSimplexMesh<Mesh>::Type SurfaceSimplexMesh;
+        SurfaceSimplexMesh surfaceSimplexMesh;
+        base::cut::extractSurfaceMeshFromCutCells( mesh, cells, surfaceSimplexMesh );
+
+        const std::string vtkFile = baseName + ".surf.vtk";
+        std::ofstream vtk( vtkFile.c_str() );
+        base::io::vtk::LegacyWriter vtkWriter( vtk );
+
+        vtkWriter.writeUnstructuredGrid( surfaceSimplexMesh );
+        vtkWriter.writePointData( cutCellDistance.begin(), cutCellDistance.end(), "distances" );
+    }
+
+    //--------------------------------------------------------------------------
+    // VTK file -- extracted volumina
+    {
+        typedef base::cut::VolumeSimplexMesh<Mesh>::Type VolumeSimplexMesh;
+        VolumeSimplexMesh volumeSimplexMeshIn;
+        base::cut::extractVolumeMeshFromCutCells( mesh, cells, volumeSimplexMeshIn,
+                                                  true );
+
+        const std::string vtkFileIn = baseName + ".volin.vtk";
+        std::ofstream vtkIn( vtkFileIn.c_str() );
+        base::io::vtk::LegacyWriter vtkWriterIn( vtkIn );
+        vtkWriterIn.writeUnstructuredGrid( volumeSimplexMeshIn );
+        vtkWriterIn.writePointData( cutCellDistance.begin(), cutCellDistance.end(), "distances" );
+
+        VolumeSimplexMesh volumeSimplexMeshOut;
+        base::cut::extractVolumeMeshFromCutCells( mesh, cells, volumeSimplexMeshOut,
+                                                  false );
+        
+        const std::string vtkFileOut = baseName + ".volout.vtk";
+        std::ofstream vtkOut( vtkFileOut.c_str() );
+        base::io::vtk::LegacyWriter vtkWriterOut( vtkOut );
+        vtkWriterOut.writeUnstructuredGrid( volumeSimplexMeshOut );
+        vtkWriterOut.writePointData( cutCellDistance.begin(), cutCellDistance.end(), "distances" );
+    }
+
+    //--------------------------------------------------------------------------
+    {
+        typedef base::cut::VolumeSimplexMesh<BoundaryMesh>::Type BoundarySimplexMesh;
+        BoundarySimplexMesh boundarySimplexMeshIn;
+        base::cut::extractVolumeMeshFromCutCells( boundaryMesh,
+                                                  surfCells,
+                                                  boundarySimplexMeshIn, true );
+        
+        const std::string smfBoundIn = baseName + ".boundIn.smf";
+        std::ofstream smfIn( smfBoundIn.c_str() );
+        base::io::smf::writeMesh( boundarySimplexMeshIn, smfIn );
+        smfIn.close();
+
+        BoundarySimplexMesh boundarySimplexMeshOut;
+        base::cut::extractVolumeMeshFromCutCells( boundaryMesh,
+                                                  surfCells,
+                                                  boundarySimplexMeshOut, false );
+        
+        const std::string smfBoundOut = baseName + ".boundOut.smf";
+        std::ofstream smfOut( smfBoundOut.c_str() );
+        base::io::smf::writeMesh( boundarySimplexMeshOut, smfOut );
+        smfOut.close();
+    }
+    
     //--------------------------------------------------------------------------
     // integrate over volumina
     base::cut::Quadrature<1,shape> quadrature( cells, true );

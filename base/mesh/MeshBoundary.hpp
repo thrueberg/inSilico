@@ -69,7 +69,7 @@ public:
 
 public:
     //--------------------------------------------------------------------------
-    /** Storage of element pointers along the boundary together with the
+    /** Storage of element IDs along the boundary together with the
      *  corresponding number of the element face which coincides with the
      *  boundary.
      */

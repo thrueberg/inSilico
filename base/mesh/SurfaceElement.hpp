@@ -155,6 +155,12 @@ public:
     //! Override the ID function
     std::size_t getID() const { return domainElementPtr_ -> getID(); }
 
+    //! Set surface ID
+    void setSurfaceID( const std::size_t seid ) { BasisElement::setID(seid); }
+    
+    //! Get surface ID
+    std::size_t getSurfaceID() const { return BasisElement::getID(); }
+
     //--------------------------------------------------------------------------
     /** Computation of a domain-element parametric coordinate.
      *  This element stores in addition to BasisElement the values of

@@ -28,27 +28,27 @@ namespace tools{
         namespace unitCube{
 
             bool userInput( const int argc, char* argv[], unsigned& dim,
-                            unsigned& n1, unsigned& n2, unsigned& n3,
                             unsigned& e1, unsigned& e2, unsigned& e3 );
 
-            void generatePoints( const unsigned n1, const unsigned n2, const unsigned n3,
-                                 const unsigned e1, const unsigned e2, const unsigned e3,
-                                 std::vector<tools::meshGeneration::Point> & points );
+            void generateGrid( const unsigned n1, const unsigned n2, const unsigned n3,
+                               const double   h1, const double   h2, const double   h3,
+                               std::vector<tools::meshGeneration::Point> & points );
 
-            template<unsigned DIM> struct TriangulateCube;
-            template<unsigned DIM> struct HierarchicCube;
+            template<unsigned DIM,unsigned DEGREE> struct TriangulateCube;
+            template<unsigned DIM,unsigned DEGREE> struct HierarchicCube;
 
-            template<unsigned DIM, bool MAKESIMPLEX>
+            template<unsigned DIM, bool MAKESIMPLEX, unsigned DEGREE>
             struct Cube
                 : base::IfElse<MAKESIMPLEX,
-                               TriangulateCube<DIM>,
-                               HierarchicCube<DIM> >::Type
+                               TriangulateCube<DIM,DEGREE>,
+                               HierarchicCube<DIM,DEGREE> >::Type
             {};
 
-            template<unsigned DIM, bool MAKESIMPLEX> struct SMF;
+            template<unsigned DIM, bool MAKESIMPLEX, unsigned DEGREE=1>
+            struct SMF;
 
-            void unitCubeSMF( const unsigned dim, const bool makeSimplices,
-                              const unsigned n1, const unsigned n2, const unsigned n3,
+            template<bool MAKESIMPLEX,unsigned DEGREE>
+            void unitCubeSMF( const unsigned dim, 
                               const unsigned e1, const unsigned e2, const unsigned e3,
                               std::ostream& out );
                               
@@ -60,7 +60,6 @@ namespace tools{
 // Get dimensions from the user
 bool tools::meshGeneration::unitCube::userInput(
     const int argc, char* argv[], unsigned& dim,
-    unsigned& n1, unsigned& n2, unsigned& n3,
     unsigned& e1, unsigned& e2, unsigned& e3 )
 {
     // Usage message
@@ -78,26 +77,16 @@ bool tools::meshGeneration::unitCube::userInput(
     e2 = (dim>1 ? boost::lexical_cast<unsigned>( argv[2] ) : 1);
     e3 = (dim>2 ? boost::lexical_cast<unsigned>( argv[3] ) : 1);
 
-    // number of points per direction
-    n1 = e1+1;
-    n2 = (dim > 1 ? e2 + 1 : 1);
-    n3 = (dim > 2 ? e3 + 1 : 1);
-
     return true;
 }
 
 //------------------------------------------------------------------
 // Generate equi-distant node grid
-void tools::meshGeneration::unitCube::generatePoints(
+void tools::meshGeneration::unitCube::generateGrid(
     const unsigned n1, const unsigned n2, const unsigned n3,
-    const unsigned e1, const unsigned e2, const unsigned e3,
+    const double   h1, const double   h2, const double   h3,
     std::vector<tools::meshGeneration::Point> & points )
 {
-    // spacing
-    const double h1 = 1.0 / static_cast<double>( e1 );
-    const double h2 = 1.0 / static_cast<double>( e2 );
-    const double h3 = 1.0 / static_cast<double>( e3 );
-
     //--------------------------------------------------------------
     // node coordinates
     for ( unsigned i3 = 0; i3 < n3; i3++ ) {
@@ -116,12 +105,19 @@ void tools::meshGeneration::unitCube::generatePoints(
     return;
 }
 
-//------------------------------------------------------------------
+//------------------------------------------------------------------------------
 //! Make mesh of simplex elements in cube
-template<unsigned DIM>
+template<unsigned DIM,unsigned DEGREE>
 struct tools::meshGeneration::unitCube::TriangulateCube
 {
+    STATIC_ASSERT_MSG( DEGREE==1, "Higher-order simpex not implemented" );
+    
     typedef base::cut::DecomposeHyperCube<DIM> DHC;
+
+    typedef base::mesh::HierarchicOrder<base::HyperCubeShape<DIM>::value,DEGREE>
+    HO;
+
+    static const unsigned numNodes = HO::numNodes;
         
     static void apply( const tools::meshGeneration::Element& cube,
                        std::vector<tools::meshGeneration::Element>& elements )
@@ -138,22 +134,23 @@ struct tools::meshGeneration::unitCube::TriangulateCube
     }
 };
 
-//------------------------------------------------------------------
+//------------------------------------------------------------------------------
 //! Generate hierarchic element from tensor-product ordering
-template<unsigned DIM>
+template<unsigned DIM,unsigned DEGREE>
 struct tools::meshGeneration::unitCube::HierarchicCube
 {
-    typedef base::mesh::HierarchicOrder<base::HyperCubeShape<DIM>::value,1>
+    typedef base::mesh::HierarchicOrder<base::HyperCubeShape<DIM>::value,DEGREE>
     HO;
 
-    static const unsigned numVertices = base::MToTheN<2,DIM>::value;
+    static const unsigned numNodes = HO::numNodes;
         
     static void apply( const tools::meshGeneration::Element& cube,
                        std::vector<tools::meshGeneration::Element>& elements )
     {
         tools::meshGeneration::Element orderedCube;
-        for ( unsigned v = 0; v < numVertices; v++ ) {
-            orderedCube.push_back( cube[ HO::apply( v ) ] );
+        orderedCube.resize( numNodes );
+        for ( unsigned v = 0; v < numNodes; v++ ) {
+            orderedCube[ HO::apply( v ) ] = cube[v];
         }
         elements.push_back( orderedCube );
             
@@ -164,7 +161,7 @@ struct tools::meshGeneration::unitCube::HierarchicCube
            
 //------------------------------------------------------------------------------
 // Generate an SMF file on a unit-cube
-template<unsigned DIM, bool MAKESIMPLEX>
+template<unsigned DIM, bool MAKESIMPLEX, unsigned DEGREE>
 struct tools::meshGeneration::unitCube::SMF
 {
     // shape of the elements (static_casts are owed to a INTEL compiler bug)
@@ -174,18 +171,23 @@ struct tools::meshGeneration::unitCube::SMF
                                       static_cast<base::Shape>(
                                           base::HyperCubeShape<DIM>::value) );
 
+    typedef unitCube::Cube<DIM,MAKESIMPLEX,DEGREE> Element;
+    
     // number of points per element
-    static const unsigned elementNumPoints =
-        (MAKESIMPLEX ? DIM+1 : DIM*DIM - DIM + 2 );
+    static const unsigned elementNumPoints = Element::numNodes;
 
     // call with mesh parameters and stream
-    static void apply( const unsigned n1, const unsigned n2, const unsigned n3,
-                       const unsigned e1, const unsigned e2, const unsigned e3, 
+    static void apply( const unsigned e1, const unsigned e2, const unsigned e3, 
                        std::ostream& out )
     {
         // name of the element shape
         const std::string shapeName = base::ShapeName<shape>::apply();
 
+        // number of points per direction
+        const unsigned n1 = DEGREE*e1 + 1;
+        const unsigned n2 = (DIM > 1 ? DEGREE*e2 + 1 : 1);
+        const unsigned n3 = (DIM > 2 ? DEGREE*e3 + 1 : 1);
+    
         // number of nodes of the mesh
         const unsigned numNodes = n1 * n2 * n3;
 
@@ -198,9 +200,14 @@ struct tools::meshGeneration::unitCube::SMF
                                                elementNumPoints,
                                                numNodes, numElements, out );
 
+        // spacing
+        const double h1 = 1.0 / static_cast<double>( DEGREE * e1 );
+        const double h2 = 1.0 / static_cast<double>( DEGREE * e2 );
+        const double h3 = 1.0 / static_cast<double>( DEGREE * e3 );
+        
         // generate points and write them
         std::vector<tools::meshGeneration::Point> points;
-        unitCube::generatePoints( n1, n2, n3, e1, e2, e3, points );
+        unitCube::generateGrid( n1, n2, n3, h1, h2, h3, points );
         tools::meshGeneration::writePoints( points, out );
 
         //--------------------------------------------------------------------------
@@ -213,31 +220,37 @@ struct tools::meshGeneration::unitCube::SMF
 
                     tools::meshGeneration::Element cube;
                 
-                    // serialise index
-                    const unsigned i = i1 +
-                        (DIM > 1 ? i2 * n1      : 0) +
-                        (DIM > 2 ? i3 * n2 * n2 : 0 );
+                    // serialise index of lower left corner
+                    const unsigned i = DEGREE * i1 +
+                        (DIM > 1 ? DEGREE * i2 * n1      : 0) +
+                        (DIM > 2 ? DEGREE * i3 * n1 * n2 : 0 );
 
                     // line element
-                    cube.push_back( i );
-                    cube.push_back( i + 1 );
-
-                    // extend to quad
-                    if ( DIM > 1 ) {
-                        cube.push_back( n1 + i     );
-                        cube.push_back( n1 + i + 1 );
+                    if ( DIM == 1 ) {
+                        for ( unsigned d = 0; d <= DEGREE; d++ )
+                            cube.push_back( i + d );
                     }
-
-                    // extend to hex
-                    if ( DIM > 2 ) {
-                        cube.push_back( (n1*n2)      + i     );
-                        cube.push_back( (n1*n2)      + i + 1 );
-                        cube.push_back( (n1*n2) + n1 + i     );
-                        cube.push_back( (n1*n2) + n1 + i + 1 );
+                    else if (DIM==2) {
+                        // quad
+                        for ( unsigned d2 = 0; d2 <= DEGREE; d2++ ){
+                            for ( unsigned d1 = 0; d1 <= DEGREE; d1++ ){
+                                cube.push_back( i + d2*n1 + d1 );
+                            }
+                        }
+                    }
+                    else {
+                        // hex
+                        for ( unsigned d3 = 0; d3 <= DEGREE; d3++ ){
+                            for ( unsigned d2 = 0; d2 <= DEGREE; d2++ ){
+                                for ( unsigned d1 = 0; d1 <= DEGREE; d1++ ){
+                                    cube.push_back( i + d3*(n1*n2) + d2*n1 + d1 );
+                                }
+                            }
+                        }
                     }
 
                     // generate elements
-                    unitCube::Cube<DIM,MAKESIMPLEX>::apply( cube, elements );
+                    Element::apply( cube, elements );
                     
                 }
             }
@@ -253,31 +266,22 @@ struct tools::meshGeneration::unitCube::SMF
 
 //------------------------------------------------------------------------------
 // Convenience function to call the instantiated templates
+template<bool MAKESIMPLEX, unsigned DEGREE>
 void tools::meshGeneration::unitCube::unitCubeSMF(
-    const unsigned dim, const bool makeSimplices,
-    const unsigned n1, const unsigned n2, const unsigned n3,
+    const unsigned dim, 
     const unsigned e1, const unsigned e2, const unsigned e3,
     std::ostream& out )
 {
     namespace unitCube = tools::meshGeneration::unitCube;
 
     if ( dim == 1 ) {
-        if ( makeSimplices )
-            unitCube::SMF<1,true >::apply( n1, n2, n3, e1, e2, e3, std::cout );
-        else
-            unitCube::SMF<1,false>::apply( n1, n2, n3, e1, e2, e3, std::cout );
+        unitCube::SMF<1,MAKESIMPLEX,DEGREE>::apply( e1, e2, e3, std::cout );
     }
     else if ( dim == 2 ) {
-        if ( makeSimplices )
-            unitCube::SMF<2,true >::apply( n1, n2, n3, e1, e2, e3, std::cout );
-        else
-            unitCube::SMF<2,false>::apply( n1, n2, n3, e1, e2, e3, std::cout );
+        unitCube::SMF<2,MAKESIMPLEX,DEGREE>::apply( e1, e2, e3, std::cout );
     }
     else if ( dim == 3 ) {
-        if ( makeSimplices )
-            unitCube::SMF<3,true >::apply( n1, n2, n3, e1, e2, e3, std::cout );
-        else
-            unitCube::SMF<3,false>::apply( n1, n2, n3, e1, e2, e3, std::cout );
+        unitCube::SMF<3,MAKESIMPLEX,DEGREE>::apply( e1, e2, e3, std::cout );
     }
     
 

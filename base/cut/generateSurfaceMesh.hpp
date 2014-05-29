@@ -92,7 +92,8 @@ void base::cut::generateSurfaceMesh(
     // prepare mesh
     surfaceMesh.allocate( numSurfNodes, numSurfElements );
 
-    std::size_t nodeId = 0;
+    std::size_t nodeID = 0;
+    std::size_t elemID = 0;
 
     // Go through all boundary elements and new surface elements
     typename SurfaceMesh::ElementPtrIter surfElemIter =
@@ -118,6 +119,9 @@ void base::cut::generateSurfaceMesh(
                 // Pass pointer to domain element to surface element
                 (*surfElemIter) -> setDomainElementPointer( domainElement );
 
+                // Pass surface element ID
+                (*surfElemIter) -> setSurfaceID( elemID++ );
+
                 // Access to surface elements geometry nodes
                 typename SurfaceElement::NodePtrIter nodePtrIter =
                     (*surfElemIter) -> nodesBegin();
@@ -142,15 +146,15 @@ void base::cut::generateSurfaceMesh(
                         base::Geometry<DomainElement>()( domainElement, xi );
 
                     // get pointer to surface mesh node
-                    typename SurfaceMesh::Node* np = surfaceMesh.nodePtr( nodeId );
+                    typename SurfaceMesh::Node* np = surfaceMesh.nodePtr( nodeID );
                     // set node data
-                    np -> setID( nodeId );
+                    np -> setID( nodeID );
                     np -> setX( &(x[0]) );
                     // pass pointer to surface element
                     *nodePtrIter = np;
 
                     // pass node pointer from old to new mesh
-                    nodeId++;
+                    nodeID++;
                                                 
                 } // end loop over the simplex nodes
             } // end loop over cut-cells surface simplices

@@ -28,13 +28,19 @@ int main( int argc, char* argv[] )
 #else
     const bool makeSimplices = false;
 #endif
-    
-    
-    unsigned dim, n1, n2, n3, e1, e2, e3;
+
+#ifdef QUADRATIC
+    const unsigned degree = 2;
+#else
+    const unsigned degree = 1;
+#endif
+
+    // dimension and number of elements per direction
+    unsigned dim, e1, e2, e3;
     const bool input = 
-        unitCube::userInput( argc, argv, dim, n1, n2, n3, e1, e2, e3 );
+        unitCube::userInput( argc, argv, dim, e1, e2, e3 );
     if ( not input ) return 0;
     
-    unitCube::unitCubeSMF( dim, makeSimplices, n1, n2, n3, e1, e2, e3, std::cout );
+    unitCube::unitCubeSMF<makeSimplices,degree>( dim, e1, e2, e3, std::cout );
     return 0;
 }

@@ -45,7 +45,6 @@ namespace base {
 }
 
 //------------------------------------------------------------------------------
-// auxiliary class for skipping comments
 namespace base{
     namespace io {
         namespace detail_{
@@ -64,9 +63,13 @@ namespace base{
                 std::istream & operator()( std::istream & in ) const
                 {
                     while(true) {
+                        // discard leading white spaces
                         in >> std::ws;
+                        // stop if next character is not the begin of a comment
                         if (in.peek() != comment_begin_) break;
+                        // otherwise read comment character
                         in.get();
+                        // ignore rest of line until comment-end character
                         in.ignore( std::numeric_limits<std::streamsize>::max(), 
                                    comment_end_ );
                     }
@@ -77,14 +80,6 @@ namespace base{
                 const char comment_begin_; //!< Begin of a comment line
                 const char comment_end_;   //!< End of a comment line
             };        
-        }
-    }
-}
-//------------------------------------------------------------------------------
-namespace base{
-    namespace io {
-
-        namespace detail_ {
         
             // Convenience function for use of #SkipCommentsIstream
             std::istream & skip_comment( std::istream & in ) 
@@ -95,16 +90,9 @@ namespace base{
                 return in;
             }
         
-        }
-    }
-}
-//------------------------------------------------------------------------------
-namespace base {
-    namespace io {
-        namespace detail_{
      
             //! Case insensitive string comparison functor
-            struct ciStringCompare 
+            struct CaseInsensitiveStringCompare 
             { 
                 bool operator()(const std::string& s1, const std::string& s2) const 
                 {
@@ -190,7 +178,7 @@ class base::io::PropertiesParser
 private:
     typedef std::map<std::string,
                      detail_::Mutator*, 
-                     detail_::ciStringCompare>       TableType_;
+                     detail_::CaseInsensitiveStringCompare>       TableType_;
 public:
     //! Empty constructor
     PropertiesParser() {}

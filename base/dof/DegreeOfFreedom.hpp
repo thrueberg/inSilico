@@ -29,10 +29,26 @@ namespace base{
         template<unsigned SIZE, unsigned NHIST = 0>
         class DegreeOfFreedom;
 
-        enum DoFStatus {
+        //! Give the possible status of a DoF a name
+        enum DoFStatus
+        {
             ACTIVE,
             CONSTRAINED,
-            INACTIVE };
+            INACTIVE
+        };
+
+        //! Helper for output of a DoF status
+        template<typename DOF>
+        struct Status
+        {
+            static double apply( const DOF* doFPtr, const unsigned component )
+            {
+                if ( doFPtr -> isConstrained( component ) ) return 0.;
+                if ( doFPtr -> isActive(      component ) ) return 1.;
+                return -1.;
+            }
+        };
+
        
     }
 }

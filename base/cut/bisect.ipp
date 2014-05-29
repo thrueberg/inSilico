@@ -21,9 +21,10 @@
  *  \param[out]    volumeIn       Connectivity of the volume inside the domain
  *  \param[out]    volumeOut      Connectivity of the volume outside the domain
  */
+template<unsigned SDIM>
 void base::cut::bisect( const base::cut::USimplex<1>::Type& indexSimplex,
                         const base::cut::DSimplex<1>::Type&   distances,
-                        std::vector<base::Vector<1,double>::Type>& nodes,
+                        std::vector<typename base::Vector<SDIM,double>::Type>& nodes,
                         std::map<base::cut::Edge,unsigned>& uniqueNodes,
                         std::vector<base::cut::USimplex<0>::Type>& surface,
                         std::vector<base::cut::USimplex<1>::Type>& volumeIn, 
@@ -52,18 +53,23 @@ void base::cut::bisect( const base::cut::USimplex<1>::Type& indexSimplex,
         const double d2 = distances[1];
         // perform intersection along the line
         const unsigned numNewNode =
-            detail_::intersect<1>( i1, i2, d1, d2, nodes, uniqueNodes );
+            detail_::intersect<SDIM>( i1, i2, d1, d2, nodes, uniqueNodes );
         
         // create volume simplices
-        base::cut::USimplex<1>::Type in  = USimplex<1>::create( i1, numNewNode );
-        //                               = {{ i1, numNewNode }};
-        base::cut::USimplex<1>::Type out = USimplex<1>::create( numNewNode, i2 );
-        //                               = {{ numNewNode, i2 }};
+        base::cut::USimplex<1>::Type in  =
+            (d1 >= 0. ?
+             USimplex<1>::create( i1, numNewNode ) :
+             USimplex<1>::create( numNewNode, i2 ) );
+        base::cut::USimplex<1>::Type out =
+            (d1 >= 0. ?
+             USimplex<1>::create( numNewNode, i2 ) :
+             USimplex<1>::create( i1, numNewNode ) );
+
         volumeIn.push_back( in );
         volumeOut.push_back( out );
+        
         // create surface simplex
         base::cut::USimplex<0>::Type surf = USimplex<0>::create( numNewNode );
-        //                                = {{ numNewNode }};
         surface.push_back( surf );
     }
 

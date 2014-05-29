@@ -15,8 +15,8 @@ double Cell::fd = 10e-2;			//dyne*s/µm²
 
 // Health Paremeters	
 double Cell::concT = 0.5;		// Concentration Threshold
-double Cell::hRate = 2.0;		// Healing Rate (hp/s)
-double Cell::dRate = 4.0;		// Damage Rate (hp/s)
+double Cell::hRate = 3;		// Healing Rate (hp/h)
+double Cell::dRate = 5;		// Damage Rate (hp/h)
 
 // Counters
 int Cell::counter = 1;
@@ -216,7 +216,7 @@ void Cell::updateHealth ( double time, double concentration )
 	if ( concentration >= concT )
 	{
 		health = health + ( time / 3600 ) * hRate; 
-		if ( health >= 100 ) { health = 100.0; return; }
+		if ( health >= ( 100.0 + 1E-7 ) ) { health = 100.0; }
 	}
 	else
 	{
@@ -229,7 +229,7 @@ void Cell::updateHealth ( double time, double concentration )
 void Cell::checkHealth()
 {
 	double cHealth = this -> health;
-	if ( cHealth <= 0 )
+	if ( cHealth <= 1E-7 )
 	{
 		this -> killCell();
 		dcounter++;

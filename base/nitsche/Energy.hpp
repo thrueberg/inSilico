@@ -271,6 +271,51 @@ namespace base{
             return;
         }
 
+        //----------------------------------------------------------------------
+        /** Convenience function for the RHS term of the penalty method */
+        template<typename SURFACETUPLEBINDER,
+                 typename KERNEL,     typename SURFACEQUADRATURE,
+                 typename SOLVER,     typename BOUNDFIELD,
+                 typename PARAMETER>
+        void energyResidualTransposed( const KERNEL&            kernel,
+                                       const SURFACEQUADRATURE& surfaceQuadrature,
+                                       SOLVER&                  solver, 
+                                       const BOUNDFIELD&        boundField,
+                                       const PARAMETER&         parameter,
+                                       const bool               inOut = true,
+                                       const bool               plusMinus = true )
+        {
+            // object to compute the LHS penalty term
+            typedef Energy<KERNEL,
+                           typename SURFACETUPLEBINDER::Tuple> Energy;
+            Energy energy( kernel );
+
+            // integrator and assembler object
+            typedef base::asmb::ForceIntegrator<SURFACEQUADRATURE,SOLVER,
+                                                typename SURFACETUPLEBINDER::TransposedTuple>
+                SurfaceForceInt;
+            typename SurfaceForceInt::ForceKernel surfaceForceKernel =
+                boost::bind( &Energy::transposedLinearisedResidual,
+                             &energy, _1, _2, _3, _4 );
+            
+            SurfaceForceInt surfaceForceInt( surfaceForceKernel,
+                                             surfaceQuadrature, solver );
+            
+            // apply
+            typename BOUNDFIELD::FieldIterator iter = boundField.elementsBegin();
+            typename BOUNDFIELD::FieldIterator end  = boundField.elementsEnd();
+            for ( ; iter != end; ++iter ) {
+
+                const double sign  = (plusMinus ? 1.0 : -1.0 );
+                const double kappa = sign * parameter.energyWeight( iter, inOut );
+                energy.setKappa( kappa );
+
+                surfaceForceInt( SURFACETUPLEBINDER::makeTransposedTuple( *iter ) );
+            }
+
+            return;
+        }
+
     }
 }
 
@@ -614,6 +659,66 @@ public:
         const double scalar = detG * weight * kappa_;
 
         result += scalar * coNormalResidual;
+
+        return;
+    }
+
+    //--------------------------------------------------------------------------
+    /**
+     *  \tparam BCFUN Type of BC function as a function of \f$ x \f$
+     *  \param[in]   surfFieldTuple  Tuple of field element pointers
+     *  \param[in]   eta    Local evaluation coordinate
+     *  \param[in]   weight Corresponding quadrature weight
+     *  \param[out]  result Result container (pre-sized and zero-initialised)
+     */
+    void transposedLinearisedResidual( const TransposedSurfFieldTuple& surfFieldTuple,
+                                       const LocalVecDim&    eta,
+                                       const double          weight,
+                                       base::VectorD&        result )
+    {
+        // extract test and trial elements from tuple
+        const SurfaceElement* surfEp  = surfFieldTuple.geomElementPtr();
+
+        // Get surface metric
+        GlobalVecDim normal;
+        const double detG =
+            base::SurfaceNormal<SurfaceElement>()( surfEp, eta, normal );
+        
+        // Get local domain coordinate
+        typename DomainElement::GeomFun::VecDim xi =
+            surfEp -> localDomainCoordinate( eta );
+
+        // get domain field element pointer tuple (still transposed)
+        const TransposedDomainFieldTuple domainFieldTupleT =
+            base::asmb::DomainFieldElementPointerTuple<TransposedSurfFieldTuple>::
+            convert( surfFieldTuple );
+
+        // un-transpose the tuple
+        const DomainFieldTuple domainFieldTuple =
+            domainFieldTupleT.transpose();
+
+        // compute co-normal from kernel using domain tuple
+        base::MatrixD coNormal;
+        kernel_.coNormalDerivative( domainFieldTuple, xi,
+                                    normal, coNormal );
+
+        // Evaluate solution
+        const VecDof  u = base::post::evaluateField( surfEp -> getDomainElementPointer(),
+                                                     surfFieldTuple.trialElementPtr(),
+                                                     xi );
+
+        // scalar multiplier
+        const double scalar = -1. * detG * weight * kappa_;
+
+        const unsigned otherSize = static_cast<unsigned>(coNormal.cols() );
+        
+        for ( unsigned i = 0; i < otherSize; i++ ) {
+            double sum = 0.;
+            for ( unsigned d = 0; d < doFSize; d++ ) {
+                sum += scalar * coNormal( d, i ) * u[d];
+            }
+            result[i] += sum;
+        }
 
         return;
     }

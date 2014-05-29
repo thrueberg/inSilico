@@ -67,7 +67,6 @@ namespace base{
                 
                 // inside is only one triangle
                 inSimplex = USimplex<3>::create( iS[I], cut[0], cut[1], cut[2] );
-                //        = {{ iS[I], cut[0], cut[1], cut[2] }};
                 
                 // outside are two triangles (choice seems arbitrary)
                 outSimplices[0] =
@@ -76,13 +75,9 @@ namespace base{
                     USimplex<3>::create( iS[ out[1] ], iS[ out[2] ], cut[2],       cut[0] );
                 outSimplices[2] =
                     USimplex<3>::create( cut[1],       iS[ out[1] ], cut[2],       cut[0] );
-                //outSimplices[0] = {{ iS[ out[0] ], iS[ out[2] ], iS[ out[1] ], cut[0] }};
-                //outSimplices[1] = {{ iS[ out[1] ], iS[ out[2] ], cut[2],       cut[0] }};
-                //outSimplices[2] = {{ cut[1],       iS[ out[1] ], cut[2],       cut[0] }};
                 
                 // surface simplex
                 surfSimplex = USimplex<2>::create( cut[0], cut[1], cut[2] );
-                //surfSimplex = {{ cut[0], cut[1], cut[2] }};
 
                 return;
 
@@ -161,20 +156,6 @@ namespace base{
                 // surface simplex
                 surfSimplex1 = USimplex<2>::create( C1, C2, C3 );
                 surfSimplex2 = USimplex<2>::create( C2, C4, C3 );
-
-                // // three inside tets
-                // inSimplices[0] = {{ iS[I2], C4, C3, iS[I1] }};
-                // inSimplices[1] = {{ C3,     C4, C2, iS[I1] }};
-                // inSimplices[2] = {{ C1,     C3, C2, iS[I1] }};
-                // 
-                // // three outside tets
-                // outSimplices[0] = {{ iS[O2], C4, C2, iS[O1] }};
-                // outSimplices[1] = {{ C2,     C4, C3, iS[O1] }};
-                // outSimplices[2] = {{ C1,     C2, C3, iS[O1] }};
-                // 
-                // // surface simplex
-                // surfSimplex1 = {{ C1, C2, C3 }};
-                // surfSimplex2 = {{ C2, C4, C3 }};
 
                 return;
             }

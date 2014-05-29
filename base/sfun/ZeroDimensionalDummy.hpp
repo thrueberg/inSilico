@@ -57,6 +57,7 @@ public:
     //! Plain function evaluation
     void fun( const VecDim & xi, FunArray& values ) const
     {
+        values[0] = 1.;
         return;
     }
     //! Evaluation of the functions' gradients

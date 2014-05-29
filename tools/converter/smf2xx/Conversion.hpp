@@ -16,6 +16,7 @@
 // base includes
 #include <base/verify.hpp>
 #include <base/shape.hpp>
+#include <base/io/Format.hpp>
 
 //------------------------------------------------------------------------------
 namespace tools{
@@ -49,9 +50,14 @@ struct tools::converter::smf2xx::Conversion
     {
         //! Apply converter depending on the combination (shape,numPoints)
         switch( shape ) {
-        
+
+        case base::POINT:
+            VERIFY_MSG( numPoints==1, "Convention requires '1' point per element" );
+            CONVERTER<base::POINT,1>::apply( smf, out );
+            break;
+            
         case base::LINE:
-            // Possible LINE element implementations
+                // Possible LINE element implementations
             switch (numPoints) {
             case 2: CONVERTER<base::LINE,1>::apply( smf, out ); break;
             case 3: CONVERTER<base::LINE,2>::apply( smf, out ); break;
@@ -101,7 +107,7 @@ struct tools::converter::smf2xx::Conversion
             break;
         
         default:
-            VERIFY_MSG( false, "Shape not detected" );
+            VERIFY_MSG( false, x2s("Shape not detected: ") + x2s(shape) );
         
         }
 

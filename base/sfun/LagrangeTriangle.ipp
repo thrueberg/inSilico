@@ -20,8 +20,26 @@ namespace base{
             values[0] = 1.;
         }
 
-        // gradient and Hessian are not implemented on purpose
-        // (trigger compile-time error)
+        template<> inline
+        void LagrangeTriangle<0>::gradient( const VecDim& xi,
+                                            GradArray& values ) const
+        {
+            values[0][0] = 0.; values[0][1] = 0.;
+        }
+
+        template<> inline
+        void LagrangeTriangle<0>::hessian( const VecDim& xi,
+                                           HessianArray& values ) const
+        {
+            values[0](0, 0) = values[0](0, 1) = values[0](1, 0) = 0.; values[0](1, 1) = 0.;
+        }
+
+        template<> inline
+        void LagrangeTriangle<0>::supportPoints( boost::array<VecDim,
+                                                 numFun> & values )
+        {
+            values[0][0] = 1./3.; values[0][1] = 1./3.;
+        }
         //@}
 
         //----------------------------------------------------------------------
@@ -45,6 +63,15 @@ namespace base{
             values[1][0] =  1.; values[1][1] =  0.;
             
             values[2][0] =  0.; values[2][1] =  1.; 
+        }
+
+        template<> inline
+        void LagrangeTriangle<1>::hessian( const VecDim& xi,
+                                           HessianArray& values ) const
+        {
+            values[0](0, 0) = values[0](0, 1) = values[0](1, 0) = 0.; values[0](1, 1) = 0.;
+            values[1](0, 0) = values[1](0, 1) = values[1](1, 0) = 0.; values[1](1, 1) = 0.;
+            values[2](0, 0) = values[2](0, 1) = values[2](1, 0) = 0.; values[2](1, 1) = 0.;
         }
 
         template<> inline

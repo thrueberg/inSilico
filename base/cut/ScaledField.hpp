@@ -157,34 +157,6 @@ public:
         }
     }
 
-            
-    /**  Only deactivate the DoFs with a support that is below the given
-     *   threshold.
-     */
-    void tagBasis( const std::vector<double>& supportAreas,
-                   const double lowerThreshold )
-    {
-        // go through all field elements
-        typename Basis::ElementPtrIter elemIter = Basis::elementsBegin();
-        typename Basis::ElementPtrIter elemEnd  = Basis::elementsEnd();
-        for ( ; elemIter != elemEnd; ++elemIter ) {
-            // go through all DoFs of each element
-            typename Basis::Element::DoFPtrIter doFIter = (*elemIter) -> doFsBegin();
-            typename Basis::Element::DoFPtrIter doFEnd  = (*elemIter) -> doFsEnd();
-            for ( unsigned d = 0; doFIter != doFEnd; ++doFIter, d++ ) {
-
-                // get size of DoF's support
-                const double supportArea =
-                    supportAreas[ (*doFIter) -> getID() ];
-                        
-                // activate if support is too small
-                if ( supportArea < lowerThreshold ) {
-                    (*doFIter) -> deactivateAll();
-                }
-
-            }
-        }
-    }
 };
         
 

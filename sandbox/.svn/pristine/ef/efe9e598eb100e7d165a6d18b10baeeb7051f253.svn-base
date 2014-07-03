@@ -1,8 +1,0 @@
-meshFile       quad.030.smf
-E              1000.
-nu             0.3
-maxIter        50
-loadSteps      1
-pull           1.0
-tolerance      1.e-12
-updated        0

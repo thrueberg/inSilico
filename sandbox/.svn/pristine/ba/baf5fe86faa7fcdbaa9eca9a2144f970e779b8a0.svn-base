@@ -1,5 +1,0 @@
-density 1
-kappa 1
-meshFile test2geo.tetrahedron.smf
-numSteps 5
-stepSize 0.05

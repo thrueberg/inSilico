@@ -1,0 +1,11 @@
+# Generate the figure
+cd pics;
+gnuplot concentration.gp;
+cd ..;
+
+# make tex file
+pdflatex multiPhasic
+bibtex   multiPhasic
+pdflatex multiPhasic
+pdflatex multiPhasic
+

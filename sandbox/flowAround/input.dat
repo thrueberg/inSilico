@@ -1,0 +1,11 @@
+#meshFile      cavity.smf
+meshFile       pipe.1.smf
+surfFile       circle.smf
+viscosity      0.02
+density        1.00
+maxIter        5
+tolerance      1.e-6
+penaltyFactor  100
+
+stepSize       0.1
+numSteps       50

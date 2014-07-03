@@ -1,0 +1,12 @@
+# mesh file
+meshFile   microfluidic.smf
+
+# material conductivity
+kappa      1.0
+
+# material density
+rho        1.0
+
+# time integration stuff
+numSteps   50
+stepSize   0.01

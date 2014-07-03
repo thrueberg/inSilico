@@ -1,0 +1,171 @@
+//------------------------------------------------------------------------------
+template<typename MESH, unsigned DEGREEU, unsigned DEGREEP, unsigned NHIST>
+class PoroElasticSystem
+{
+public:
+    //! @name Template parameter
+    //@{
+    typedef MESH Mesh;
+    static const unsigned degreeU = DEGREEU;
+    static const unsigned degreeP = DEGREEP;
+    static const unsigned nHist   = NHIST;
+    //@}
+
+    
+    //! @name Displacement Field
+    //@{
+    static const unsigned    doFSizeU = Mesh::Node::dim;
+    typedef base::fe::Basis<Mesh::Element::shape,degreeU> FEBasisU;
+    typedef base::Field<FEBasisU,doFSizeU,nHist>          Displacement;
+    typedef typename Displacement::DegreeOfFreedom        DoFU;
+    //@}
+
+    //! @name Pressure Field
+    //@{
+    static const unsigned    doFSizeP = 1;
+    typedef base::fe::Basis<Mesh::Element::shape,degreeP> FEBasisP;
+    typedef base::Field<FEBasisP,doFSizeP,nHist>          Pressure;
+    typedef typename Pressure::DegreeOfFreedom            DoFP;
+    //@}
+
+    //! @name Field stuff
+    //@{
+    typedef base::asmb::FieldBinder<Mesh,Displacement,Pressure> Field;
+    typedef typename Field::template TupleBinder<1,1>::Type TopLeft;
+    typedef typename Field::template TupleBinder<1,2>::Type TopRight;
+    typedef typename Field::template TupleBinder<2,1>::Type BotLeft;
+    typedef typename Field::template TupleBinder<2,2>::Type BotRight;
+    //@}
+
+    //! @name Matrix kernels
+    //@{
+    typedef mat::hypel::StVenant                                  Material;
+    typedef solid::HyperElastic<Material,typename TopLeft::Tuple> HyperElastic;
+    typedef fluid::PressureGradient<typename TopRight::Tuple>     GradP;
+    typedef fluid::VelocityDivergence<typename BotLeft::Tuple>    DivU;
+    typedef heat::Laplace<typename BotRight::Tuple>               Laplace;
+    //@}
+    
+    //! Constructor with mesh reference and material parameters
+    PoroElasticSystem( Mesh& mesh, const double E, const double nu, const double k )
+        : mesh_( mesh ),
+          field_( mesh_, displacement_, pressure_ ),
+          material_( mat::Lame::lambda( E, nu ), mat::Lame::mu( E, nu ) ),
+          hyperElastic_( material_ ),
+          divU_( true ),
+          laplace_( k )
+    {
+        // empty
+    }
+
+    //! Generate degrees of freedom
+    void generateDoFs( )
+    {
+        base::dof::generate<FEBasisU>( mesh_, displacement_ );
+        base::dof::generate<FEBasisP>( mesh_, pressure_ );
+    }
+
+    //! Constrain the boundary
+    template<typename MESHBOUNDARY, typename DIRIU, typename DIRIP>
+    void constrainBoundary( const MESHBOUNDARY& meshBoundary,
+                            DIRIU diriU, DIRIP diriP )
+    {
+        base::dof::constrainBoundary<FEBasisU>( meshBoundary.begin(),
+                                                meshBoundary.end(),
+                                                mesh_, displacement_,
+                                                diriU );
+    
+        base::dof::constrainBoundary<FEBasisP>( meshBoundary.begin(),
+                                                meshBoundary.end(),
+                                                mesh_, pressure_,
+                                                diriP );
+    }
+
+    //! Number dofs
+    std::pair<std::size_t,std::size_t> numberDoFs()
+    {
+        numDoFsU_ =
+            base::dof::numberDoFsConsecutively( displacement_.doFsBegin(),
+                                                displacement_.doFsEnd() );
+        
+        numDoFsP_ =
+            base::dof::numberDoFsConsecutively( pressure_.doFsBegin(),
+                                                pressure_.doFsEnd(), numDoFsU_ );
+
+        return std::make_pair( numDoFsU_, numDoFsP_ );
+    }
+
+
+    //! Advance in time
+    template<typename MSM, typename QUADRATURE>
+    void advanceInTime( const QUADRATURE& quadrature, 
+                        const double deltaT, const unsigned step )
+    {
+        // initialise current displacement to zero (linear elasticity)
+        std::for_each( displacement_.doFsBegin(), displacement_.doFsEnd(),
+                       boost::bind( &DoFU::clearValue, _1 ) );
+
+        // Create a solver object
+        typedef base::solver::Eigen3           Solver;
+        Solver solver( numDoFsU_ + numDoFsP_ );
+
+        //------------------------------------------------------------------
+        base::asmb::stiffnessMatrixComputation<TopLeft>( quadrature, solver, 
+                                                         field_, hyperElastic_ );
+
+        base::asmb::stiffnessMatrixComputation<TopRight>( quadrature, solver,
+                                                          field_, gradP_ );
+
+        base::asmb::stiffnessMatrixComputation<BotRight>( quadrature, solver,
+                                                          field_, laplace_ );
+
+        // time integration terms
+        base::time::computeReactionTerms<BotLeft,MSM>( divU_, quadrature, solver,
+                                                       field_, deltaT, step );
+
+        base::time::computeResidualForceHistory<BotRight,MSM>( laplace_, 
+                                                               quadrature, solver,
+                                                               field_, step );
+
+
+        // Finalise assembly
+        solver.finishAssembly();
+
+        // Solve
+        solver.superLUSolve();
+            
+        // distribute results back to dofs
+        base::dof::setDoFsFromSolver( solver, displacement_ );
+        base::dof::setDoFsFromSolver( solver, pressure_ );
+        
+        // push history
+        std::for_each( displacement_.doFsBegin(), displacement_.doFsEnd(),
+                       boost::bind( &DoFU::pushHistory, _1 ) );
+        std::for_each( pressure_.doFsBegin(), pressure_.doFsEnd(),
+                       boost::bind( &DoFP::pushHistory, _1 ) );
+
+        return;
+    }
+
+    //! @name Accessors
+    //@{
+    Displacement& displacement() { return displacement_; }
+    Pressure&     pressure()     { return pressure_;     }
+    //@}
+    
+private:
+    Mesh&        mesh_;           //!< Access to mesh
+    Displacement displacement_;   //!< Displacement field
+    Pressure     pressure_;       //!< Pressure field
+    Field        field_;          //!< Field combination
+
+    Material     material_;       //!< Material 
+    HyperElastic hyperElastic_;   //!< Hyperelastic matrix kernel
+    GradP        gradP_;          //!< Pressure gradient matrix kernel
+    DivU         divU_;           //!< Velocity divergence matrix kernel
+    Laplace      laplace_;        //!< Laplacian matrix kernel
+
+    //! Values of dof numbers
+    std::size_t numDoFsU_, numDoFsP_;
+};
+

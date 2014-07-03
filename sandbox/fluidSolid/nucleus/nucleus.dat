@@ -1,0 +1,39 @@
+bbminX            -1
+bbminY            -1
+bbminZ            -1
+bbmaxX             1
+bbmaxY             1
+bbmaxZ             1
+NX                20 
+NY                20
+NZ                20 
+
+RN                0.3
+cNX               0.
+cNY               0.0 
+cNZ               0.
+
+RM                0.7
+cMX               0.
+cMY               0.
+cMZ               0.
+
+E                 100.
+nu                  0.3
+viscosityGel        1.
+viscosityCS        10.
+sigma              0.
+
+numLoadSteps       1
+maxIter            10
+tolerance          1e-6
+alpha               0.5
+penaltyFac         10
+dt                  0.1
+findTolerance      1e-6
+readMeshFromFile   0
+meshFile           pimmel.smf
+
+bc                 SHEAR
+ubar               0.0
+forceValue         1.0

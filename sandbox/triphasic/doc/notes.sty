@@ -1,0 +1,46 @@
+%%------------------------------------------------------------------------------
+%% Package for tex-notes of Thomas R\"uberg (thomas.rueberg@gmx.de)
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{../notes}[2013/10/23 Notes Package]
+
+%%------------------------------------------------------------------------------
+%% Includes for math features
+\RequirePackage[intlimits]{amsmath}
+\RequirePackage{amssymb}
+\RequirePackage{commath} % dif operators
+\RequirePackage{mathtools}
+\RequirePackage{stmaryrd}
+
+%% No indentation of paragraphs wanted
+\parindent=0pt 
+
+%%------------------------------------------------------------------------------
+%% Command with arguments: "Title" (1) and "Date string" (2)
+\newcommand{\workingnote}[2]{%
+  \title{#1}
+  \subject{Working notes}
+  \author{Thomas R\"uberg}
+  \date{\small\begin{center}
+      \begin{tabular}{rl}
+        \emph{Created:}       &#2\\
+        \emph{Last modified:} &\today
+      \end{tabular}
+    \end{center}
+  }
+  \maketitle
+}
+
+
+%%------------------------------------------------------------------------------
+%% Math macros
+%%------------------------------------------------------------------------------
+\newcommand{\vek}[1]{\boldsymbol{#1}}  %% make argument bold (any font)
+\newcommand{\mat}[1]{\mathsf{#1}}      %% use sans-serif font for math
+\newcommand{\jump}[1]{\llbracket #1 \rrbracket} %% jump of argument
+\newcommand{\avg}[2]{\{ #1 \}_{#2}}             %% average formula
+\newcommand{\defeq}{\vcentcolon=} %% :=  for equal-def
+\newcommand{\col}[0]{\vcentcolon}
+
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\dist}{dist}
+\DeclareMathOperator{\supp}{supp}

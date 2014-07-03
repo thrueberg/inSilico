@@ -1,0 +1,682 @@
+\documentclass[a4paper,DIV=12,10pt]{scrartcl}
+
+\usepackage{notes}
+
+\usepackage{color}
+\usepackage{booktabs}
+\usepackage{comment}
+\usepackage{tikz}
+
+\graphicspath{{./pics/}}
+
+%%------------------------------------------------------------------------------
+\newcommand{\U}[0]{\vek{u}}
+\newcommand{\V}[0]{\vek{v}}
+\newcommand{\x}[0]{\vek{x}}
+
+
+%%------------------------------------------------------------------------------
+\begin{document}
+
+\workingnote{A simplified multi-phasic material}{September 17, 2013}
+
+
+Derivations are based on~\cite{ateshian2006mixture}, \cite{zhang2007effect},
+\cite{boonkkamp}, 
+and~\cite{bowen1980incompressible}.
+
+% ------------------------------------------------------------------------------
+\section{Mixture theory and notation}
+\label{sec:mixture}
+Let $\alpha$ label a constituent in a mixture of $N$ constituents. Moreover,
+$\alpha = s$ is the solid part and $\alpha = f$ the fluid part. Any other
+$\alpha \neq f, s$ denotes, for the time being, a solute which is contained in
+the fluid phase.
+Now, $\alpha$ has mass $m^\alpha$ and occupies a volume $V^\alpha$.  The total
+mass is $m = \sum m^\alpha$ and the total volume $V = \sum V^\alpha$. With
+these definitions, the true $\rho^\alpha_T$ and apparent density
+$\rho^\alpha$, and the volume fraction $\phi^\alpha$ can be defined and
+related 
+\begin{equation}
+  \label{eq:density}
+  \begin{aligned}
+    \phi^\alpha   &= \frac{V^\alpha}{V} \\
+    \rho^\alpha_T &= \frac{m^\alpha}{V^\alpha} \\
+    \rho^\alpha   &= \frac{m^\alpha}{V} = \rho^\alpha_T \phi^\alpha\,.
+  \end{aligned}
+\end{equation}
+Let $\rho = \frac{M}{V} = \sum \rho^\alpha$ denote the average mixtures
+density and, thus, $m^\alpha / m = \rho^\alpha / \rho$ is the mass ratio of
+$\alpha$.
+
+% ------------------------------------------------------------------------------
+\section{Momentum balances}
+\label{sec:momentum}
+
+\paragraph{Mixture}
+\begin{equation}
+  \label{eq:momMix}
+  -\nabla \cdot \vek{\sigma}(\U) + \nabla p = \vek{f}
+\end{equation}
+with the elastic stress $\vek{\sigma}$ in function of the solid displacement
+$\U$ and the fluid pressure $p$.
+
+\paragraph{Solvent and solute}
+\begin{align}
+  \label{eq:momSolvent}
+  - \rho^f \nabla \mu^f + \sum_{\beta} f_{f \beta} (\V^\beta  - \V^f) &=
+  \vek{0} \\
+  \label{eq:momSolute}
+  - \rho^\alpha \nabla \mu^\alpha + \sum_{\beta} f_{\alpha \beta} (\V^\beta
+  - \V^\alpha) &=  \vek{0} 
+\end{align}
+with the apparent density $\rho^\alpha$, the velocities of the constituents
+$\V^\alpha$, the diffusive drag coefficients $f_{\alpha \beta}$ and the
+chemical potentials
+\begin{align}
+  \label{eq:chemPotSolvent}
+  \mu^f &= \mu^f_0 + \frac{1}{\rho^f_T} \left( p - RT \sum_{\beta}
+    c^\beta \right)\\
+  \label{eq:chemPotSolute}
+  \mu^\alpha &= \mu^\alpha_0 + \frac{RT}{M^\alpha} \log
+  \frac{c^\alpha}{\kappa^\alpha c^\alpha_0}\,.
+\end{align}
+Here, the chemical potentials $\mu_0$ of the standard state are functions of
+the temperature $T$ only and their gradients vanish. $\rho^f_T$ is the true
+fluid density, $R$ the universal gas constant, $M^\alpha$ the molecular
+weight, and $\kappa^\alpha$ a partition coefficient. Most importantly, 
+$c^\alpha$ is the concentration of the solute $\alpha$ based on the solvent
+volume. 
+The sums in equations~\eqref{eq:momSolvent} and~\eqref{eq:momSolute} run over
+all phases including the solid $\beta = s$ and the fluid $\beta = f$. The sum
+in equation~\eqref{eq:chemPotSolvent} does not incorporate the cases $\beta
+= s$ and $\beta =f$, as the concentrations $c^s$ and $c^f$ do not make sense.
+
+
+The substitution of~\eqref{eq:chemPotSolvent} into~\eqref{eq:momSolvent}
+yields, when identifying the fluid volume fraction $\phi^f = \rho^f /
+\rho^f_T$, 
+\begin{equation}
+  - \phi^f \left( \nabla p - RT \sum_{\beta} \nabla c^\beta \right) +
+  \sum_{\beta} f_{f\beta} (\V^\beta - \V^f) = \vek{0}
+\end{equation}
+The apparent density of the solute $\alpha$ can be identified as 
+$\rho^\alpha = M^\alpha \phi^f c^\alpha$ and
+substituting~\eqref{eq:chemPotSolute} into~\eqref{eq:momSolute} gives
+\begin{equation}
+  - \phi^f RT \nabla c^\alpha + \sum_{\beta} f_{\alpha \beta} 
+  (\V^\beta -  \V^\alpha) = \vek{0} \,.
+\end{equation}
+
+Now the diffusive drag coefficients have to be specified. We have
+$f_{\alpha\beta} = f_{\beta\alpha}$ and, moreover, assume that the drag
+between the solutes is negligible, i.e. $f_{\alpha\beta} = 0$ for $\alpha \neq
+s, f$ and $\beta \neq s, f$. The remaining coefficients for drag with respect
+to the fluid constituent $\beta = f$ are
+\begin{equation}
+  \label{eq:fluidDrag}
+  f_{sf} = \frac{ (\phi^f)^2 }{k} \quad \text{and} \quad
+  f_{\alpha f} = \frac{\phi^f RT c^\alpha}{D^\alpha_0}
+\end{equation}
+with the hydraulic permeability $k$ and the diffusivity in free solution
+$D^\alpha_0$. 
+Based on these expressions, the fluid momentum balance becomes
+\begin{equation}
+  - \nabla p + RT \sum_{\beta} \nabla c^\beta + \frac{\phi^f}{k} (\V^s - \V^f)
+  + \sum_{\beta\neq s} \frac{RT c^\beta}{D_0^\beta} (\V^\beta - \V^f) = \vek{0}\,.
+\end{equation}
+
+The momentum balance of the solute $\alpha$, on the other hand is re-expressed
+as
+\begin{equation}
+  \begin{aligned}
+    -\phi^f RT \nabla c^\alpha + f_{\alpha s}(\V^s - \V^\alpha) 
+    + f_{\alpha f} (\V^f - \V^\alpha) &= \\
+    -\phi^f RT \nabla c^\alpha + f_{\alpha s}(\V^s - \V^\alpha) 
+    + f_{\alpha f} (\V^s - \V^\alpha + \V^f - \V^s) &= \\
+    -\phi^f RT \nabla c^\alpha + (f_{\alpha s} + f_{\alpha f} )(\V^s - \V^\alpha) 
+    + f_{\alpha f} (\V^f - \V^s) &= \vek{0} 
+   \end{aligned}
+\end{equation}
+The drag coefficient $f_{\alpha f}$ is already given in~\eqref{eq:fluidDrag}
+and we define the sum 
+\begin{equation}
+  \label{eq:modDrag}
+  f_{\alpha s} +  f_{\alpha f} = \frac{\phi^f RT c^\alpha}{D^\alpha}
+\end{equation}
+in a similar fashion, but now using the diffusivity $D^\alpha$ of the solute
+in mixture, which is in general a value smaller than $D^\alpha_0$.
+Based on this definition, the momentum balance of constituent $\alpha$ becomes
+\begin{equation}
+  - \nabla c^\alpha + \frac{c^\alpha}{D^\alpha}(\V^s - \V^\alpha) 
+  + \frac{c^\alpha}{D^\alpha_0} (\V^f - \V^s) = \vek{0} \,.
+\end{equation}
+
+From this last equation, we get the expression
+\begin{equation} \label{eq:aux1}
+  \V^\beta - \V^s = \frac{D^\beta}{D^\beta_0} (\V^f - \V^s) -
+  \frac{D^\beta}{c^\beta} \nabla c^\beta\,.
+\end{equation}
+Now the fluid momentum balance is reconsidered in order to eliminate the
+relative velocities $\V^\beta - \V^f$ based on expression~\eqref{eq:aux1}
+\begin{equation}
+  \begin{aligned}
+    - \nabla p + RT \sum_{\beta} \nabla c^\beta + \frac{\phi^f}{k} (\V^s - \V^f)
+    + \sum_{\beta\neq s} \frac{RT c^\beta}{D_0^\beta} (\V^\beta - \V^f) & = \\  
+    - \nabla p + RT \sum_{\beta} \nabla c^\beta + \frac{\phi^f}{k} (\V^s - \V^f)
+    + \sum_{\beta\neq s} \frac{RT c^\beta}{D_0^\beta} 
+    \left[(\V^\beta - \V^s) + (\V^s - \V^f) \right] &=  \\
+    -\nabla p + RT \sum_{\beta} \left(1 - \frac{D^\beta}{D^\beta_0} \right)
+    \nabla c^\beta +
+    \left[ \frac{\phi^f}{k} + RT \sum_{\beta} 
+      \left(1 - \frac{D^\beta}{D^\beta_0} \right) 
+      \frac{c^\beta}{D^\beta_0} \right] (\V^s - \V^f) &= \\
+    -\nabla p + RT \sum_{\beta} \left(1 - \frac{D^\beta}{D^\beta_0} \right)
+    \nabla c^\beta +
+    \frac{\phi^f}{k_{\text{eff}}} (\V^s - \V^f) &=0\,.
+  \end{aligned}
+\end{equation}
+Here, an effective permeability $k_{\text{eff}}$ has been introduced which is
+defined via
+\begin{equation}
+  \label{eq:effectivePermeability}
+  \frac{1}{ k_{\text{eff}} } = \frac{1}{k} + \frac{RT}{\phi^f} 
+  \sum_{\beta} \left(1 - \frac{D^\beta}{D^\beta_0} \right) \frac{c^\beta}{D^\beta_0} \,.
+\end{equation}
+With this simplification, the final momentum balance leads to the volumetric
+flux (sometimes referred to as Darcy velocity) 
+\begin{equation}
+  \label{eq:volumetrixFlux}
+  \vek{j}_{\text{vol}} = \phi^f (\V^f - \V^s) = - k_{\text{eff}} \left[ \nabla p - 
+    RT \sum_{\beta} \left(1 - \frac{D^\beta}{D^\beta_0} \right)
+    \nabla c^\beta \right]\,.
+\end{equation}
+On the other hand, re-writing the momentum balance of the constituent $\alpha$
+gives the definition of the molecular flux of which
+\begin{equation}
+  \label{eq:molecularFlux}
+  \vek{j}^\alpha = \phi^f c^\alpha (\V^\alpha - \V^s) 
+  = - \phi^f D^\alpha \nabla c^\alpha 
+  + \frac{D^\alpha}{D^\alpha_0} c^\alpha \phi^f ( \V^f - \V^s )
+  = -\phi^f D^\alpha \nabla c^\alpha 
+  + \frac{D^\alpha}{D^\alpha_0} c^\alpha \vek{j}_{\text{vol}}\,.
+\end{equation}
+
+% ------------------------------------------------------------------------------
+\section{Mass balances}
+\label{sec:mass}
+
+\paragraph{Mixture}
+For every phase, including solid $\alpha = s$ and fluid $\alpha = f$, the
+partial mass balance is
+\begin{equation}
+  \label{eq:phaseMass}
+  \frac{\partial (\phi^\alpha \rho^\alpha_T) }{\partial t} +
+  \nabla \cdot (\phi^\alpha \rho^\alpha_T \V^\alpha) = r^\alpha
+\end{equation}
+with the true phase density $\rho^\alpha_T$ and some reaction term $r^\alpha$.
+Obviously, $\sum r^\alpha = 0$ is the condition that the total mass of the
+mixture does not change.  As every phase is assumed to be intrinsically
+incompressible, i.e. $\rho^\alpha_T$ is a constant, this equation reduces to
+\begin{equation}
+  \label{eq:phaseMass2}
+  \frac{\partial \phi^\alpha}{\partial t} + \nabla \cdot 
+  (\phi^\alpha \V^\alpha) = \frac{r^\alpha}{\rho_T^\alpha}\,.
+\end{equation}
+Now, we assume that $\phi^s + \phi^f \approx 1$, i.e. that the volume
+fractions $\phi^\alpha$ are negligible. Since there will be no mass production
+terms for the solid and fluid constituents, i.e. $r^s = r^f = 0$, we can sum
+above equation for the solid and fluid in order to obtain
+\begin{equation}
+  \label{eq:mixtureMass}
+  \nabla \cdot \left[ \phi^s \V^s + \phi^f \V^f  \right] = 
+  \nabla \cdot \left[ \V^s + \vek{j}_{\text{vol}} \right] = 0\,.
+\end{equation}
+
+\paragraph{Solute}
+The mass balance of the solute $\alpha$ can be derived
+from~\eqref{eq:phaseMass}
+by setting $\phi^\alpha \rho^\alpha_T = \rho^\alpha = M^\alpha \phi^f
+c^\alpha$
+and dividing by the constant $M^\alpha$ from the equation
+\begin{equation}
+  \label{eq:soluteMass1}
+  \frac{\partial (\phi^f c^\alpha) }{\partial t} + \nabla \cdot \left[ \phi^f
+    c^\alpha \V^\alpha \right] = \frac{r^\alpha}{M^\alpha}\,.
+\end{equation}
+Writing for the phase velocity $\V^\alpha = (\V^\alpha - \V^s) + \V^s$ and
+replacing the difference by expression~\eqref{eq:aux1}, we get
+\begin{equation}
+  \label{eq:soluteMass}
+  \frac{\partial( \phi^f c^\alpha )}{\partial t} - \nabla \cdot \left[
+    \phi^f D^\alpha \nabla c^\alpha - \phi^f c^\alpha \left( \V^s +
+      \frac{D^\alpha}{D^\alpha_0} (\V^f - \V^s) \right) \right] 
+  = \frac{r^\alpha}{M^\alpha}\,.
+\end{equation}
+
+\section{Simplifications}
+\label{sec:simple}
+
+The complete system of equations is given by 
+\begin{itemize}
+\item the mixture momentum balance~\eqref{eq:momMix},
+\item the mixture mass balance~\eqref{eq:mixtureMass}, and
+\item the solute mass balance~\eqref{eq:soluteMass}\,.
+\end{itemize}
+
+
+The volumetric flux $\vek{j}_{\text{vol}}$ depends on gradients of the
+concentrations and the permeability depends on the concentrations
+themselves. Both dependencies lead to a fully coupled and highly non-linear
+system of equations. In order to simplify the basic equations, we aim to
+remove these dependencies. Effectively, this is achieved by saying that
+ $D^\alpha \to D^\alpha_0$.
+ This means physically that the diffusivity of every constituent $\alpha$ is
+the same value in the mixture as in a free solution. Henceforth, we assume
+that
+\begin{equation}
+  \label{eq:diffusivity}
+  D^\alpha = D^\alpha_0\,.
+\end{equation}
+
+This simplification leads to the fact that $k_{\text{eff}} = k$ and we recover
+Darcy's law
+\begin{equation}
+  \label{eq:darcy}
+  \vek{j}_{\text{vol}} = - k \nabla p \,.
+\end{equation}
+Moreover, already employing this relation, the molecular flux becomes
+\begin{equation}
+  \label{eq:molecularFlux2}
+  \vek{j}^\alpha = -\phi^f D^\alpha \nabla c^\alpha - c^\alpha k \nabla p\,.
+\end{equation}
+
+The fluid velocity $\V^f$ is now eliminated by means of the volumetric flux,
+i.e. $\phi^f \V^f = \vek{j}_{\text{vol}} + \phi^f \V^s$, and based on the
+simplified form~\eqref{eq:darcy} we get from~\eqref{eq:phaseMass2} for
+$\alpha = f$ and $r^f = 0$
+\begin{equation}
+  \label{eq:fluidMass2}
+  \frac{\partial \phi^f}{\partial t} + \nabla \cdot (\phi^f \V^s - k \nabla p) = 0\,.
+\end{equation}
+
+Consider now the balance of mass of the solute $\alpha$ as given
+in~\eqref{eq:soluteMass} and simplified via~\eqref{eq:diffusivity}
+\begin{equation} \label{eq:soluteMass2}
+  \begin{aligned}
+    \frac{ \partial(\phi^f c^\alpha)}{\partial t} - \nabla \cdot \left[ \phi^f
+      D^\alpha \nabla c^\alpha
+      - c^\alpha (\phi^f \V^s - k \nabla p) \right] &=\\
+    c^\alpha \left[ \frac{\partial \phi^f}{\partial t} + \nabla \cdot (\phi
+      \V^s - k \nabla p) \right] + \phi^f \frac{\partial c^\alpha}{\partial t}
+    + \left[ \phi^f \V^s - k \nabla p \right] \cdot \nabla c^\alpha -
+    \nabla \cdot \left[ \phi^f D^\alpha \nabla c^\alpha \right] &= \\
+    \phi^f \frac{\partial c^\alpha}{\partial t} + \left[ \phi^f \V^s - k
+      \nabla p \right] \cdot \nabla c^\alpha 
+    - \nabla \cdot \left[ \phi^f D^\alpha \nabla c^\alpha \right] &= 
+    \frac{r^\alpha}{M^\alpha}\,.
+\end{aligned}
+\end{equation}
+
+% ------------------------------------------------------------------------------
+\begin{comment}
+Performing similar steps that lead to~\eqref{eq:molecularFlux2} for the
+balance of mass of the solid phase, one gets
+\begin{equation}
+  \label{eq:solidMass}
+  \rho^s_T \left[ \frac{\partial \phi^s}{\partial t} + \nabla \cdot (\phi^s
+    \V^s) \right] + \phi^s \left[ \frac{\partial \rho_T^s}{\partial t} + \V^s
+    \cdot \nabla \rho_T^s \right] = 0\,.
+\end{equation}
+In case of an incompressible solid material, the second term vanishes and the
+first term has to be zero too. Adding now this first term to the fluid mass
+balance~\eqref{eq:fluidMass2}, one gets
+\begin{equation}
+  \label{eq:mixtureMass2}
+  \frac{ \partial (\phi^f + \phi^s) }{\partial t} + \nabla \cdot \left[
+    \phi^f \V^s - k \nabla p + \phi^s \V^s \right] = 0\,.
+\end{equation}
+Based on the previous assumption that the solute volume fractions are
+negligible, we have $\phi^f + \phi^s = 1$ and, therefore, 
+\begin{equation}
+  \label{eq:mixtureMass3}
+  \nabla \cdot \left[ \V^s - k \nabla p \right] = 0\,.
+\end{equation}
+
+\end{comment}
+% ------------------------------------------------------------------------------
+
+Finally, the identification 
+\begin{equation}
+  \label{eq:solidVelocity}
+  \V^s = \frac{\partial \U}{\partial t} = \partial_t \U
+\end{equation}
+closes the loop and connects back to the solid displacements. 
+
+\subsection{Summary of simplified model} 
+
+The simplifications made above are
+\begin{itemize}
+\item negligible solvent volume fractions $\phi^\alpha \ll \phi^f$ and
+  incompressible solid and fluid constituents; used for
+  the mixture mass balance~\eqref{eq:mixtureMass}
+\item diffusivity $D^\alpha$ in the mixture does not differ from the
+  diffusivity $D^\alpha_0$ in a free solution; allows to uncouple the system
+  of equations. The same simplifications are obtained by assuming that 
+  \begin{enumerate}
+  \item The contribution of the concentration gradient $\nabla c^\alpha$ to
+    the volumetric flux $\vek{j}_{\text{vol}}$ is negligible
+  \item The contribution of the concentration $c^\alpha$ to the permeability
+    is negligible
+  \end{enumerate}
+\item incompressible fluid constituent; leads to
+  equation~\eqref{eq:fluidMass2} and thus the simplification of the solute
+  mass balance~\eqref{eq:soluteMass2}
+\end{itemize}
+
+The final set of equations is obtained as the mixture momentum balance
+equation~\eqref{eq:momMix}, which has not been altered due to any assumption,
+the mixture mass balance~\eqref{eq:mixtureMass}, using the simplified volumetric
+flux~\eqref{eq:darcy} and the solid velocity~\eqref{eq:solidVelocity}, and
+finally the mass balances of every solute $\alpha$ as given
+by~\eqref{eq:soluteMass2}
+\begin{subequations}\label{eq:simpleModel}
+  \begin{align} 
+    -\nabla \cdot \vek{\sigma}(\U) + \nabla p &= \vek{f} \label{eq:momB} \\
+    \nabla \cdot \partial_t \U - \nabla \cdot (k \nabla p) &=
+    0 \label{eq:masB} \\
+    \phi^f \frac{\partial c^\alpha}{\partial t} + 
+    \left[ \phi^f \partial_t \U - k \nabla p \right] \cdot \nabla c^\alpha 
+    - \nabla \cdot \left[ \phi^f D^\alpha \nabla c^\alpha \right] &=
+    \frac{r^\alpha}{M^\alpha}\,.
+    \label{eq::massBalpha}
+  \end{align}
+\end{subequations}
+Note that equations~\eqref{eq:momB} and~\eqref{eq:masB} do not depend on
+$c^\alpha$. This allows to decouple this system of equations. In every time
+step, first the current solid displacement $\U$ and fluid pressure $p$ are
+computed, before equation~\eqref{eq::massBalpha} is solved for every
+solute~$\alpha$. It is evident, how the solid velocity $\partial_t \U$ and the
+pressure $p$ constitute the apparent fluid velocity $\phi^f \V^f$, which in
+turn determines the convective term of~\eqref{eq::massBalpha}. 
+
+
+Moreover, the assumptions made so far are not restricted to small solid
+deformations. In fact, system~\eqref{eq:simpleModel} should still valid be as
+the spatial equations in a large deformation formulation. However, in that
+case the fluid volume fraction will obey the relation
+\begin{equation}
+  \label{eq:volumeFraction}
+  \phi^f = (1 - \phi^s) = 1 - \frac{\phi^s_0}{J} = 1 - \frac{1 - \phi^f_0}{J}\,,
+\end{equation}
+where $\phi^f_0$ is the initial volume fraction in reference configuration and
+$J = \det \vek{F}$ the determinant of the deformation gradient of the solid
+matrix. For clarity, it has to be remarked that above derivations assumes that
+fluid and solid are incompressible. This is the so-called intrinsic
+incompressiblity which refers to the case of a block of material being either
+entirely solid or entirely fluid. Since the solid forms a skeleton with pores,
+the solid phase will still be compressible and there is no restriction $J = 1$
+as in incompressible elasticity.
+
+\subsection{Weak form}
+\label{sec:weakform}
+
+The weak form of system~\eqref{eq:simpleModel} is obtained via a weighted
+residual approach, i.e. the residuals of these equations will be multiplied by
+admissible test fields $\delta \U$, $\delta p$ and $\delta c^\alpha$,
+respectively, and integrated over the domain $\Omega$. Since the equations are
+decoupled, first the poroelastic part~\eqref{eq:momB} and~\eqref{eq:masB} are
+considered 
+\begin{equation}
+  \label{eq:weakF1}
+  0 = 
+  \int_\Omega \left( -\nabla \cdot \vek{\sigma}(\U) + \nabla p - \vek{f} \right) 
+  \cdot \delta \U  \dif \x + 
+  \int_\Omega \left( \nabla \cdot \partial_t \U - 
+    \nabla \cdot (k \nabla p) \right) \delta p \dif \x \,.
+\end{equation}
+By means of integration by parts, the following expression is obtained
+\begin{multline}
+  \label{eq:weakF2}
+  \int_\Omega \vek{\sigma}(\U) \colon \nabla (\delta \U) \dif \x - 
+  \int_\Omega p (\nabla \cdot \delta \U) \dif \x -
+  \int_\Gamma (\vek{\sigma}(\U) \cdot \vek{n}) \cdot \delta \U \dif s +
+  \int_\Gamma (p \vek{n}) \cdot \delta \U \dif s \\
+  + \int_\Omega (\nabla \cdot \partial_t \U) \delta p \dif \x +
+  \int_\Omega (k \nabla p) \cdot \nabla (\delta p) \dif \x -
+  \int_\Gamma (k \nabla p) \cdot \vek{n} \delta p \dif s =
+  \int_\Omega \vek{f} \cdot \delta \U \dif \x
+\end{multline}
+with the outward unit normal vector $\vek{n}$.
+The mass balance of the solute $\alpha$, on the other hand, leads to the weak
+form 
+\begin{multline}
+  \label{eq:weakF3}
+  \int_{\Omega} \phi^f (\partial_t c^\alpha) \delta c^\alpha \dif \x +
+  \int_\Omega \left[ \phi^f \partial_t \U - k\nabla p \right] \cdot 
+  (\nabla c^\alpha) \partial c^\alpha \dif \x   \\
+  + \int_\Omega \left[ \phi^f D^\alpha \nabla c^\alpha\right] \cdot 
+  \nabla \partial c^\alpha \dif \x - 
+  \int_\Gamma \left[ \phi^f D^\alpha \nabla c^\alpha\right] \cdot \vek{n}
+  (\delta c^\alpha) \dif x = 
+  \frac{1}{M^\alpha} \int_\Omega r^\alpha \delta c^\alpha \,.
+\end{multline}
+
+Let the boundary $\Gamma = \partial \Omega$ be partitioned in a disjoint way
+\begin{equation}
+  \label{eq:boundaryPart}
+  \Gamma = \Gamma^{\U}_D \cup \Gamma^{\U}_N = \Gamma^p_D \cup \Gamma^p_N
+  = \Gamma^\alpha_D \cup \Gamma^\alpha_N\,.
+\end{equation}
+On each of these six boundary parts, the following boundary conditions are
+prescribed 
+\begin{subequations} \label{eq:BC}
+  \begin{align}
+    \U &= \bar{\U} &\x &\in \Gamma_D^{\U} \label{eq:BCuD} \\
+    \vek{t} = \vek{\sigma}(\U) \cdot \vek{n} &= \bar{\vek{t}}
+    &\x &\in \Gamma_N^{\U} \label{eq:BCuN} \\
+    p &= \bar{p}  &\x &\in \Gamma_D^p \label{eq:BCpD} \\
+    (k \nabla p) \cdot \vek{n} &= \bar{q}
+    &\x &\in \Gamma_N^p \label{eq:BCpN} \\
+    c^\alpha &= \bar{c}^\alpha &\x &\in \Gamma_D^\alpha \label{eq:BCaD} \\
+    \left[\phi^f D^\alpha \nabla c^\alpha \right] \cdot \vek{n} &=
+    \bar{d}^\alpha 
+    &\x &\in \Gamma_N^\alpha \label{eq:BCaN} 
+  \end{align}
+\end{subequations}
+Now the boundary partition~\eqref{eq:boundaryPart} and the
+conditions~\eqref{eq:BC} are used for the weak forms~\eqref{eq:weakF2}
+and~\eqref{eq:weakF3}. Here, the classic approach is pursued in which the
+Dirichlet conditions~\eqref{eq:BCuD}, \eqref{eq:BCpD} and~\eqref{eq:BCaD} are
+employed as essential conditions to the trial and test spaces. The Neumann
+conditions \eqref{eq:BCuN}, \eqref{eq:BCpN} and~\eqref{eq:BCaN} are handled in
+a natural way. For the poroelastic system~\eqref{eq:weakF2}, we obtain:
+\emph{Find $(\U, p) \in V^{\U}_E \times V^p_E$ such that}
+\begin{equation}
+  \label{eq:wfPoro}
+  \begin{aligned}
+    a( \U, \delta \U) - b( p, \delta \U )&= \ell^{\U} (\delta \U) \\
+    b( \delta p, \partial_t \U) + e( p, \delta p ) &= \ell^p (\delta p)
+  \end{aligned}
+\end{equation}
+\emph{for all $(\delta \U, \delta p) \in V^{\U}_0 \times V^p_0$}.
+For every solute $\alpha$ we formulate:
+\emph{Find $c^\alpha \in V^\alpha_E$ such that}
+\begin{equation}
+  \label{eq:wfAlpha}
+  m( \partial_t c^\alpha, \delta c^\alpha) + c( \partial_t \U, p; c^\alpha, \delta
+  c^\alpha ) + k( c^\alpha, \delta c^\alpha ) = \ell^\alpha (\delta c^\alpha) 
+\end{equation}
+\emph{for all $\delta c^\alpha \in V^\alpha_0$}.
+The spaces in these variational principles are the standard Sobolev spaces
+with essential boundary conditions (subscript $E$) and zero essential boundary
+conditions (subscript $0$). The introduced bilinear and linear forms are
+defined as follows
+\begin{subequations} \label{eq:forms}
+  \begin{align}
+      a(\U,\V) &= \int_\Omega \vek{\sigma}(\U) \colon \nabla \V \dif \x 
+      \label{eq:formsA} \\
+      b(q,\V) &= \int_\Omega (\nabla \cdot \V) q \dif \x
+      \label{eq:formsB} \\
+      e(p,q) &= \int_\Omega (k \nabla p) \cdot \nabla q \dif \x
+      \label{eq:formsE} \\
+      m(c,d) &= \int_\Omega \phi^f c \,d \dif \x
+      \label{eq:formsM} \\
+      c(\V,q; c, d) &= \int_\Omega \left[ \phi^f \V - k \nabla q \right] \cdot
+      (\nabla c) \, d \dif \x
+      \label{eq:formsC} \\
+      k(c, d) &= \int_\Omega \left[ \phi^f D^\alpha \nabla c\right] \cdot 
+      \nabla d \dif \x
+      \label{eq:formsK} \\
+      \ell^{\U}(\V) &= \int_\Omega \vek{f} \cdot \V \dif \x +
+      \int_{\Gamma_N^{\U}} \bar{\vek{t}} \cdot \V \dif s
+      \label{eq:formsLU} \\
+      \ell^p(q) &= \int_{\Gamma^p_N} \bar{q} \, q \dif s
+      \label{eq:formsLP} \\
+      \ell^\alpha(d) &= 
+      \frac{1}{M^\alpha} \int_\Omega r^\alpha \, d \dif \x +
+      \int_{\Gamma^\alpha_N} \bar{d}^\alpha \, d \dif s
+      \label{eq:formsLA} 
+  \end{align}
+\end{subequations}
+
+\section{Reaction kinetics}
+\label{sec:reaction}
+Let one chemical reactions among the solutes $\alpha \neq s, f$ take
+place. For notational simplicity let, $\alpha \in \{ A_k \}_{k = 1}^K$ be the
+reactants and $\alpha \in \{ B_\ell \}_{\ell=1}^L$ be the products of the
+chemical reaction
+\begin{equation}
+  \label{eq:reaction}
+  \sum_{k=1}^K \gamma_k A_k \xrightleftharpoons[K^-]{K^+} 
+  \sum_{\ell=1}^L \delta_\ell B_\ell \,.
+\end{equation}
+with the composition $K^+$ and decomposition $K^-$ rates. Here,
+$\gamma_k$ and $\delta_\ell$ are the stoichiometric coefficients of the
+reaction. 
+The mass production term of the solute $\alpha$ is now
+\begin{equation}
+  \label{eq:massProduct}
+  r^\alpha = M^\alpha \left( \delta_\alpha - \gamma_\alpha \right) 
+  \left[ K^+ \prod_{k} [A_k]^{\gamma_k} - 
+    K^- \prod_{\ell} [B_\ell]^{\delta_\ell} \right]\,.
+\end{equation}
+Here, the notation $[ C ]$ denotes the effectively available concentration of
+the solute $C$ and is given as
+\begin{equation}
+  \label{eq:effectiveConcentration}
+  [C] = \frac{\rho^C}{M^C} = \phi^f c^C \,.
+\end{equation}
+
+\paragraph{Simple reaction}
+For the simple reaction
+\begin{equation}
+  \label{eq:simpleReaction}
+  1 \cdot A + 1 \cdot B \xrightleftharpoons[K^-]{K^+}  1 \cdot C
+\end{equation}
+the mass production terms evaluate to
+\begin{equation}
+  \label{eq:simpleMassProduct}
+  \begin{aligned}
+    r^A &= -M^A \left( K^+ (\phi^f c^A)^1 (\phi^f c^B)^1 - K^- (\phi^f c^C)^1
+    \right) = -M^A \phi^f \left( K^+ \phi^f c^A c^B - K^- c^C \right)\\
+    r^B &=  -M^B \phi^f \left( K^+ \phi^f c^A c^B - K^- c^C \right)\\
+    r^C &=  +M^C \phi^f \left( K^+ \phi^f c^A c^B - K^- c^C \right)
+  \end{aligned}
+\end{equation}
+The condition $\sum r^\alpha = 0$ gives the condition
+\begin{equation}
+  \label{eq:control}
+  M^A + M^B = M^C
+\end{equation}
+which clearly states the conservation of molecular masses during the
+elementary reaction~\eqref{eq:simpleReaction}. 
+
+\section{Example}
+\label{sec:ex}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[scale=1.0]
+    \draw (0,0) rectangle (4,4);
+    \draw (-.4,2) node{$p_1$};
+    \draw (0.4,2) node{$c^\alpha_0$};
+    \draw (4.4,2) node{$p_2$};
+    \draw[->,thick] (0,0) -- (1,0);
+    \draw (1,.4) node{$x_1$};
+    \draw[->,thick] (0,0) -- (0,1);
+    \draw (.4,1) node{$x_2$};
+  \end{tikzpicture}
+  \caption{Trivial example on $\Omega = (0,1)^2$}
+  \label{fig:trivial}
+\end{figure}
+
+Initial conditions
+\begin{equation}
+  \label{eq:initial}
+  \U = 0\,,\quad p=0\,, \quad c^\alpha = c^\alpha_0
+\end{equation}
+Boundary conditions
+\begin{equation}
+  \label{eq:boundary}
+  \begin{aligned}
+    u_1 &=0\,, \quad p = p_1\,, \quad c^\alpha = c^\alpha_0 &x_1 &= 0\\
+    u_2 &=0  &x_2 &= 0\\
+    u_1 &=0\,, \quad p = p_1  &x_1 &= 1\\
+    u_2 &=0  &x_2 &= 1\\
+  \end{aligned}
+\end{equation}
+all other boundary conditions are homogeneous Neumann conditions.
+The concentration boundary condition is equal to the initial concentration,
+see below. The pressure boundary values are chosen as follows
+\begin{equation}
+  \label{eq:pressureBC}
+  \begin{aligned}
+    &\text{no pressure gradient:}\qquad &p_1 &=p_2 = 1 \\
+    &\text{with pressure gradient:}    &p_1  &=2 \,,\quad p_2 = 1
+  \end{aligned}
+\end{equation}
+
+Material parameter
+\begin{equation}
+  \label{eq:material}
+  \begin{aligned}
+    E &= 1000 \qquad &\nu &= 0.3 \qquad   &k &= 1.0\\
+    \phi^f &= 0.5 &D &= 0.2
+  \end{aligned}
+\end{equation}
+
+Chemical reaction
+\begin{equation}
+  \label{eq:react}
+  A + B \xrightleftharpoons[K^-]{K^+}   C
+\end{equation}
+with the reaction rates
+\begin{equation}
+  \label{eq:rates}
+  K^+ = 3 \qquad K^- = 1
+\end{equation}
+and the initial conditions
+\begin{equation}
+  \label{eq:initalConc}
+  c^A_0 = 0.5 \qquad c^B_0 = 0.2 \qquad c^C_0 = 0.3
+\end{equation}
+
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[scale=0.8]{concentration}
+  \caption{Temporal variation of the concentrations at mid point $\x = (0.5,0.5)$}
+  \label{fig:result}
+\end{figure}
+
+\bibliographystyle{plain}
+\bibliography{./multiPhasic.bib}
+\end{document}
+
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 

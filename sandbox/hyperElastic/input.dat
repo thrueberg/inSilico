@@ -1,0 +1,7 @@
+E              1000.
+nu             0.3
+maxIter        20
+loadSteps      1
+pull           0.1
+tolerance      1.e-12
+updated        1

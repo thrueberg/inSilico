@@ -1,0 +1,118 @@
+#ifndef interfacefield_h
+#define interfacefield_h
+
+#include <base/asmb/SurfaceFieldBinder.hpp>
+#include <base/nitsche/Penalty.hpp>
+#include <base/nitsche/Parameters.hpp>
+#include <base/nitsche/Energy.hpp>
+
+//------------------------------------------------------------------------------
+template<typename SMESH, typename FIELD1, typename FIELD2 = FIELD1>
+class InterfaceField
+{
+public:
+    typedef SMESH  SurfaceMesh;
+    typedef FIELD1 Field1;
+    typedef FIELD2 Field2;
+
+    typedef base::asmb::SurfaceFieldBinder<SurfaceMesh,Field1,Field2> SurfaceFieldBinder;
+    typedef typename SurfaceFieldBinder::template TupleBinder<1,1>::Type      S11;
+    typedef typename SurfaceFieldBinder::template TupleBinder<2,2>::Type      S22;
+    typedef typename SurfaceFieldBinder::template TupleBinder<1,2>::Type      S12;
+    typedef typename SurfaceFieldBinder::template TupleBinder<2,1>::Type      S21;
+
+    
+    InterfaceField( SurfaceMesh& surfaceMesh,
+                    Field1&      field1,
+                    Field2&      field2 )
+        : surfaceMesh_( surfaceMesh ),
+          sfb_( surfaceMesh_, field1, field2 )
+    { }
+
+    //--------------------------------------------------------------------------
+    template<typename SOLVER>
+    void registerInSolver( SOLVER& solver )
+    {
+        solver.template registerFields<S12>( sfb_ );
+        solver.template registerFields<S21>( sfb_ );
+    }
+
+    //--------------------------------------------------------------------------
+    template<typename SQUAD, typename SOLVER, typename KERNEL1, typename KERNEL2>
+    void applyInterfaceConditionsWeakly( const SQUAD&   surfaceQuadrature,
+                                         SOLVER&        solver,
+                                         const KERNEL1& kernel1,
+                                         const KERNEL2& kernel2,
+                                         const double   materialParam1,
+                                         const double   materialParam2,
+                                         const double   penaltyParam )
+    {
+        base::nitsche::PrescribedParameters pp( materialParam1 + materialParam2, 0.5 );
+
+        // Penalty terms
+        base::nitsche::penaltyLHS<S11>( surfaceQuadrature, solver, sfb_,
+                                        pp,  penaltyParam );
+        base::nitsche::penaltyLHS<S22>( surfaceQuadrature, solver, sfb_,
+                                        pp,  penaltyParam );
+        
+        base::nitsche::penaltyLHS<S12>( surfaceQuadrature, solver, sfb_,
+                                        pp, -penaltyParam );
+        base::nitsche::penaltyLHS<S21>( surfaceQuadrature, solver, sfb_,
+                                        pp, -penaltyParam );
+
+        base::nitsche::penaltyRHSInterface<S11>( surfaceQuadrature, solver,
+                                                 sfb_, pp, penaltyParam );
+        base::nitsche::penaltyRHSInterface<S22>( surfaceQuadrature, solver,
+                                                 sfb_, pp, penaltyParam );
+        base::nitsche::penaltyRHSInterface<S12>( surfaceQuadrature, solver,
+                                                 sfb_, pp, -penaltyParam );
+        base::nitsche::penaltyRHSInterface<S21>( surfaceQuadrature, solver,
+                                                 sfb_, pp, -penaltyParam );
+
+
+#if 1        
+        // Energy terms
+        base::nitsche::primalEnergyLHS<S11>( kernel1, surfaceQuadrature, solver, sfb_,
+                                             pp, true, true );
+        base::nitsche::primalEnergyLHS<S21>( kernel1, surfaceQuadrature, solver, sfb_,
+                                             pp, true, false );
+        
+        base::nitsche::primalEnergyLHS<S12>( kernel2, surfaceQuadrature, solver, sfb_,
+                                             pp, false, true );
+        base::nitsche::primalEnergyLHS<S22>( kernel2, surfaceQuadrature, solver, sfb_,
+                                             pp, false, false );
+
+
+        // Energy terms
+        base::nitsche::dualEnergyLHS<S11>( kernel1, surfaceQuadrature, solver, sfb_,
+                                           pp, true, true );
+        base::nitsche::dualEnergyLHS<S21>( kernel1, surfaceQuadrature, solver, sfb_,
+                                           pp, true, false );
+        
+        base::nitsche::dualEnergyLHS<S12>( kernel2, surfaceQuadrature, solver, sfb_,
+                                           pp, false, true );
+        base::nitsche::dualEnergyLHS<S22>( kernel2, surfaceQuadrature, solver, sfb_,
+                                           pp, false, false );
+
+
+
+        // Residuals
+        base::nitsche::energyResidual<S11>( kernel1, surfaceQuadrature, solver, sfb_,
+                                            pp, true, true );
+        base::nitsche::energyResidual<S21>( kernel1, surfaceQuadrature, solver, sfb_,
+                                            pp, true, false );
+        
+        base::nitsche::energyResidual<S12>( kernel2, surfaceQuadrature, solver, sfb_,
+                                            pp, false, true );
+        base::nitsche::energyResidual<S22>( kernel2, surfaceQuadrature, solver, sfb_,
+                                            pp, false, false );
+#endif
+    }
+
+private:
+    SurfaceMesh&       surfaceMesh_;
+    SurfaceFieldBinder sfb_;
+};
+
+
+#endif

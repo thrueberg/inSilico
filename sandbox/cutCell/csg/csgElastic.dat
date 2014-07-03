@@ -1,0 +1,34 @@
+# Domain specificiation
+
+# box size
+xmax           1.0
+
+# Application of a fundamental solution as BVP
+# source point
+sX             0.4
+sY             0.6
+sZ             1.0
+
+# stabilisation
+stabilise      1
+
+# mesh file, if wanted
+meshFile      square.0005.smf
+
+# remove cut-cell parts small than this
+cutThreshold   1.e-8
+
+compute       1
+
+# material
+E   50.
+nu  0.3
+gamma 10.
+
+# non-linear things
+maxIter       14
+tolerance     1.e-11
+loadSteps     20
+
+# force multiplier
+forceVal      5.

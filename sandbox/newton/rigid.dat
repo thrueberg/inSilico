@@ -1,0 +1,20 @@
+# the embedding domain [xmin,xmax]
+xmin   -3
+xmax    3
+
+
+# the physical domain (reference) [a,b]
+a    -0.326789
+b     0.33231
+
+
+# material density
+rho  1.0
+
+# constant force
+f    0.8
+
+
+# time integration
+stepSize  0.02
+numSteps  1000

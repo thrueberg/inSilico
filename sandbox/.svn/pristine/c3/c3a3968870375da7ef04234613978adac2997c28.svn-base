@@ -1,0 +1,226 @@
+#ifndef laplace_h
+#define laplace_h
+
+#include <base/Field.hpp>
+
+#include <base/asmb/FieldBinder.hpp>
+#include <base/asmb/StiffnessMatrix.hpp>
+#include <base/asmb/ForceIntegrator.hpp>
+#include <base/asmb/SimpleIntegrator.hpp>
+#include <base/asmb/BodyForce.hpp>
+#include <base/asmb/NeumannForce.hpp>
+
+#include <base/dof/generate.hpp>
+#include <base/fe/Basis.hpp>
+
+#include <base/cut/LevelSet.hpp>
+#include <base/cut/evaluateOnCutCells.hpp>
+#include <base/cut/extractMeshFromCutCells.hpp>
+
+#include <solid/HyperElastic.hpp>
+#include <solid/Stress.hpp> 
+#include <mat/Lame.hpp>
+
+#include <base/io/vtk/LegacyWriter.hpp>
+
+//------------------------------------------------------------------------------
+//! Represent the solution of a HyperElastic solid
+template<typename MESH, typename MATERIAL, unsigned DEG=1>
+class HyperElastic
+{
+public:
+    //! Template parameter
+    typedef MESH     Mesh;
+    typedef MATERIAL Material;
+    static const unsigned degree      = DEG;
+
+    //! Deduced parameter
+    static const unsigned    dim   = Mesh::Node::dim;
+    static const base::Shape shape = Mesh::Element::shape;
+    static const unsigned doFSize  = dim;
+
+    typedef typename base::Vector<doFSize>::Type    VecDoF;
+    typedef typename base::Vector<dim,double>::Type VecDim;
+    
+    //! Field types
+    typedef base::fe::Basis<shape,degree>          FEBasis;
+    typedef base::Field<FEBasis,doFSize>           Field;
+    typedef typename Field::DegreeOfFreedom        DoF;
+
+    //! Field binder
+    typedef base::asmb::FieldBinder<Mesh,Field>                   FieldBinder;
+    typedef typename FieldBinder::template TupleBinder<1,1>::Type UU;
+
+    //! Kernel
+    typedef solid::HyperElastic<Material,typename UU::Tuple> Kernel;
+
+    //--------------------------------------------------------------------------
+    HyperElastic( Mesh& mesh, const double E, const double nu )
+        : mesh_(         mesh ),
+          material_( mat::Lame::lambda(E,nu), mat::Lame::mu(E,nu) ),
+          kernel_(   material_ )
+    {
+        base::dof::generate<FEBasis>( mesh_, field_ );
+    }
+    
+    //--------------------------------------------------------------------------
+    template<typename SOLVER>
+    void registerInSolver( SOLVER& solver )
+    {
+        FieldBinder fb( mesh_, field_ );
+        solver.template registerFields<UU>( fb );
+    }
+    
+    //--------------------------------------------------------------------------
+    template<typename QUAD, typename SOLVER> 
+    void assembleBulk( const QUAD& quadrature,
+                       SOLVER& solver,
+                       const unsigned iter = 0)
+    {
+        FieldBinder fb( mesh_, field_ );
+        base::asmb::stiffnessMatrixComputation<UU>( quadrature, solver,
+                                                    fb, kernel_ ,
+                                                    false ); //iter == 0 );
+
+        base::asmb::computeResidualForces<UU>( quadrature, solver,
+                                               fb, kernel_ );
+
+    }
+
+    //--------------------------------------------------------------------------
+    template<typename QUAD, typename SOLVER, typename FFUN>
+    void bodyForce( const QUAD& quadrature,
+                    SOLVER& solver, FFUN forceFun )
+    {
+        FieldBinder fb( mesh_, field_ );
+        base::asmb::bodyForceComputation<UU>( quadrature, solver, fb, forceFun );
+    }
+
+    //--------------------------------------------------------------------------
+    Field& getField() { return field_; }
+    const Kernel& getKernel() const { return kernel_; }
+
+    //--------------------------------------------------------------------------
+    template<typename QUAD, typename SOL>
+    double computeL2Error( const QUAD& quadrature, SOL  solution )
+    {
+        const double el2 =
+            base::post::errorComputation<0>( quadrature, mesh_, field_, solution );
+        return el2;
+    }
+
+    //--------------------------------------------------------------------------
+    typedef base::cut::Cell<Mesh::Element::shape> Cell;
+    typedef base::cut::LevelSet<dim>              LevelSet;
+    
+    void writeVTKFile( const std::string& baseName,
+                       const unsigned step, 
+                       const std::vector<LevelSet>& levelSet,
+                       const std::vector<Cell>&     cells,
+                       const bool inOut = true )
+    {
+        // write bulk file
+        const std::string vtkFile = 
+            baseName + "." + base::io::leadingZeros( step ) + ".vtk";
+        std::ofstream vtk( vtkFile.c_str() );
+        base::io::vtk::LegacyWriter vtkWriter( vtk );
+
+        std::vector<double> distances;
+        std::transform( levelSet.begin(), levelSet.end(),
+                        std::back_inserter( distances ),
+                        boost::bind( &LevelSet::getSignedDistance, _1 ) );
+
+        vtkWriter.writeUnstructuredGrid( mesh_ );
+        vtkWriter.writePointData( distances.begin(), distances.end(), "distances" );
+        base::io::vtk::writePointData( vtkWriter, mesh_, field_, "u" );
+            
+        // write stress
+        const typename base::Vector<dim>::Type xi =
+            base::ShapeCentroid<Mesh::Element::shape>::apply();
+        
+        std::vector<mat::Tensor> stresses;
+        mat::Tensor zero = base::constantMatrix<base::MatRows<mat::Tensor>::value,
+                                                base::MatCols<mat::Tensor>::value>( 0. );
+
+        for ( std::size_t c = 0; c < cells.size(); c++ ) {
+            mat::Tensor S;
+            if ( cells[c].isCut() ) S = zero;
+            else if (      inOut  and cells[c].isOutside() ) S = zero;
+            else if ( (not inOut) and cells[c].isInside()  ) S = zero;
+            else
+                S = solid::secondPKStress( mesh_.elementPtr(  c ),
+                                           field_.elementPtr( c ),
+                                           material_, xi );
+
+            stresses.push_back( S );
+        }
+        // filter
+        
+        vtkWriter.writeCellData( stresses.begin(), stresses.end(), "S" );
+        vtk.close();
+    }
+
+    //--------------------------------------------------------------------------
+    
+    void writeVTKFileCut( const std::string& baseName,
+                          const unsigned step, 
+                          const std::vector<LevelSet>& levelSet,
+                          const std::vector<Cell>&     cells,
+                          const bool inOut = true )
+    {
+        // write cut-volume files
+        std::vector<double> cutCellDistance;
+        base::cut::evaluateCutCellNodeDistances( mesh_, levelSet, cells,
+                                                 cutCellDistance );
+            
+        std::vector<VecDoF> cutCellSolution;
+        base::cut::evaluateFieldAtCutCellNodes( mesh_, field_, cells,
+                                                cutCellSolution );
+
+        typedef base::cut::VolumeSimplexMesh<Mesh> VolumeSimplexMesh;
+        VolumeSimplexMesh volumeSimplexMesh;
+        base::cut::extractVolumeMeshFromCutCells( mesh_, cells, volumeSimplexMesh,
+                                                  inOut );
+
+        const std::string vtkFile =
+            baseName + "." + base::io::leadingZeros( step ) 
+            + ".vol-" + (inOut ? "in" : "out" ) + ".vtk";
+        
+        std::ofstream vtk( vtkFile.c_str() );
+        base::io::vtk::LegacyWriter vtkWriter( vtk );
+        vtkWriter.writeUnstructuredGrid( volumeSimplexMesh );
+        vtkWriter.writePointData( cutCellDistance.begin(), cutCellDistance.end(), "distances" );
+        vtkWriter.writePointData( cutCellSolution.begin(), cutCellSolution.end(), "u" );
+
+        // write stress
+        std::vector<mat::Tensor> stresses;
+        base::cut::evaluateInCutCells(
+            mesh_, field_,
+            boost::bind( solid::secondPKStress<typename Mesh::Element,
+                         typename Field::Element,Material>, _1, _2, material_, _3 ),
+            cells, stresses, inOut );
+
+        vtkWriter.writeCellData( stresses.begin(), stresses.end(), "S" );
+    }
+
+    //------------------------------------------------------------------------------
+    template<typename QUAD>
+    double computeVolume( const QUAD& quadrature )
+    {
+        double volume = 0.;
+        FieldBinder fb( mesh_, field_ );
+        base::asmb::simplyIntegrate<UU>( quadrature, volume, fb, 
+                                         base::kernel::Measure<typename UU::Tuple>() );
+
+        return volume;
+    }
+
+private:
+    Mesh&              mesh_;
+    Field              field_;
+    const Material     material_;
+    const Kernel       kernel_;
+};
+
+
+#endif

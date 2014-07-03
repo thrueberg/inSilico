@@ -1,0 +1,85 @@
+#ifndef surfacefield_h
+#define surfacefield_h
+
+#include <base/asmb/SurfaceFieldBinder.hpp>
+#include <base/nitsche/Penalty.hpp>
+#include <base/nitsche/Parameters.hpp>
+#include <base/nitsche/Energy.hpp>
+
+//------------------------------------------------------------------------------
+template<typename SMESH, typename FIELD>
+class SurfaceField
+{
+public:
+    typedef SMESH SurfaceMesh;
+    typedef FIELD Field;
+
+    typedef base::asmb::SurfaceFieldBinder<SurfaceMesh,Field> SurfaceFieldBinder;
+    typedef typename SurfaceFieldBinder::template TupleBinder<1,1>::Type      SU;
+
+    
+    SurfaceField( SurfaceMesh& surfaceMesh,
+                  Field&       field )
+        : surfaceMesh_( surfaceMesh ),
+          sfb_( surfaceMesh_, field )
+    { }
+
+    //--------------------------------------------------------------------------
+    template<typename SQUAD, typename SOLVER, typename KERNEL, typename DIRI>
+    void applyDirichletBoundaryConditionsWeakly( const SQUAD&  surfaceQuadrature,
+                                                 SOLVER&       solver,
+                                                 const KERNEL& kernel,
+                                                 DIRI          dirichletBC,
+                                                 const double  materialParam,
+                                                 const double  penaltyParam )
+    {
+        base::nitsche::OuterBoundary ob( materialParam );
+
+        // Penalty terms
+        base::nitsche::penaltyLHS<SU>( surfaceQuadrature, solver,
+                                       sfb_, ob, penaltyParam );
+        base::nitsche::penaltyRHS<SU>( surfaceQuadrature, solver,  
+                                       sfb_, dirichletBC, 
+                                       ob, penaltyParam );
+
+        // Energy terms
+        base::nitsche::energyLHS<SU>( kernel, surfaceQuadrature, solver, sfb_, ob );
+        base::nitsche::energyRHS<SU>( kernel, surfaceQuadrature, solver, sfb_,
+                                      dirichletBC, ob );
+
+        base::nitsche::energyResidual<SU>( kernel, surfaceQuadrature, solver,
+                                           sfb_, ob );
+    }
+
+    //--------------------------------------------------------------------------
+    template<typename SQUAD, typename SOLVER, typename NEUM>
+    void applyNeumannBoundaryConditions( const SQUAD&  surfaceQuadrature,
+                                         SOLVER&       solver,
+                                         NEUM          neumannBC )
+    {
+        base::asmb::neumannForceComputation<SU>( surfaceQuadrature,
+                                                 solver, sfb_,
+                                                 neumannBC );
+
+    }
+
+    //------------------------------------------------------------------------------
+    template<typename SQUAD>
+    double computeArea( const SQUAD& surfaceQuadrature )
+    {
+        double area = 0.;
+        base::asmb::simplyIntegrate<SU>( surfaceQuadrature, area, sfb_, 
+                                         base::kernel::Measure<typename SU::Tuple>() );
+
+        return area;
+    }
+
+
+    
+private:
+    SurfaceMesh&       surfaceMesh_;
+    SurfaceFieldBinder sfb_;
+};
+
+
+#endif

@@ -1,0 +1,204 @@
+#ifndef laplace_h
+#define laplace_h
+
+#include <base/Field.hpp>
+
+#include <base/asmb/FieldBinder.hpp>
+#include <base/asmb/StiffnessMatrix.hpp>
+#include <base/asmb/ForceIntegrator.hpp>
+#include <base/asmb/SimpleIntegrator.hpp>
+#include <base/asmb/BodyForce.hpp>
+#include <base/asmb/NeumannForce.hpp>
+
+#include <base/dof/generate.hpp>
+
+#include <base/fe/Basis.hpp>
+
+#include <base/cut/LevelSet.hpp>
+#include <base/io/vtk/LegacyWriter.hpp>
+#include <base/cut/evaluateOnCutCells.hpp>
+
+
+#include <heat/Laplace.hpp>
+
+//------------------------------------------------------------------------------
+//! Representation the solution of a Laplace equation
+template<typename MESH, unsigned DEG=1>
+class Laplace
+{
+public:
+    //! Template parameter
+    typedef MESH     Mesh;
+    static const unsigned degree      = DEG;
+
+    //! Deduced parameter
+    static const unsigned    dim   = Mesh::Node::dim;
+    static const base::Shape shape = Mesh::Element::shape;
+    static const unsigned doFSize  = 1;
+
+    typedef typename base::Vector<doFSize>::Type   VecDoF;
+    typedef typename base::Vector<dim>::Type       VecDim;
+    
+    //! Field types
+    typedef base::fe::Basis<shape,degree>          FEBasis;
+    typedef base::Field<FEBasis,doFSize>           Field;
+    typedef typename Field::DegreeOfFreedom        DoF;
+
+    //! Field binder
+    typedef base::asmb::FieldBinder<Mesh,Field>                   FieldBinder;
+    typedef typename FieldBinder::template TupleBinder<1,1>::Type UU;
+
+    //! Kernel
+    typedef base::kernel::Laplace<typename UU::Tuple>             Kernel;
+
+    //--------------------------------------------------------------------------
+    Laplace( Mesh& mesh, const double kappa )
+        : mesh_(         mesh ),
+          kernel_( kappa )
+    {
+        base::dof::generate<FEBasis>( mesh_, field_ );
+    }
+
+    //--------------------------------------------------------------------------
+    template<typename SOLVER>
+    void registerInSolver( SOLVER& solver )
+    {
+        FieldBinder fb( mesh_, field_ );
+        solver.template registerFields<UU>( fb );
+    }
+    
+    //--------------------------------------------------------------------------
+    template<typename QUAD, typename SOLVER> 
+    void assembleBulk( const QUAD& quadrature,
+                       SOLVER& solver )
+    {
+        FieldBinder fb( mesh_, field_ );
+        base::asmb::stiffnessMatrixComputation<UU>( quadrature, solver,
+                                                    fb, kernel_,
+                                                    false ); //iter > 0 );
+    }
+
+    //--------------------------------------------------------------------------
+    template<typename QUAD, typename SOLVER, typename FFUN>
+    void bodyForce( const QUAD& quadrature,
+                    SOLVER& solver, FFUN forceFun )
+    {
+        FieldBinder fb( mesh_, field_ );
+        base::asmb::bodyForceComputation<UU>( quadrature, solver, fb, forceFun );
+    }
+
+    //--------------------------------------------------------------------------
+    Field& getField() { return field_; }
+    const Kernel& getKernel() const { return kernel_; }
+
+    //--------------------------------------------------------------------------
+    template<typename QUAD, typename SOL, typename GRAD>
+    std::pair<double,double> computeErrors( const QUAD& quadrature,
+                                            SOL  solution,
+                                            GRAD gradient )
+    {
+        const double el2 =
+            base::post::errorComputation<0>( quadrature, mesh_, field_, solution );
+
+        const double h1 =
+            base::post::errorComputation<1>( quadrature, mesh_, field_, gradient );
+
+        return std::make_pair( el2, h1 );
+    }
+
+    //--------------------------------------------------------------------------
+    typedef base::cut::LevelSet<dim>              LevelSet;
+    void writeVTKFile( const std::string& baseName,
+                       const std::vector<LevelSet>& levelSet )
+    {
+        // write bulk file
+        const std::string vtkFile = baseName + ".vtk";
+        std::ofstream vtk( vtkFile.c_str() );
+        base::io::vtk::LegacyWriter vtkWriter( vtk );
+
+        std::vector<double> distances;
+        std::transform( levelSet.begin(), levelSet.end(),
+                        std::back_inserter( distances ),
+                        boost::bind( &LevelSet::getSignedDistance, _1 ) );
+
+        vtkWriter.writeUnstructuredGrid( mesh_ );
+        vtkWriter.writePointData( distances.begin(), distances.end(), "distances" );
+        base::io::vtk::writePointData( vtkWriter, mesh_, field_, "u" );
+            
+        // write solution gradient
+        const typename base::Vector<dim>::Type xi =
+            base::ShapeCentroid<Mesh::Element::shape>::apply();
+        base::io::vtk::writeCellData( vtkWriter, mesh_, field_,
+                                      boost::bind(
+                                          base::post::template
+                                          evaluateFieldGradient<
+                                          typename Mesh::Element,
+                                          typename Field::Element>, _1, _2, xi ),
+                                      "flux" );
+        vtk.close();
+    }
+
+    //--------------------------------------------------------------------------
+    typedef base::cut::Cell<Mesh::Element::shape> Cell;
+    
+    void writeVTKFileCut( const std::string& baseName,
+                          const std::vector<LevelSet>& levelSet,
+                          const std::vector<Cell>&     cells,
+                          const bool inOut = true )
+    {
+        // write cut-volume files
+        std::vector<double> cutCellDistance;
+        base::cut::evaluateCutCellNodeDistances( mesh_, levelSet, cells,
+                                                 cutCellDistance );
+            
+        std::vector<VecDoF> cutCellSolution;
+        base::cut::evaluateFieldAtCutCellNodes( mesh_, field_, cells,
+                                                cutCellSolution );
+
+        typedef base::cut::VolumeSimplexMesh<Mesh> VolumeSimplexMesh;
+        VolumeSimplexMesh volumeSimplexMesh;
+        base::cut::extractVolumeMeshFromCutCells( mesh_, cells, volumeSimplexMesh,
+                                                  inOut );
+
+        const std::string vtkFile =
+            baseName + ".vol" + (inOut ? "in" : "out" ) + ".vtk";
+        
+        std::ofstream vtk( vtkFile.c_str() );
+        base::io::vtk::LegacyWriter vtkWriter( vtk );
+        vtkWriter.writeUnstructuredGrid( volumeSimplexMesh );
+        vtkWriter.writePointData( cutCellDistance.begin(), cutCellDistance.end(), "distances" );
+        vtkWriter.writePointData( cutCellSolution.begin(), cutCellSolution.end(), "u" );
+
+        // write stress
+        std::vector<VecDim> fluxes;
+        base::cut::evaluateInCutCells(
+            mesh_, field_,
+            boost::bind( base::post::evaluateFieldGradient<
+                         typename Mesh::Element,
+                         typename Field::Element>, _1, _2, _3 ),
+            cells, fluxes, inOut );
+
+        vtkWriter.writeCellData( fluxes.begin(), fluxes.end(), "flux" );
+
+    }
+
+    //------------------------------------------------------------------------------
+    template<typename QUAD>
+    double computeVolume( const QUAD& quadrature )
+    {
+        double volume = 0.;
+        FieldBinder fb( mesh_, field_ );
+        base::asmb::simplyIntegrate<UU>( quadrature, volume, fb, 
+                                         base::kernel::Measure<typename UU::Tuple>() );
+
+        return volume;
+    }
+
+private:
+    Mesh&              mesh_;
+    Field              field_;
+    const Kernel       kernel_;
+};
+
+
+#endif

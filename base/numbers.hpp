@@ -29,6 +29,10 @@ namespace base{
 
     //! Number type for degrees of freedom
 #ifdef INSILICO_COMPLEX
+
+#error "The idea of this precompiler conditional is to allow for complex numbers,"\
+    "but this has not been pursued throughout the code."
+    
     typedef std::complex<double>  number;
 
     //! The largest representable number

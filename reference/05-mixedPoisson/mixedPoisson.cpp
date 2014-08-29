@@ -36,145 +36,51 @@
 #include <base/asmb/NeumannForce.hpp>
 
 
+
+const double coordTol = 1.e-5;
+
+#include "ReferenceSolution.hpp"
+#include "GivenData.hpp"
+
 //------------------------------------------------------------------------------
-template<unsigned DIM>
-class ReferenceSolution
-{
-public:
-    
-    ReferenceSolution( const double alpha,
-                       const double beta  = 0.,
-                       const double gamma = 0. )
-        : alpha_( alpha ),
-          beta_(  beta ),
-          gamma_( gamma )
-    { }
-
-    typedef typename base::Vector<1  >::Type   VecDof;
-    typedef typename base::Vector<DIM>::Type   VecDim;
-    typedef typename base::Matrix<DIM,1>::Type GradType;
-
-
-    VecDof evaluate( const VecDim& x ) const
-    {
-        VecDof result;
-        result[0] = std::cos( alpha_ * x[0] );
-        if ( DIM > 1 )
-            result[0] *= std::cos( beta_ * x[1] );
-        if ( DIM > 2 )
-            result[0] *= std::cos( gamma_ * x[2] );
-
-        return result;
-    }
-
-    GradType evaluateGradient( const VecDim& x ) const
-    {
-        GradType result;
-        result( 0, 0 ) = -alpha_ * std::sin( alpha_ * x[0] );
-        if ( DIM > 1 ) {
-            result( 0, 0 ) *= std::cos( beta_ * x[1] );
-            result( 1, 0 )  = -beta_ *
-                std::cos( alpha_ * x[0] ) *
-                std::sin( beta_ *  x[1] );
-        }
-        if ( DIM > 2 ) {
-            result( 0, 0 ) *= std::cos( gamma_ * x[2] );
-            result( 1, 0 ) *= std::cos( gamma_ * x[2] );
-            result( 2, 0 ) = -gamma_ *
-                std::cos( alpha_ * x[0] ) *
-                std::cos( beta_  * x[1] ) *
-                std::sin( gamma_ * x[2] );
-        }
-
-        return result;
-    }
-
-    VecDof laplacian( const VecDim& x ) const
-    {
-        const double factor = -1.0 *
-            ( ( alpha_ * alpha_ ) +
-              ( DIM > 1 ? beta_  * beta_  : 0.0 ) +
-              ( DIM > 2 ? gamma_ * gamma_ : 0.0 ) );
-
-        return factor * evaluate( x );
-    }
-
-private:
-    const double alpha_;
-    const double beta_;
-    const double gamma_;
-};
+namespace ref05{
+    int mixedPoisson( int argc, char * argv[] );
+}
 
 
 //------------------------------------------------------------------------------
-template<unsigned DIM>
-class PoissonProblem
-{
-public:
-    PoissonProblem( const ReferenceSolution<DIM>& rs )
-        : referenceSolution_( rs ) { }
-
-    template<typename DOF>
-    void dirichleBC( const typename ReferenceSolution<DIM>::VecDim& x,
-                     DOF* doFPtr ) const
-    {
-        const double value = ( referenceSolution_.evaluate( x ) )[0];
-
-        const double tol = 1.e-5;
-
-        // make left and bottom boundaries as Dirichlet
-        const bool onDirichletBdr = 
-            ( std::abs( x[0] -  0. ) < tol ) or
-            ( std::abs( x[1] -  0. ) < tol );
-
-        if ( onDirichletBdr ) {
-            if ( doFPtr -> isActive(0) )
-                doFPtr -> constrainValue( 0, value );
-        }
-        return;
-    }
-
-    typename ReferenceSolution<DIM>::VecDof
-    forceFun( const typename ReferenceSolution<DIM>::VecDim& x ) const
-    {
-        typename ReferenceSolution<DIM>::VecDof result;
-        result = - referenceSolution_.laplacian( x );
-        return result;
-    }
-
-#if 0
-    template<typename GEOMELEMENT>
-    typename ReferenceSolution<DIM>::VecDof
-    forceFun2( const GEOMELEMENT* gep, 
-               const typename ReferenceSolution<DIM>::VecDim& xi ) const
-    {
-        typename ReferenceSolution<DIM>::VecDof result;
-        result = -referenceSolution_.laplacian( base::Geometry<GEOMELEMENT>()( gep, xi ) );
-        return result;
-    }
-#endif
-
-    typename ReferenceSolution<DIM>::VecDof
-    neumannBC( const typename ReferenceSolution<DIM>::VecDim& x,
-               const typename ReferenceSolution<DIM>::VecDim& normal ) const
-    {
-        const typename ReferenceSolution<DIM>::GradType gradient
-            = referenceSolution_.evaluateGradient( x );
-
-        typename ReferenceSolution<DIM>::VecDof
-            result = gradient.transpose() * normal;
-
-        return result;
-    }
-    
-private:
-    const ReferenceSolution<DIM>& referenceSolution_;
-};
-
-
-
-//------------------------------------------------------------------------------
-int main( int argc, char * argv[] )
+/** Solve a mixed boundary value problem based on Poisson's equation
+ *
+ *  New features are
+ *  - application of Neumann boundary conditions and body forces
+ *  - use classes to describe the reference solution and the boundary
+ *    value problem
+ *  - convergence analysis (if executed for many meshes)
+ *
+ *  The picture shows the convergence behaviour of the method
+ *  for various mesh sizes, a linear finite element basis
+ *  \code{.cpp}
+ *  const unsigned fieldDeg = 1;
+ *  \endcode
+ *  and a quadratic finite element basis
+ *  \code{.cpp}
+ *  const unsigned fieldDeg = 2;
+ *  \endcode
+ *  in the \f$ L_2 \f$-norm
+ *  \f[
+ *         \| u - u^h \|_{L_2(\Omega)}^2
+ *         = \int_\Omega (u - u^h)^2 d x
+ *  \f]
+ *  and the \f$ H^1 \f$-semi-norm
+ *  \f[
+ *         | u - u^h |_{H^1(\Omega)}^2
+ *         = \int_\Omega (\nabla u - \nabla u^h)^2 d x
+ *  \f]
+ *
+ *  \image html convergence.png "Convergence diagram"
+ *
+ */
+int ref05::mixedPoisson( int argc, char * argv[] )
 {
     if ( argc != 2 ) {
         std::cout << "Usage:  " << argv[0] << " file.smf \n\n";
@@ -218,8 +124,10 @@ int main( int argc, char * argv[] )
     base::dof::generate<FEBasis>( mesh, field );
 
     // Object of reference solution and the Poisson problem
-    ReferenceSolution<dim> refSol( 3., 5., 4. );
-    PoissonProblem<dim> pp( refSol );
+    typedef ReferenceSolution<dim>       RefSol;
+    typedef GivenData<RefSol>            GivenData;
+    RefSol    refSol(    3., 5., 4. );
+    GivenData givenData( refSol );
 
     // Creates a list of <Element,faceNo> pairs
     base::mesh::MeshBoundary meshBoundary;
@@ -229,8 +137,8 @@ int main( int argc, char * argv[] )
     base::dof::constrainBoundary<FEBasis>( meshBoundary.begin(),
                                            meshBoundary.end(),
                                            mesh, field,
-                                           boost::bind( &PoissonProblem<dim>::dirichleBC<DoF>,
-                                                        &pp, _1, _2 ) );
+                                           boost::bind( &GivenData::dirichletBC<DoF>,
+                                                        &givenData, _1, _2 ) );
 
     // Number of DoFs after constraint application!
     const std::size_t numDofs =
@@ -249,12 +157,12 @@ int main( int argc, char * argv[] )
 
     // Body force
     base::asmb::bodyForceComputation<FTB>( quadrature, solver, fieldBinder,
-                                           boost::bind( &PoissonProblem<dim>::forceFun,
-                                                        &pp, _1 ) );
+                                           boost::bind( &GivenData::forceFun,
+                                                        &givenData, _1 ) );
 #if 0
     base::asmb::bodyForceComputation2<FTB>( quadrature, solver, fieldBinder,
-                                            boost::bind( &PoissonProblem<dim>::forceFun2<Mesh::Element>,
-                                                         &pp, _1, _2 ) );
+                                            boost::bind( &GivenData::forceFun2<Mesh::Element>,
+                                                         &givenData, _1, _2 ) );
 #endif 
 
     // Create a connectivity out of this list
@@ -274,7 +182,8 @@ int main( int argc, char * argv[] )
 
     // Neumann boundary condition
     base::asmb::neumannForceComputation<SFTB>( surfaceQuadrature, solver, surfaceFieldBinder,
-                                               boost::bind( &PoissonProblem<dim>::neumannBC, &pp,
+                                               boost::bind( &GivenData::neumannBC,
+                                                            &givenData,
                                                             _1, _2 ) );
 
     // compute stiffness matrix
@@ -332,4 +241,11 @@ int main( int argc, char * argv[] )
 
     
     return 0;
+}
+
+//------------------------------------------------------------------------------
+// Delegation
+int main( int argc, char * argv[] )
+{
+    return ref05::mixedPoisson( argc, argv );
 }

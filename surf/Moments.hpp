@@ -16,6 +16,7 @@
 // base includes
 #include <base/verify.hpp>
 #include <base/asmb/SimpleIntegrator.hpp>
+#include <base/asmb/SurfaceFieldBinder.hpp>
 
 //------------------------------------------------------------------------------
 namespace surf{
@@ -25,21 +26,24 @@ namespace surf{
 
     //--------------------------------------------------------------------------
     /** Compute the volume enclosed by surface mesh.
-     *  \tparam FTB Field-tuple binder (actually unsused as only geometry needed)
+     *  \tparam SURFACEMESH Type of surface mesh
      *  \tparam QUADRATURE Surface quadrature
-     *  \tparam FIELDBINDER Binder with surface mesh in front
      */
-    template<typename FTB, typename QUADRATURE, typename FIELDBINDER>
-    double enclosedVolume( const QUADRATURE&  quadrature,
-                           const FIELDBINDER& fieldBinder )
+    template<typename SURFACEMESH, typename QUADRATURE>
+    double enclosedVolume( const SURFACEMESH& surfaceMesh, 
+                           const QUADRATURE&  quadrature )
     {
         // sum up the volume
         double result = 0.;
 
+        typedef base::asmb::SurfaceFieldBinder<const SURFACEMESH>  SurfaceBinder;
+        typedef typename SurfaceBinder::template TupleBinder<>::Type STB;
+        
+        SurfaceBinder surfaceBinder( surfaceMesh );
         // perform integration over surface
-        base::asmb::simplyIntegrate<FTB>(
-            quadrature, result, fieldBinder,
-            boost::bind( &surf::Moments<typename FTB::Tuple>::enclosedVolume,
+        base::asmb::simplyIntegrate<STB>(
+            quadrature, result, surfaceBinder,
+            boost::bind( &surf::Moments<typename STB::Tuple>::enclosedVolume,
                          _1, _2, _3, _4 ) );
         
         return result;
@@ -47,22 +51,25 @@ namespace surf{
 
     //--------------------------------------------------------------------------
     /** Compute the volume moment as enclosed by a surface mesh.
-     *  \tparam FTB Field-tuple binder (actually unsused as only geometry needed)
+     *  \tparam SURFACEMESH Type of surface mesh
      *  \tparam QUADRATURE Surface quadrature
-     *  \tparam FIELDBINDER Binder with surface mesh in front
      */
-    template<typename FTB, typename QUADRATURE, typename FIELDBINDER>
-    typename base::Vector<FIELDBINDER::Mesh::Node::dim>::Type
-    enclosedVolumeMoment( const QUADRATURE&  quadrature,
-                          const FIELDBINDER& fieldBinder )
+    template<typename SURFACEMESH, typename QUADRATURE>
+    typename base::Vector<SURFACEMESH::Node::dim,double>::Type
+    enclosedVolumeMoment( const SURFACEMESH& surfaceMesh, 
+                          const QUADRATURE&  quadrature )
     {
-        static const unsigned dim = FIELDBINDER::Mesh::Node::dim;
+        static const unsigned dim = SURFACEMESH::Node::dim;
         // 
         typename base::Vector<dim>::Type moment = base::constantVector<dim>(0.);
         
-        base::asmb::simplyIntegrate<FTB>(
-            quadrature, moment, fieldBinder,
-            boost::bind( &surf::Moments<typename FTB::Tuple>::volumeMoment,
+        typedef base::asmb::SurfaceFieldBinder<const SURFACEMESH>  SurfaceBinder;
+        typedef typename SurfaceBinder::template TupleBinder<>::Type STB;
+        SurfaceBinder surfaceBinder( surfaceMesh );
+        
+        base::asmb::simplyIntegrate<STB>(
+            quadrature, moment, surfaceBinder,
+            boost::bind( &surf::Moments<typename STB::Tuple>::volumeMoment,
                          _1, _2, _3, _4 ) );
 
         return moment;
@@ -70,63 +77,72 @@ namespace surf{
 
     //--------------------------------------------------------------------------
     /** Compute the volume moment as enclosed by a surface mesh.
-     *  \tparam FTB Field-tuple binder (actually unsused as only geometry needed)
+     *  \tparam SURFACEMESH Type of surface mesh
      *  \tparam QUADRATURE Surface quadrature
-     *  \tparam FIELDBINDER Binder with surface mesh in front
      */
-    template<typename FTB, typename QUADRATURE, typename FIELDBINDER>
-    typename base::Matrix<FIELDBINDER::Mesh::Node::dim,
-                          FIELDBINDER::Mesh::Node::dim>::Type
-    enclosedVolumeSecondMoment( const QUADRATURE& quadrature,
-                                const FIELDBINDER& fieldBinder )
+    template<typename SURFACEMESH, typename QUADRATURE>
+    typename base::Matrix<SURFACEMESH::Node::dim,
+                          SURFACEMESH::Node::dim, double>::Type
+    enclosedVolumeSecondMoment( const SURFACEMESH& surfaceMesh, 
+                                const QUADRATURE&  quadrature )
     {
-        static const unsigned dim = FIELDBINDER::Mesh::Node::dim;
+        static const unsigned dim = SURFACEMESH::Node::dim;
         // 
         typename base::Matrix<dim,dim>::Type moment =
             base::constantMatrix<dim,dim>(0.);
         
-        base::asmb::simplyIntegrate<FTB>(
-            quadrature, moment, fieldBinder,
-            boost::bind( &surf::Moments<typename FTB::Tuple>::secondVolumeMoment,
+        typedef base::asmb::SurfaceFieldBinder<const SURFACEMESH>  SurfaceBinder;
+        typedef typename SurfaceBinder::template TupleBinder<>::Type STB;
+        SurfaceBinder surfaceBinder( surfaceMesh );
+
+        base::asmb::simplyIntegrate<STB>(
+            quadrature, moment, surfaceBinder,
+            boost::bind( &surf::Moments<typename STB::Tuple>::secondVolumeMoment,
                          _1, _2, _3, _4 ) );
 
         return moment;
     }
 
     //--------------------------------------------------------------------------
-    //! Compute the volume and the centroid
-    template<typename FTB, typename QUADRATURE, typename FIELDBINDER>
+    /** Compute the volume and the centroid
+     *  \tparam SURFACEMESH Type of surface mesh
+     *  \tparam QUADRATURE Surface quadrature
+     */
+    template<typename SURFACEMESH, typename QUADRATURE>
     double volumeAndCentroid(
-        const QUADRATURE& quadrature,
-        const FIELDBINDER& fieldBinder,
-        typename base::Vector<FIELDBINDER::Mesh::Node::dim>::Type& centroid )
+        const SURFACEMESH& surfaceMesh, 
+        const QUADRATURE&  quadrature,
+        typename base::Vector<SURFACEMESH::Node::dim>::Type& centroid )
     {
-        const double volume = enclosedVolume<FTB>( quadrature, fieldBinder );
+        const double volume = enclosedVolume( surfaceMesh, quadrature );
 
-        centroid = enclosedVolumeMoment<FTB>( quadrature, fieldBinder );
+        centroid = enclosedVolumeMoment(      surfaceMesh, quadrature );
         centroid /= volume;
 
         return volume;
     }
 
     //--------------------------------------------------------------------------
-    //! Compute the volume, the centroid and the inertia tensor
-    template<typename FTB, typename QUADRATURE, typename FIELDBINDER>
+    /** Compute the volume, the centroid and the inertia tensor
+     *  \tparam SURFACEMESH Type of surface mesh
+     *  \tparam QUADRATURE Surface quadrature
+     */
+    template<typename SURFACEMESH, typename QUADRATURE>
     double volumeCentroidAndInertia(
+        const SURFACEMESH& surfaceMesh, 
         const QUADRATURE& quadrature,
-        const FIELDBINDER& fieldBinder,
-        typename base::Vector<FIELDBINDER::Mesh::Node::dim>::Type& centroid,
-        typename base::Matrix<FIELDBINDER::Mesh::Node::dim,
-        FIELDBINDER::Mesh::Node::dim>::Type& inertia )
+        typename base::Vector<SURFACEMESH::Node::dim>::Type& centroid,
+        typename base::Matrix<SURFACEMESH::Node::dim,
+        SURFACEMESH::Node::dim>::Type& inertia )
     {
-        static const unsigned dim = FIELDBINDER::Mesh::Node::dim;
+        static const unsigned dim = SURFACEMESH::Node::dim;
         
-        const double volume = enclosedVolume<FTB>( quadrature, fieldBinder );
+        const double volume = enclosedVolume( surfaceMesh, quadrature );
 
-        centroid = enclosedVolumeMoment<FTB>( quadrature, fieldBinder );
+        centroid = enclosedVolumeMoment(      surfaceMesh, quadrature );
         centroid /= volume;
 
-        inertia = enclosedVolumeSecondMoment<FTB>( quadrature, fieldBinder );
+        inertia = enclosedVolumeSecondMoment( surfaceMesh, quadrature );
         // shift to centroid
         for ( unsigned d1 = 0; d1 < dim; d1++ ) {
             for ( unsigned d2 = 0; d2 < dim; d2++ ) {
@@ -135,6 +151,32 @@ namespace surf{
         }
 
         return volume;
+    }
+
+    //--------------------------------------------------------------------------
+    /** Integrate over the normal-field of the surface, result should be
+     *  zero for any closed surface.
+     *  \tparam SURFACEMESH Type of surface mesh
+     *  \tparam QUADRATURE Surface quadrature
+     */
+    template<typename SURFACEMESH, typename QUADRATURE>
+    double isClosed( const SURFACEMESH& surfaceMesh,
+                     const QUADRATURE&  quadrature )
+    {
+        // sum up the volume
+        double result = 0.;
+
+        typedef base::asmb::SurfaceFieldBinder<const SURFACEMESH>  SurfaceBinder;
+        typedef typename SurfaceBinder::template TupleBinder<>::Type STB;
+        SurfaceBinder surfaceBinder( surfaceMesh );
+
+        // perform integration over surface
+        base::asmb::simplyIntegrate<STB>(
+            quadrature, result, surfaceBinder,
+            boost::bind( &surf::Moments<typename STB::Tuple>::isClosed,
+                         _1, _2, _3, _4 ) );
+        
+        return result;
     }
 
 }
@@ -304,6 +346,25 @@ public:
                     factor * x[d1] * x[d1] * x[d2] * normal[d1] * detJ * weight;
             }
         }
+    }
+
+    //--------------------------------------------------------------------------
+    static void isClosed( const FieldTuple&  fieldTuple,
+                          const LocalVecDim& xi,
+                          const double       weight,
+                          double&            result )
+    {
+        // Extract element pointer from tuple
+        const GeomElement*  geomEp  = fieldTuple.geomElementPtr();
+
+        // Get surface normal and measure
+        GlobalVecDim normal;
+        const double detJ = 
+            base::SurfaceNormal<GeomElement>()( geomEp, xi, normal );
+
+
+        for ( unsigned d = 0; d < globalDim; d++ )
+            result += normal[d] * weight * detJ;
     }
 
 };

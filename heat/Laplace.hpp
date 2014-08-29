@@ -38,6 +38,20 @@ namespace heat{
  *  \f[
  *      a(u,v) = \int_\Omega \kappa \nabla u \cdot \nabla v d x
  *  \f]
+ *  Here, \f$ \kappa \f$ is by default constant, but can be changed to a
+ *  function of the coordinate or other quantities. The function evaluation
+ *  is via a pointer to the geometry element and the local coordinate.
+ *  Any function of type
+ *  \code{.cpp}
+ *  template<typename GEOMELEMENT>
+ *  double kappaFun( const GEOMELEMENT* e,
+ *                   const typename GEOMELEMENT::GeomFun::VecDim& xi )
+ *  {
+ *     // compute kappa in function of e and xi and return value
+ *  }
+ *  \endcode
+ *  can be passed via setConductivityFunction().
+ *  
  *  \tparam FIELDTUPLE  Type of tuple of elements for evaluation
  */
 template<typename FIELDTUPLE>
@@ -167,6 +181,37 @@ public:
         }
         
     }
+
+    //--------------------------------------------------------------------------
+    void coNormalDerivative( const FieldTuple&  fieldTuple,
+                             const LocalVecDim& xi,
+                             const GlobalVecDim& normal,
+                             base::MatrixD& result ) const
+    {
+        // Evaluate conductivity at local coordinate of element
+        const double conductivity =
+            conductivityFun_( fieldTuple.geomElementPtr(), xi );
+
+        // call generic laplace kernel
+        base::kernel::Laplace<FieldTuple> laplace( conductivity );
+        laplace.coNormalDerivative( fieldTuple, xi, normal, result );
+    }
+
+    //--------------------------------------------------------------------------
+    void boundaryResidual( const FieldTuple&  fieldTuple,
+                           const LocalVecDim& xi,
+                           const GlobalVecDim& normal,
+                           base::MatrixD& result ) const
+    {
+        // Evaluate conductivity at local coordinate of element
+        const double conductivity =
+            conductivityFun_( fieldTuple.geomElementPtr(), xi );
+
+        // call generic laplace kernel
+        base::kernel::Laplace<FieldTuple> laplace( conductivity );
+        laplace.boundaryResidual( fieldTuple, xi, normal, result );
+    }
+
     
 private:
     //! Functor representing the material conductivity

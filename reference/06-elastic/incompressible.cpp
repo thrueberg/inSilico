@@ -293,20 +293,16 @@ int main( int argc, char * argv[] )
 
             //------------------------------------------------------------------
             base::asmb::stiffnessMatrixComputation<TopLeft>( quadrature, solver, 
-                                                             field, incompressibleUU,
-                                                             iter > 0 );  
+                                                             field, incompressibleUU );
             
             base::asmb::stiffnessMatrixComputation<TopRight>( quadrature, solver,
-                                                              field, incompressibleUP,
-                                                              iter > 0 );  
+                                                              field, incompressibleUP );
             
             base::asmb::stiffnessMatrixComputation<BottomLeft>( quadrature, solver,
-                                                                field, incompressiblePU,
-                                                                iter > 0 );
+                                                                field, incompressiblePU );
 
             base::asmb::stiffnessMatrixComputation<BottomRight>( quadrature, solver,
-                                                                 field, incompressiblePP,
-                                                                 iter > 0 );  
+                                                                 field, incompressiblePP );
 
             //------------------------------------------------------------------
             base::asmb::computeResidualForces<TopLeft>( quadrature, solver, 
@@ -338,8 +334,8 @@ int main( int argc, char * argv[] )
             solver.superLUSolve();
             
             // distribute results back to dofs
-            base::dof::addToDoFsFromSolver( solver, displacement, iter > 0 );
-            base::dof::addToDoFsFromSolver( solver, pressure,     iter > 0 );
+            base::dof::addToDoFsFromSolver( solver, displacement );
+            base::dof::addToDoFsFromSolver( solver, pressure     );
 
             // norm of displacement increment
             const double conv2 = solver.norm();
@@ -371,10 +367,10 @@ int main( int argc, char * argv[] )
             vtkWriter.writeUnstructuredGrid( mesh );
             base::io::vtk::writePointData( vtkWriter, mesh, displacement, "disp" );
             base::io::vtk::writePointData( vtkWriter, mesh, pressure,     "pressure" );
-
+            
             base::io::vtk::writeCellData( vtkWriter, mesh, displacement,
                                           boost::bind( solid::jacobian<Mesh::Element,
-                                                                       Displacement::Element>,
+                                                       Displacement::Element>,
                                                        _1, _2 ), "J " );
             vtk.close();
         }

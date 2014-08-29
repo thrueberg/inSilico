@@ -21,7 +21,7 @@ namespace base{
     namespace asmb{
 
         template<typename FIELDTUPLE,
-                 int I, int J=-1, int K=-1, int L=-1, int M=-1>
+                 int I=-1, int J=-1, int K=-1, int L=-1, int M=-1>
         struct FieldTupleBinder;
 
         namespace detail_{
@@ -43,7 +43,7 @@ namespace base{
 /** Re-constructs tuples of element pointers according to given indices.
  *  In many applications, e.g. mixed methods, various solution fields are used
  *  in different orders. For instance in case of a standard discretisation of
- *  Stokes' system, the used bilinear forms exands as
+ *  Stokes' system, the used bilinear forms expands as
  *  \f[
  *       a(u,v) + b(p,v) + b(q,u)
  *  \f]

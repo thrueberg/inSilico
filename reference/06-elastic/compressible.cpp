@@ -35,74 +35,33 @@
 #include <solid/HyperElastic.hpp>
 #include <solid/Stress.hpp>
 
+const double coordTol = 1.e-6;
+
+#include "PulledSheet.hpp"
 
 //------------------------------------------------------------------------------
-//  Bock of material, occupying (0,1)^DIM, fix x_1 = 0 and pull at x_1 = 1.
-//  Optionally, at x_1 = 1, a surface traction is applied or a normal
-//  displacement.
-template<unsigned DIM>
-class PulledSheetProblem
-{
-public:
-    typedef typename base::Vector<DIM>::Type VecDim;
+namespace ref06{
 
-    // Fix x_0=0 and optionally pull at x_1=1
-    template<typename DOF>
-    static void dirichletBC( const VecDim& x, DOF* doFPtr,
-                             const bool pullRightSide,
-                             const double value ) 
-    {
-        // tolerance for coordinate identification
-        const double tol = 1.e-5;
+    template<typename MESH, typename DISP, typename MATERIAL>
+    void writeVTKFile( const std::string& baseName,
+                       const unsigned     step,
+                       const MESH&        mesh,
+                       const DISP&        disp,
+                       const MATERIAL&    material );
 
-        // location at x_1 = 0 or x_1 = 1
-        const bool onLeftBdr = ( std::abs( x[0] -  0. ) < tol );
-        const bool onRightBdr = ( std::abs( x[0] -  1. ) < tol );
+    int compressible( int argc, char * argv[] );
 
-        // Fix left boundary at x_0 = 0
-        if ( onLeftBdr ) {
-            for ( unsigned d = 0; d < DOF::size; d++ ) {
-                if ( doFPtr -> isActive(d) )
-                    doFPtr -> constrainValue( d, 0.0 );
-            }
-        }
+}
 
-        // If assked for, apply normal displacement at x_1=1
-        if (  onRightBdr and pullRightSide ) {
-            if ( doFPtr -> isActive(0) )
-                doFPtr -> constrainValue( 0, value );
-        }
-
-        return;
-    }
-
-    // apply surface traction at x_1 = 1 in normal direction only
-    static VecDim neumannBC( const VecDim& x,
-                             const VecDim& normal,
-                             const double value )
-    {
-        VecDim result = VecDim::Constant( 0. );
-
-        const double tol = 1.e-5;
-        
-        const bool onTractionBdr =
-            ( std::abs( x[0] -  1. ) < tol );
-
-        if ( onTractionBdr ) // result[1] = value;
-            result[0] = value * (x[1] - 0.5);
-        
-        return result;
-    }
-    
-};
 
 //------------------------------------------------------------------------------
+// Write displacement and stresses
 template<typename MESH, typename DISP, typename MATERIAL>
-void writeVTKFile( const std::string& baseName,
-                   const unsigned     step,
-                   const MESH&        mesh,
-                   const DISP&        disp,
-                   const MATERIAL&    material )
+void ref06::writeVTKFile( const std::string& baseName,
+                          const unsigned     step,
+                          const MESH&        mesh,
+                          const DISP&        disp,
+                          const MATERIAL&    material )
 {
     // create file name with step number
     const std::string vtkFile =
@@ -112,18 +71,37 @@ void writeVTKFile( const std::string& baseName,
     vtkWriter.writeUnstructuredGrid( mesh );
 
     base::io::vtk::writePointData( vtkWriter, mesh, disp, "disp" );
-    base::io::vtk::writeCellData( vtkWriter, mesh, disp, 
-                                  boost::bind( solid::cauchy<typename MESH::Element,
-                                                             typename DISP::Element,
-                                                             MATERIAL>,
-                                               _1, _2, material ), "sigma" );
-            
+
+    const typename base::Vector<MESH::Node::dim>::Type xi =
+        base::ShapeCentroid<MESH::Element::shape>::apply();
+
+    // Bind the fields together
+    typedef base::asmb::FieldBinder<const MESH,const DISP> FieldBinder;
+    FieldBinder fieldBinder( mesh, disp );
+    typedef typename FieldBinder::template TupleBinder<1,1>::Type FTB;
+
+    base::io::vtk::writeCellData<FTB>( vtkWriter, fieldBinder, 
+                                        boost::bind( solid::cauchy<
+                                                     typename FTB::Tuple,
+                                                     MATERIAL>,
+                                                     _1, material, xi ), "sigma" );
     vtk.close();
 }
 
 
 //------------------------------------------------------------------------------
-int main( int argc, char * argv[] )
+/** Compute the elastic (large!) deformation of a block of material.
+ *  See problem description in ref06::PulledSheetProblem for a the boundary
+ *  conditions. The problem is non-linear and therefore a Newton method is
+ *  used. Moreover, the applied load (displacement or traction) is divided into
+ *  load steps.
+ *
+ *  New features:
+ *  - vectorial problem: DoFs are not scalar anymore
+ *  - hyper-elasticity
+ *
+ */
+int ref06::compressible( int argc, char * argv[] )
 {
     // basic attributes of the computation
     const unsigned    geomDeg  = 1;
@@ -226,8 +204,9 @@ int main( int argc, char * argv[] )
     base::dof::constrainBoundary<FEBasis>( meshBoundary.begin(),
                                            meshBoundary.end(),
                                            mesh, field, 
-                                           boost::bind( &PulledSheetProblem<dim>::dirichletBC<DoF>,
-                                                        _1, _2, dispControlled, firstPull ) );
+                                           boost::bind(
+                                               &ref06::PulledSheet<dim>::dirichletBC<DoF>,
+                                               _1, _2, dispControlled, firstPull ) );
 
     // Bind the fields together
     typedef base::asmb::FieldBinder<Mesh,Field> FieldBinder;
@@ -257,7 +236,7 @@ int main( int argc, char * argv[] )
     std::cout << "#" << table;
 
     // write a vtk file
-    writeVTKFile( baseName, 0, mesh, field, material );
+    ref06::writeVTKFile( baseName, 0, mesh, field, material );
 
 
     //--------------------------------------------------------------------------
@@ -298,7 +277,7 @@ int main( int argc, char * argv[] )
                 base::asmb::neumannForceComputation<SFTB>(
                     surfaceQuadrature, solver,
                     surfaceFieldBinder,
-                    boost::bind( &PulledSheetProblem<dim>::neumannBC,
+                    boost::bind( &ref06::PulledSheet<dim>::neumannBC,
                                  _1, _2, tractionFactor ) );
             }
 
@@ -351,11 +330,17 @@ int main( int argc, char * argv[] )
         }
 
         // write a vtk file
-        writeVTKFile( baseName, step+1, mesh, field, material );
+        ref06::writeVTKFile( baseName, step+1, mesh, field, material );
         
     }
     // Finished load steps
     //--------------------------------------------------------------------------
     
     return 0;
+}
+
+//------------------------------------------------------------------------------
+int main( int argc, char * argv[] )
+{
+    return ref06::compressible( argc, argv );
 }

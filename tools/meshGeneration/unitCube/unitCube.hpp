@@ -110,14 +110,14 @@ void tools::meshGeneration::unitCube::generateGrid(
 template<unsigned DIM,unsigned DEGREE>
 struct tools::meshGeneration::unitCube::TriangulateCube
 {
-    STATIC_ASSERT_MSG( DEGREE==1, "Higher-order simpex not implemented" );
+    STATIC_ASSERT_MSG( DEGREE==1, "Higher-order simplex not implemented" );
     
     typedef base::cut::DecomposeHyperCube<DIM> DHC;
 
     typedef base::mesh::HierarchicOrder<base::HyperCubeShape<DIM>::value,DEGREE>
     HO;
 
-    static const unsigned numNodes = HO::numNodes;
+    static const unsigned numNodes = base::Binomial<DEGREE+DIM,DEGREE>::value ;
         
     static void apply( const tools::meshGeneration::Element& cube,
                        std::vector<tools::meshGeneration::Element>& elements )
@@ -125,7 +125,7 @@ struct tools::meshGeneration::unitCube::TriangulateCube
         for ( unsigned s = 0; s < DHC::numSimplices; s++ ) {
             tools::meshGeneration::Element simplex;
             for ( unsigned v = 0; v < DIM+1; v++ ) {
-                const std::size_t index = DHC::apply( s, v );
+                const std::size_t index = HO::apply( DHC::apply( s, v ) );
                 simplex.push_back( cube[index] );
             } 
             elements.push_back( simplex );

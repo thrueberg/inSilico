@@ -31,6 +31,45 @@ namespace base{
         class ErrorNorm;
 
         //----------------------------------------------------------------------
+        namespace detail_{
+
+            template<typename ELEMENT>
+            struct AskIDFromVolume
+            {
+                static std::size_t apply( const ELEMENT* ep )
+                {
+                    return ep -> getID();
+                }
+            };
+
+            template<typename ELEMENT>
+            struct AskIDFromSurface
+            {
+                static std::size_t apply( const ELEMENT* ep )
+                {
+                    return ep -> getDomainID();
+                }
+            };
+
+            //! Hack
+            template<typename ELEMENT>
+            struct GetID
+                : public base::IfElse<ELEMENT::dim==ELEMENT::Node::dim,
+                                      AskIDFromVolume<ELEMENT>,
+                                      AskIDFromSurface<ELEMENT> >::Type
+            { };
+
+            template<typename ELEMENT>
+            std::size_t getID( const ELEMENT* ep )
+            {
+                return GetID<ELEMENT>::apply( ep );
+            }
+
+        }
+        
+
+
+        //----------------------------------------------------------------------
         /** Convenience function for the computation of the FE error in a norm.
          *  \tparam ORDER      Order of Sobolev norm
          *  \tparam QUADRATURE Type of quadrature to apply
@@ -65,10 +104,12 @@ namespace base{
     
             for ( ; elemIter != elemLast; ++elemIter ) {
 
+                // work around to get the ID of the field elements
+                const std::size_t fieldElemID = detail_::getID( *elemIter );
+
                 // get corresponding field element
                 typename FIELD::Element* fieldElem =
-                    field.elementPtr( (*elemIter) -> getID() );
-                    
+                    field.elementPtr( fieldElemID );
 
                 // Construct a field element pointer tuple 
                 base::asmb::FieldElementPointerTuple<

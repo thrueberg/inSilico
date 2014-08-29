@@ -57,11 +57,20 @@ void writeVTKFile( const std::string& baseName,
     vtkWriter.writeUnstructuredGrid( mesh );
 
     base::io::vtk::writePointData( vtkWriter, mesh, disp, "disp" );
-    base::io::vtk::writeCellData( vtkWriter, mesh, disp, 
-                                  boost::bind( solid::cauchy<typename MESH::Element,
-                                                             typename DISP::Element,
-                                                             MATERIAL>,
-                                               _1, _2, material ), "sigma" );
+
+    const typename base::Vector<MESH::Node::dim>::Type xi =
+        base::ShapeCentroid<MESH::Element::shape>::apply();
+
+    // Bind the fields together
+    typedef base::asmb::FieldBinder<const MESH,const DISP> FieldBinder;
+    FieldBinder fieldBinder( mesh, disp );
+    typedef typename FieldBinder::template TupleBinder<1,1>::Type FTB;
+
+    base::io::vtk::writeCellData<FTB>( vtkWriter, fieldBinder, 
+                                        boost::bind( solid::cauchy<
+                                                     typename FTB::Tuple,
+                                                     MATERIAL>,
+                                                     _1, material, xi ), "sigma" );
             
     vtk.close();
 }

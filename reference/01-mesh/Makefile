@@ -13,10 +13,3 @@ APPFLAGS=-DSPACEDIM=$(SPACEDIM)
 # include configuration file
 include $(INSILICOROOT)/config/convenience.mk
 
-
-# This needs a more elegant solution
-#
-doc:
-	$(BIN)/codeExtractor unstructured.cpp doc
-	cd doc; asciidoc -a toc unstructured.txt
-

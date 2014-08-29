@@ -18,6 +18,15 @@
 #include <tools/meshGeneration/boundaries3D/ParametricSurface.hpp>
 
 //------------------------------------------------------------------------------
+namespace tools{
+    namespace meshGeneration{
+        namespace boundaries3D{
+            class Torus;
+        }
+    }
+}
+
+//------------------------------------------------------------------------------
 /** Parametric representation of a torus.
  *  This function reads all the relevant parameters and generates the map
  *  \f[
@@ -29,7 +38,7 @@
  *  two radii. For the parameterisation, the intervals in 1- and 2-direction
  *  are provided and, if wanted, the parameter space is triangulated. 
  */
-class Torus
+class tools::meshGeneration::boundaries3D::Torus
 {
 public:
     typedef tools::meshGeneration::Point Point;
@@ -121,9 +130,10 @@ int main( int argc, char* argv[] )
         return false;
     }
 
-    
+    typedef tools::meshGeneration::boundaries3D::Torus Torus;
     Torus torus( argc, argv );
-    tools::meshGeneration::ParametricSurface<Torus>::apply( torus, std::cout );
+    tools::meshGeneration::boundaries3D::ParametricSurface<Torus>::apply( torus,
+                                                                          std::cout );
     
     return 0;
 }

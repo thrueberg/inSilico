@@ -117,7 +117,7 @@ public:
     double penaltyWeight( const ITER iter ) const
     {
         const bool inside = true;
-        const std::size_t elemID = iter -> geomElementPtr() -> getID();
+        const std::size_t elemID = iter -> geomElementPtr() -> getDomainID();
         
         const double sizeSurface = cells_[elemID].surfaceArea();
         const double sizeVolume  = cells_[elemID].parameterVolume( inside );
@@ -154,7 +154,7 @@ public:
     template<typename ITER>
     double penaltyWeight( const ITER iter ) const
     {
-        const std::size_t elemID = iter -> geomElementPtr() -> getID();
+        const std::size_t elemID = iter -> geomElementPtr() -> getDomainID();
 
         const bool inside = true;
         const double sizeSurface = cells_[elemID].surfaceArea();
@@ -171,7 +171,7 @@ public:
     double energyWeight( const ITER iter,
                          const bool inOut ) const
     {
-        const std::size_t elemID =  iter -> geomElementPtr() -> getID();
+        const std::size_t elemID =  iter -> geomElementPtr() -> getDomainID();
 
         const bool inside = true;
         const double sizeVolume1  = cells_[elemID].parameterVolume( inside );

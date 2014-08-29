@@ -18,38 +18,44 @@
 #include <tools/meshGeneration/boundaries2D/boundaries2D.hpp>
 
 //------------------------------------------------------------------------------
-namespace circle{
-    bool userInput( const int argc, char* argv[],
-                    double& radius,
-                    tools::meshGeneration::Point& centre,
-                    std::size_t& numElements,
-                    std::string& message )
-    {
-        if ( argc != 5 ) {
-            std::cerr << "Usage: " << argv[0]
-                      << " r cx cy nInt \n\n"
-                      << "To create a circle or radius r with nInt line elements"
-                      << " around the centre (cx,cy)\n\n";
-            return false;
-        }
+namespace tools{
+    namespace meshGeneration{
+        namespace boundaries2D{
+            namespace circle{
+                bool userInput( const int argc, char* argv[],
+                                double& radius,
+                                tools::meshGeneration::Point& centre,
+                                std::size_t& numElements,
+                                std::string& message )
+                {
+                    if ( argc != 5 ) {
+                        std::cerr << "Usage: " << argv[0]
+                                  << " r cx cy nInt \n\n"
+                                  << "To create a circle or radius r with nInt line elements"
+                                  << " around the centre (cx,cy)\n\n";
+                        return false;
+                    }
 
-        // radius
-        radius = boost::lexical_cast<double>(    argv[1] ); 
+                    // radius
+                    radius = boost::lexical_cast<double>(    argv[1] ); 
     
-        // centre point
-        centre[0] = boost::lexical_cast<double>( argv[2] );
-        centre[1] = boost::lexical_cast<double>( argv[3] );
-        centre[2] = 0.;
-        // number of elements
-        numElements = boost::lexical_cast<std::size_t>( argv[4] );
-
-        // concatenate the input arguments
-        for ( int c = 0; c < argc; c++ ) {
-            message += argv[c];
-            message += " ";
+                    // centre point
+                    centre[0] = boost::lexical_cast<double>( argv[2] );
+                    centre[1] = boost::lexical_cast<double>( argv[3] );
+                    centre[2] = 0.;
+                    // number of elements
+                    numElements = boost::lexical_cast<std::size_t>( argv[4] );
+                    
+                    // concatenate the input arguments
+                    for ( int c = 0; c < argc; c++ ) {
+                        message += argv[c];
+                        message += " ";
+                    }
+                    
+                    return true;
+                }
+            }
         }
-
-        return true;
     }
 }
 
@@ -65,7 +71,8 @@ int main( int argc, char* argv[] )
     std::size_t nElem;
     std::string message;
     const bool input =
-        circle::userInput( argc, argv, radius, centre, nElem, message);
+        tools::meshGeneration::boundaries2D::circle::userInput( argc, argv, radius,
+                                                                centre, nElem, message);
     if ( not input ) return 0;
 
     // angle increment

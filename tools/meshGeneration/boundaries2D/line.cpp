@@ -18,40 +18,46 @@
 #include <tools/meshGeneration/boundaries2D/boundaries2D.hpp>
 
 //------------------------------------------------------------------------------
-namespace line{
-
-    bool userInput( const int argc, char* argv[],
-                    tools::meshGeneration::Point& p1,
-                    tools::meshGeneration::Point& p2,
-                    std::size_t& numElements,
-                    std::string& message )
-    {
-        if ( argc != 6 ) {
-            std::cerr << "Usage: " << argv[0]
-                      << " x1 y1  x2 y2  nInt \n\n"
-                      << "To span nInt line elements between the points "
-                      << "(x1,y1) and (x2,y2)\n\n";
-            return false;
-        }
+namespace tools{
+    namespace meshGeneration{
+        namespace boundaries2D{
+            namespace line{
+                
+                bool userInput( const int argc, char* argv[],
+                                tools::meshGeneration::Point& p1,
+                                tools::meshGeneration::Point& p2,
+                                std::size_t& numElements,
+                                std::string& message )
+                {
+                    if ( argc != 6 ) {
+                        std::cerr << "Usage: " << argv[0]
+                                  << " x1 y1  x2 y2  nInt \n\n"
+                                  << "To span nInt line elements between the points "
+                                  << "(x1,y1) and (x2,y2)\n\n";
+                        return false;
+                    }
     
-        // starting point
-        p1[0] = boost::lexical_cast<double>( argv[1] );
-        p1[1] = boost::lexical_cast<double>( argv[2] );
-        p1[2] = 0.;
-        // end point
-        p2[0] = boost::lexical_cast<double>( argv[3] );
-        p2[1] = boost::lexical_cast<double>( argv[4] );
-        p2[2] = 0.;
-        // number of elements
-        numElements = boost::lexical_cast<std::size_t>( argv[5] );
+                    // starting point
+                    p1[0] = boost::lexical_cast<double>( argv[1] );
+                    p1[1] = boost::lexical_cast<double>( argv[2] );
+                    p1[2] = 0.;
+                    // end point
+                    p2[0] = boost::lexical_cast<double>( argv[3] );
+                    p2[1] = boost::lexical_cast<double>( argv[4] );
+                    p2[2] = 0.;
+                    // number of elements
+                    numElements = boost::lexical_cast<std::size_t>( argv[5] );
         
-        // concatenate the input arguments
-        for ( int c = 0; c < argc; c++ ) {
-            message += argv[c];
-            message += " ";
-        }
+                    // concatenate the input arguments
+                    for ( int c = 0; c < argc; c++ ) {
+                        message += argv[c];
+                        message += " ";
+                    }
 
-        return true;
+                    return true;
+                }
+            }
+        }
     }
 }
 
@@ -67,7 +73,9 @@ int main( int argc, char* argv[] )
     Point X1, X2;
     std::size_t nElem;
     std::string message;
-    const bool input = line::userInput( argc, argv, X1, X2, nElem, message );
+    const bool input =
+        tools::meshGeneration::boundaries2D::line::userInput( argc, argv, X1, X2,
+                                                              nElem, message );
 
     if ( not input ) return 0;
 

@@ -7,13 +7,6 @@
 - [ ] solver (A * (inv(A) * b) == b?)
 - [ ] io 
 
-* base/solver [0/2]
-- [ ] sparsity Pattern with functions create/append (row field, col field)
-- [ ] create solver, based on sparsity pattern
-
-* base/asmb [/]
-- [ ] After base/solver/SparsityPattern, use openMP parallel for for assembly
-
 * base/nitsche [1/2]
 - [ ] Functionality to decompose the boundary conditions
   (component-wise or normal/tangent)
@@ -36,20 +29,24 @@
 - [ ] deep copy of degrees of freedom
 - [ ] deep field copy
 
-* solid [0/0]
+* heat [0/1]
+- [ ] Nonlinear material behaviour in a driver
 
-* fluid [0/1]
-- [ ] Stokes stabilisation
+* solid [0/1]
+- [ ] CompressibleHyperelasticity within a driver
+
+* fluid [1/2]
+- [X] Stokes stabilisation
+- [ ] (Navier)-Stokes driver
 
 * mat [0/3]
 - [ ] Hyper-Elastic material based on Energy with invariants only
 - [ ] Test Ogden material
 - [ ] Is it possible to compute stretches from invariants? 
 
-* reference [0/3]
+* reference [0/2]
 - [ ] tutorial docu
 - [ ] test app for incompressible material
-- [ ] test apps with compilability and reference results
 
 * beauty
 - [ ] replace all ASCII graphics by proper png files

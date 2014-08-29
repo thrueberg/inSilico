@@ -38,60 +38,102 @@
 #include <base/time/ResidualForceHistory.hpp>
 
 //------------------------------------------------------------------------------
-template<unsigned DIM, typename DOF>
-void velocityFun( const typename base::Vector<DIM,double>::Type& x,
-                  DOF* doFPtr ) 
-{
-    typename DOF::ValueArray v;
-    for ( unsigned d = 0; d < DOF::size; d++ ) v[d] = 0.;
+namespace ref04{
 
-    v[0] = 2.;
-    v[1] = 1.;
+    //--------------------------------------------------------------------------
+    //! Prescribed velocity field for the convection term
+    template<unsigned DIM, typename DOF>
+    void velocityFun( const typename base::Vector<DIM,double>::Type& x,
+                      DOF* doFPtr ) 
+    {
+        typename DOF::ValueArray v;
+        for ( unsigned d = 0; d < DOF::size; d++ ) v[d] = 0.;
+    
+        v[0] = 2.;
+        v[1] = 1.;
 
-    for ( unsigned d = 0; d < DOF::size; d++ ) doFPtr -> setValue( d, v[d] );
-}
-
-//------------------------------------------------------------------------------
-template<unsigned DIM, typename DOF>
-void dirichletBC( const typename base::Vector<DIM,double>::Type& x,
-                  DOF* doFPtr ) 
-{
-    const double tol = 1.e-5;
-    const bool left   = ( std::abs( x[0] - 0. ) < tol );
-    const bool right  = ( std::abs( x[0] - 1. ) < tol );
-    const bool bottom = ( std::abs( x[1] - 0. ) < tol );
-    const bool top    = ( std::abs( x[1] - 1. ) < tol );
-
-    if ( doFPtr -> isActive(0) ) {
-
-        if ( right or bottom )
-            doFPtr -> constrainValue( 0, 0. );
-        else if ( left or top )
-            doFPtr -> constrainValue( 0, 1. );
-
+        for ( unsigned d = 0; d < DOF::size; d++ ) doFPtr -> setValue( d, v[d] );
     }
+    
+    //--------------------------------------------------------------------------
+    //! Apply boundary conditions
+    template<unsigned DIM, typename DOF>
+    void discontinuousBC( const typename base::Vector<DIM,double>::Type& x,
+                          DOF* doFPtr ) 
+    {
+        const double tol = 1.e-5;
+        const bool left   = ( std::abs( x[0] - 0. ) < tol );
+        const bool right  = ( std::abs( x[0] - 1. ) < tol );
+        const bool bottom = ( std::abs( x[1] - 0. ) < tol );
+        const bool top    = ( std::abs( x[1] - 1. ) < tol );
+
+        if ( doFPtr -> isActive(0) ) {
+            
+            if      ( right or bottom ) doFPtr -> constrainValue( 0, 0. );
+            else if ( left  or top    ) doFPtr -> constrainValue( 0, 1. );
+
+        }
+    }
+
+    //--------------------------------------------------------------------------
+    //! Output to a VTK file
+    template<typename MESH, typename TEMP>
+    void writeVTKFile( const std::string& baseName,
+                       const unsigned     step,
+                       const MESH&        mesh,
+                       const TEMP&        temperature )
+    {
+        // VTK Legacy
+        const std::string vtkFile =
+            baseName + "." + base::io::leadingZeros( step ) + ".vtk";
+        std::ofstream vtk( vtkFile.c_str() );
+        base::io::vtk::LegacyWriter vtkWriter( vtk );
+        vtkWriter.writeUnstructuredGrid( mesh );
+        base::io::vtk::writePointData( vtkWriter, mesh, temperature, "temperature" );
+        vtk.close();
+    }
+
+    int convection( int argc, char * argv[] );
 }
 
 //------------------------------------------------------------------------------
-// output to a VTK file
-template<typename MESH, typename TEMP>
-void writeVTKFile( const std::string& baseName,
-                   const unsigned     step,
-                   const MESH&        mesh,
-                   const TEMP&        temperature )
-{
-    // VTK Legacy
-    const std::string vtkFile =
-        baseName + "." + base::io::leadingZeros( step ) + ".vtk";
-    std::ofstream vtk( vtkFile.c_str() );
-    base::io::vtk::LegacyWriter vtkWriter( vtk );
-    vtkWriter.writeUnstructuredGrid( mesh );
-    base::io::vtk::writePointData( vtkWriter, mesh, temperature, "temperature" );
-    vtk.close();
-}
-
-//------------------------------------------------------------------------------
-int main( int argc, char * argv[] )
+/** Solve a simple diffusion-convection problem.
+ *  The problem reads
+ *  \f[
+ *       \rho \ddot{u} + \vec{v} \cdot \nabla u - \kappa \nabla^2 u = 0
+ *  \f]
+ *  The initial condition is zero for \f$ u \f$ and the system has the boundary
+ *  conditions
+ *  \code{.txt}
+ *                     u=1
+ *                +-----------+
+ *                |           |
+ *                |   v=(2,1) |
+ *          u=1   |    __->   | u=0
+ *                | __-       |
+ *                |           |
+ *                +-----------+
+ *                     u=0
+ *  \endcode
+ *  and the prescribed velocity field is also shown.
+ *
+ *  The new features of this function are:
+ *  -  convection term with a prescribed field (multiple fields)
+ *  -  time integration (see base::time::MultiStep)
+ *  -  use of a base::post::Monitor object for extracting the data at
+ *     a specific point
+ *
+ *  Snapshots of the solution to this problem are shown in the image
+ *  \image html convection.png "Solution a four time points"
+ *  The monitor allows to report the solution or the solution gradient at
+ *  a specific point and here for the midpoint these values have the
+ *  behaviour as shown below.
+ *  \image html uVsTime.png
+ *
+ *  \param[in] argc Number of command line arguments
+ *  \param[in] argv Values of command line arguments
+ */
+int ref04::convection( int argc, char * argv[] )
 {
     if ( argc != 2 ) {
         std::cout << "Usage:  " << argv[0] << " input.dat \n\n";
@@ -136,7 +178,7 @@ int main( int argc, char * argv[] )
     // choose a time stepping method
     //typedef  base::time::BDF<tiOrder> MSM;
     typedef base::time::AdamsMoulton<tiOrder> MSM;
-
+    
     // time stepping method determines the history size
     const unsigned nHist = MSM::numSteps;
     
@@ -187,8 +229,8 @@ int main( int argc, char * argv[] )
     base::dof::constrainBoundary<FEBasis>( meshBoundary.begin(),
                                            meshBoundary.end(),
                                            mesh, temperature,
-                                           boost::bind( &dirichletBC<dim,
-                                                                     Temperature::DegreeOfFreedom>,
+                                           boost::bind( &discontinuousBC<dim,
+                                                        Temperature::DegreeOfFreedom>,
                                                         _1, _2 ) );
 
     // Number of DoFs after constraint application!
@@ -243,17 +285,19 @@ int main( int argc, char * argv[] )
         // Compute system matrix from Laplacian
         base::asmb::stiffnessMatrixComputation<FieldTupleBinder>( quadrature, solver,
                                                                   fieldBinder,
-                                                                  staticHeat );
+                                                                  staticHeat,
+                                                                  false );
 
-        // Compute system matrix from Convection
+        // // Compute system matrix from Convection
         base::asmb::stiffnessMatrixComputation<FieldTupleBinder>( quadrature, solver, 
                                                                   fieldBinder,
-                                                                  convection );
+                                                                  convection,
+                                                                  false );
 
         // compute inertia terms, d/dt, due to time integration
         base::time::computeInertiaTerms<FieldTupleBinder,MSM>( quadrature, solver,
                                                                fieldBinder, stepSize, step,
-                                                               density );
+                                                               density, false );
 
         // compute history of residual forces due to time integration
         base::time::computeResidualForceHistory<FieldTupleBinder,MSM>( staticHeat,
@@ -287,4 +331,10 @@ int main( int argc, char * argv[] )
     } // end time loop
 
     return 0;
+}
+
+//------------------------------------------------------------------------------
+int main( int argc, char * argv[] )
+{
+    return ref04::convection( argc, argv );
 }

@@ -91,6 +91,15 @@ namespace fluid{
     }
 
     //--------------------------------------------------------------------------
+    /** Computation of fluid stress.
+     *  Based on a viscous, Newtonian fluid model the stress in the fluid
+     *  reads
+     *  \f[
+     *         \sigma(u,p) = -p I + \mu (\nabla u + (\nabla u)^T)
+     *  \f]
+     *  based on the pressure \f$ p \f$, the viscosity \f$ \mu \f$ and the
+     *  velocity gradient \f$ \nabla u \f$.
+     */
     template<typename FIELDTUPLE>
     class Stress
         : public boost::function<
@@ -171,6 +180,14 @@ namespace fluid{
     };
 
     //--------------------------------------------------------------------------
+    /** Computation of fluid traction on a surface.
+     *  Using the fluid::Stress representation of the stress in the fluid,
+     *  the traction forces a fluid applies on a surface become
+     *  \f[
+     *       t(u,p) = \sigma(u,p) n
+     *  \f]
+     *  using the outward unit normal vector \f$ n \f$.
+     */
     template<typename FIELDTUPLE>
     class Traction
         : public boost::function<

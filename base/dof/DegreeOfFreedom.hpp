@@ -221,6 +221,9 @@ public:
 
     void activateAll()   { status_.assign( ACTIVE );   }
     void deactivateAll() { status_.assign( INACTIVE ); }
+
+    void activate(   const unsigned which ) { status_[which] = ACTIVE; }
+    void deactivate( const unsigned which ) { status_[which] = INACTIVE; }
     //@}
 
     //--------------------------------------------------------------------------

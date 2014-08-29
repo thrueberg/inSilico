@@ -40,6 +40,26 @@ namespace base{
                                          const MESH& mesh, 
                                          const typename MESH::Node::VecDim& x,
                                          const double tolerance );
+
+        template<typename MESH, typename FIELD>
+        std::pair<std::size_t, typename MESH::Element::GeomFun::VecDim>
+        findPointInField( const MESH& mesh,
+                          const FIELD& field,
+                          const typename MESH::Node::VecDim& x,
+                          const double tol )
+        {
+            // associate DoFs with physical location
+            std::vector< std::pair<std::size_t,
+                                   typename MESH::Element::GeomFun::VecDim> >
+                doFLocation;
+            associateLocation( field, doFLocation );
+
+            // find specific dof in mesh
+            const std::size_t id =
+                findDoFWithLocation( doFLocation, mesh, x, tol );
+
+            return doFLocation[ id ];
+        }
     }
 }
 
@@ -145,7 +165,7 @@ std::size_t base::dof::findDoFWithLocation( const std::vector<
         const double distance =
             (base::Geometry<typename MESH::Element>()( gep, xi ) - x ).norm();
 
-        if ( distance < tolerance ) return p;
+        if ( distance <= tolerance ) return p;
     }
 
     // this point shall not be reached

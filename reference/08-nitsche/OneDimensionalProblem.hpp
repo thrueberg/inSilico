@@ -42,9 +42,9 @@ namespace apps{
  *  1D Interface BVP:
  *  \f{eqnarray*}{
  *
- *         -\alpha_i d^2 (u_i) / d x^2 &=& 1      0   &<& x_1 < 1   \\
- *                                 u_1 &=& 0      x_1 &=& 0         \\
- *                                 u_2 &=& 0      x_1 &=& 1         \\
+ *         -\alpha_i d^2 (u_i) / d x^2 &=& 1   \quad   0   < x_1 < 1   \\
+ *                                 u_1 &=& 0   \quad   x_1 = 0         \\
+ *                                 u_2 &=& 0   \quad   x_1 = 1         \\
  *  \f}
  *
  *  Interface:

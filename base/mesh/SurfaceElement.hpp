@@ -83,6 +83,10 @@ namespace base{
  *  In addition to a normal base::mesh::Element, this class stores a pointer to
  *  the domain element it is associated with and the parametric coordinates
  *  of that domain element which define this surface element.
+ *  
+ *  A typical application of this type of element is a Neumann boundary
+ *  condition in which the integration domain is over the surface of a domain
+ *  mesh, but access to the shape functions of the domain fields are needed. 
  *
  *  \tparam ELEMENT  Type of volume element
  */
@@ -151,15 +155,9 @@ public:
     ParamConstIter parametricBegin() const { return parametric_.begin(); }
     ParamConstIter parametricEnd()   const { return parametric_.end();   }
     //@}
-    
-    //! Override the ID function
-    std::size_t getID() const { return domainElementPtr_ -> getID(); }
 
-    //! Set surface ID
-    void setSurfaceID( const std::size_t seid ) { BasisElement::setID(seid); }
-    
-    //! Get surface ID
-    std::size_t getSurfaceID() const { return BasisElement::getID(); }
+    //! Return ID of the attached domain element
+    std::size_t getDomainID() const { return domainElementPtr_ -> getID(); }
 
     //--------------------------------------------------------------------------
     /** Computation of a domain-element parametric coordinate.

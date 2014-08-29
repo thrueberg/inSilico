@@ -413,7 +413,6 @@ public:
      *  \param[in]   surfFieldTuple  Tuple of field element pointers
      *  \param[in]   eta    Local evaluation coordinate
      *  \param[in]   weight Corresponding quadrature weight
-     *  \param[in]   bcFun  Function describing the boundary condition
      *  \param[out]  result Result container (pre-sized and zero-initialised)
      */
     void residualInterface( const SurfFieldTuple& surfFieldTuple,

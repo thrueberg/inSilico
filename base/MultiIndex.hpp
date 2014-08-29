@@ -27,6 +27,13 @@ namespace base{
 
 
 //------------------------------------------------------------------------------
+/** Wrapper for multi-index operations.
+ *  This object does not hold any data, but provides the functionality for a
+ *  multi-index. The indices themselves are given by a typedef.
+ *  Typicall operations are a creation with constant values, size queries,
+ *  and wrap and un-wrap modifications. 
+ *  \tparam SIZE Size of the multi-index
+ */
 template<unsigned SIZE>
 struct base::MultiIndex
 {

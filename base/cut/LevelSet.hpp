@@ -25,11 +25,13 @@
 namespace base{
     namespace cut{
 
-        template<unsigned DIM>
-        class LevelSet;
+        template<unsigned DIM> class LevelSet;
 
         template<unsigned DIM>
-        LevelSet<DIM> setUnion( const LevelSet<DIM>& a, const LevelSet<DIM>& b );
+        LevelSet<DIM> setIntersection( const LevelSet<DIM>& a, const LevelSet<DIM>& b );
+        
+        template<unsigned DIM>
+        LevelSet<DIM> setComplement( const base::cut::LevelSet<DIM>& a );
 
         template<base::Shape SHAPE>
         double interpolatedDistance(
@@ -87,6 +89,15 @@ public:
     { }
 
     //--------------------------------------------------------------------------
+    //! Set values for a constant distance value of +/- 1.0
+    void setDefault( const VecDim& x, const bool inOut )
+    {
+        distanceToPlane_ = (inOut ? 1.0 : -1.0 );
+        x_ = x;
+        closestPoint_ = x_; closestPoint_[0] += 1.0;
+    }
+
+    //--------------------------------------------------------------------------
     //! @name Mutators
     //@{
     void setDistanceToPlane( const double     dp ) { distanceToPlane_ = dp; }
@@ -137,15 +148,37 @@ private:
 };
 
 //------------------------------------------------------------------------------
+/** Compute the overlap of two level set objects by returning the one with the
+ *  smaller signed distance.
+ *  \note This library is based on the convection that the level-set function
+ *        is \em positive \em inside a body and \em negative \em ouside.
+ *        Therefore, the minimal function value gives the \em intersection
+ *        and not the union as in case of reversed signs.
+ *
+ *  \param[in] a, b Level set objects to compare
+ *  \return         Object with smaller signed distance value
+ */
 template<unsigned DIM>
 base::cut::LevelSet<DIM>
-base::cut::setUnion( const base::cut::LevelSet<DIM>& a,
-                     const base::cut::LevelSet<DIM>& b )
+base::cut::setIntersection( const base::cut::LevelSet<DIM>& a,
+                            const base::cut::LevelSet<DIM>& b )
 {
     VERIFY_MSG( base::auxi::almostEqualVectors<DIM>( a.getX(), b.getX() ),
                 "Cannot add level set data of different mesh points" );
 
     if ( a.getSignedDistance() < b.getSignedDistance() ) return a;
+    return b;
+}
+
+//------------------------------------------------------------------------------
+/** Compute the complement of a given level set by reversing its sign.
+ */
+template<unsigned DIM>
+base::cut::LevelSet<DIM>
+base::cut::setComplement( const base::cut::LevelSet<DIM>& a )
+{
+    base::cut::LevelSet<DIM> b = a;
+    b.setDistanceToPlane( -a.getDistanceToPlane() );
     return b;
 }
 

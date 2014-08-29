@@ -54,8 +54,9 @@ namespace base{
  *
  *  \note This mesh will not be geometrically continuous, but every surface
  *        element is disconnected from its neighbours. Since the underlying
- *        level set function is globally continuoys, the surface mesh will not
- *        have gaps.
+ *        level set function is continuous and the nodes of this mesh are
+ *        construct by linear interpolation along mesh edges, there will be
+ *        no gaps among neighboring elements of this mesh.
  *
  *  For every cell which is cut, the parameter coordinates of the surface
  *  vertices are used to evaluate the geometry via the domain mesh. The outcome
@@ -120,7 +121,7 @@ void base::cut::generateSurfaceMesh(
                 (*surfElemIter) -> setDomainElementPointer( domainElement );
 
                 // Pass surface element ID
-                (*surfElemIter) -> setSurfaceID( elemID++ );
+                (*surfElemIter) -> setID( elemID++ );
 
                 // Access to surface elements geometry nodes
                 typename SurfaceElement::NodePtrIter nodePtrIter =

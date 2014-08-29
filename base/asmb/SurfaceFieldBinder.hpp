@@ -29,7 +29,7 @@ namespace base{
 
         //----------------------------------------------------------------------
         template<typename SURFMESH,
-                 typename FIELD1,
+                 typename FIELD1 = const detail_::DummyField,
                  typename FIELD2 = const detail_::DummyField,
                  typename FIELD3 = const detail_::DummyField,
                  typename FIELD4 = const detail_::DummyField,
@@ -62,10 +62,20 @@ namespace base{
 
 //------------------------------------------------------------------------------
 /** Bind a mesh with up to five different fields.
+ *  Similar to the FieldBinder, this object combines geometry with multiple
+ *  fields. The difference is here, that the pointer tuples are not generated
+ *  when needed, but they are constructed in this object's constructor and
+ *  stored locally. For this reason, SurfaceFieldBinder has local storage and
+ *  the iterators to this storage are directly the FieldIterator.
  *
- *  \tparam SURFMESH        Type of surface mesh to which a field is/fields are bound
- *  \tparam FIELD1          Type of field bound to the mesh
- *  \tparam FIELD2, FIELD3,
+ *  In detail, every surface element of an immersed surface or the mesh boundary
+ *  has a pointer to the domain mesh element to which it is attached. The
+ *  element of the domain mesh is associated (via its ID) with field elements at
+ *  the same location. Here, the geometry element of the surface mesh is paired
+ *  with a number of field elements belonging to the domain.
+ *
+ *  \tparam SURFMESH  Type of surface mesh to which a field is/fields are bound
+ *  \tparam FIELD1, FIELD2, FIELD3,
  *          FIELD4, FIELD5  Optional fields bound to the mesh
  */
 template<typename SURFMESH, typename FIELD1,
@@ -89,7 +99,7 @@ public:
 
     //--------------------------------------------------------------------------
     //! For convenience, delegate the type specification from here
-    template<int I, int J=-1, int K=-1, int L=-1, int M=-1>
+    template<int I=-1, int J=-1, int K=-1, int L=-1, int M=-1>
     struct TupleBinder
     {
         // Define the type of the tuple-binder
@@ -104,7 +114,7 @@ public:
 
     //! Constructor with mesh, a field and four optional fields
     SurfaceFieldBinder( Mesh& surfMesh,
-                        FIELD1& field1,
+                        FIELD1& field1 = detail_::makeDummyField(),
                         FIELD2& field2 = detail_::makeDummyField(),
                         FIELD3& field3 = detail_::makeDummyField(),
                         FIELD4& field4 = detail_::makeDummyField(),
@@ -115,8 +125,11 @@ public:
                   surfMesh.elementsBegin();
               bElemIter != surfMesh.elementsEnd(); ++bElemIter ) {
 
-            const std::size_t elemID = (*bElemIter) -> getID();
+            // bind geometry element of surface mesh with field elements of
+            // volume mesh; hence the domain element ID is needed
+            const std::size_t elemID = (*bElemIter) -> getDomainID();
 
+            // create tuple of surface geometry element and domain field elements
             ElementPtrTuple ept =
                 ElementPtrTuple( *bElemIter,
                                  field1.elementPtr( elemID ),
@@ -125,7 +138,7 @@ public:
                                  field4.elementPtr( elemID ),
                                  field5.elementPtr( elemID ) );
                                  
-
+            // local storage of tuple
             elementPtrs_.push_back( ept );
         }
 
@@ -144,7 +157,7 @@ public:
     }
 
     /** ´Random-access´ to the pointer tuples
-     *  The local storage contains element-pointer tuples which belong
+     *  The local storage contains element-pointer tuples which belong to
      *  the surface (boundary or immersed) of the domain. Consequently
      *  they are not sorted by their ID. The parameter e is the ID of
      *  a volume element and all stored elements will be checked in order
@@ -154,7 +167,7 @@ public:
     ElementPtrTuple elementPtr( const std::size_t& e ) const
     {
         FieldIterator iter = this -> elementsBegin();
-        while ( ( (*iter).geomElementPtr() -> getID() ) != e )
+        while ( ( (*iter).geomElementPtr() -> getDomainID() ) != e )
             ++iter;
 
         VERIFY_MSG( iter != (this -> elementsEnd() ),
@@ -166,7 +179,6 @@ public:
 private:
     //! Container of element pointer tuples
     std::vector<ElementPtrTuple> elementPtrs_;
-
 };
 
 #endif

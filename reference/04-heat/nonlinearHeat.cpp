@@ -29,38 +29,63 @@
 #include <mat/thermal/IsotropicConstant.hpp>
 
 //------------------------------------------------------------------------------
-// Reference solution, see mat/thermal/FenicsTest.hpp
-template<unsigned DIM>
-base::Vector<1,double>::Type
-referenceSolution( const typename base::Vector<DIM,double>::Type& x,
-                   const double m )
-{
-    const double fac = std::pow( 2.0, m+1.0 );
-    const double mantissa = (fac-1.0) * x[0] + 1.0;
-    const double result = std::pow( mantissa, 1./(m+1.0) ) - 1.0;
-    return base::Vector<1,double>::Type::Constant( result );
+namespace ref04 {
+
+    //--------------------------------------------------------------------------
+    //! Reference solution, see mat::thermal::FenicsTest
+    template<unsigned DIM>
+    base::Vector<1,double>::Type
+    referenceSolution( const typename base::Vector<DIM,double>::Type& x,
+                       const double m )
+    {
+        const double fac = std::pow( 2.0, m+1.0 );
+        const double mantissa = (fac-1.0) * x[0] + 1.0;
+        const double result = std::pow( mantissa, 1./(m+1.0) ) - 1.0;
+        return base::Vector<1,double>::Type::Constant( result );
+    }
+
+    //--------------------------------------------------------------------------
+    //! Set simple boundary conditions u(0) = 0 and u(1) = 1
+    template<unsigned DIM, typename DOF>
+    void simpleBC( const typename base::Vector<DIM,double>::Type& x,
+                   DOF* doFPtr ) 
+    {
+        const double tol = 1.e-5;
+        const bool left  = ( std::abs( x[0] - 0. ) < tol );
+        const bool right = ( std::abs( x[0] - 1. ) < tol );
+
+        if ( left and ( doFPtr -> isActive(0) ) )
+            doFPtr -> constrainValue( 0, 0. );
+
+        if ( right and ( doFPtr -> isActive(0) ) )
+            doFPtr -> constrainValue( 0, 1. );
+
+    }
+
+    int nonlinearHeat( int argc, char * argv[] );
 }
 
 //------------------------------------------------------------------------------
-// u(0) = 0 and u(1) = 1
-template<unsigned DIM, typename DOF>
-void dirichletBC( const typename base::Vector<DIM,double>::Type& x,
-                  DOF* doFPtr ) 
-{
-    const double tol = 1.e-5;
-    const bool left  = ( std::abs( x[0] - 0. ) < tol );
-    const bool right = ( std::abs( x[0] - 1. ) < tol );
-
-    if ( left and ( doFPtr -> isActive(0) ) )
-        doFPtr -> constrainValue( 0, 0. );
-
-    if ( right and ( doFPtr -> isActive(0) ) )
-        doFPtr -> constrainValue( 0, 1. );
-
-}
-
-//------------------------------------------------------------------------------
-int main( int argc, char * argv[] )
+/** Solve a simple Sturm-Liouville equation.
+ *  Here an essentially one-dimensional boundary value problem with a mild
+ *  non-linearity is solved. The BVP is described in mat::thermal::FenicsTest
+ *  and tackled here with a Newton iteration.
+ *
+ *  The main feature of this function is
+ *  - nonlinear iteration with a Newton method
+ *  - check of convergence
+ *
+ *  Execution
+ *  \code{.txt}
+ *  ./nonlinearHeat square_200.smf
+ *  \endcode
+ *  gives the output of
+ *  \include nonlinearHeat.ref.dat
+ *
+ *  \param[in] argc Number of command line arguments
+ *  \param[in] argv Values of command line arguments
+ */
+int ref04::nonlinearHeat( int argc, char * argv[] )
 {
     if ( argc != 2 ) {
         std::cout << "Usage:  " << argv[0] << " file.smf \n\n";
@@ -94,7 +119,7 @@ int main( int argc, char * argv[] )
     }
 
     // Quadrature 
-    const unsigned kernelDegEstimate = 3;
+    const unsigned kernelDegEstimate = 5;
     typedef base::Quadrature<kernelDegEstimate,shape> Quadrature;
     Quadrature quadrature;
 
@@ -115,9 +140,9 @@ int main( int argc, char * argv[] )
     base::dof::constrainBoundary<FEBasis>( meshBoundary.begin(),
                                            meshBoundary.end(),
                                            mesh, field, 
-                                           boost::bind( &dirichletBC<dim,
-                                                                     Field::DegreeOfFreedom>,
-                                                            _1, _2 ) );
+                                           boost::bind( &simpleBC<dim,
+                                                        Field::DegreeOfFreedom>,
+                                                        _1, _2 ) );
 
     // Number of DoFs after constraint application!
     const std::size_t numDofs =
@@ -148,8 +173,7 @@ int main( int argc, char * argv[] )
         // Compute system matrix
         base::asmb::stiffnessMatrixComputation<FieldTupleBinder>( quadrature, solver,
                                                                   fieldBinder,
-                                                                  staticHeat,
-                                                                  iter > 0 );
+                                                                  staticHeat );
 
         // compute residual forces
         base::asmb::computeResidualForces<FieldTupleBinder>( quadrature, solver,
@@ -168,13 +192,15 @@ int main( int argc, char * argv[] )
 
         // Solve a possibly non-symmetric system
         solver.superLUSolve();
+        //solver.luSolve();
+        //solver.biCGStabSolve();
 
         const double incrementNorm = solver.norm();
         if ( incrementNorm < tolerance ) break;
         std::cout << ",  |x| = " << incrementNorm << std::endl;
 
         // distribute results back to dofs
-        base::dof::addToDoFsFromSolver( solver, field, iter > 0 );
+        base::dof::addToDoFsFromSolver( solver, field );
 
         iter++;
     }
@@ -208,4 +234,10 @@ int main( int argc, char * argv[] )
     
     
     return 0;
+}
+
+//------------------------------------------------------------------------------
+int main( int argc, char * argv[] )
+{
+    return ref04::nonlinearHeat( argc, argv );
 }

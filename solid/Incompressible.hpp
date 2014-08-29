@@ -26,8 +26,7 @@
 //------------------------------------------------------------------------------
 namespace solid{
 
-    template<typename T>
-    class Incompressible; //!< Documentation class
+    template<typename T> class Incompressible; // Documentation class
 
     template<typename MATERIAL,typename FIELDTUPLE> class IncompressibleUU;
     template<typename FIELDTUPLE>                   class IncompressibleUP;

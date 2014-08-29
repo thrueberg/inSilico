@@ -27,13 +27,16 @@ namespace base{
 
         namespace detail_{
 
-            //! Helper object for compilers not supporting class injection
-            //! icpc does not compile when using
-            //!    static const unsigned numSteps = METHOD<ORDER>::numSteps
-            //! because it does not consider METHOD<ORDER> a complete type,
-            //! but g++ does. This helper object allows for a workaround and
-            //! is based on partial specialisations in the method definition
-            //! files
+            /** Helper object for compilers not supporting class injection
+             *  icpc does not compile when using
+             *  \code{.cpp}
+             *     static const unsigned numSteps = METHOD<ORDER>::numSteps;
+             *  \endcode
+             *  because it does not consider METHOD<ORDER> a complete type,
+             *  but g++ does. This helper object allows for a workaround and
+             *  is based on partial specialisations in the method definition
+             *  files
+             */
             template<unsigned ORDER, template<unsigned> class METHOD>
             struct NumSteps;
 

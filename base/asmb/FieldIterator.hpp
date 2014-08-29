@@ -68,7 +68,7 @@ namespace base{
         } // namespace detail_
 
         template<typename GITER,
-                 typename FITER1,
+                 typename FITER1 = detail_::DummyIterator,
                  typename FITER2 = detail_::DummyIterator,
                  typename FITER3 = detail_::DummyIterator,
                  typename FITER4 = detail_::DummyIterator,
@@ -89,7 +89,7 @@ namespace base{
  *  be achieved by changing the iterators reference type to a value type.
  *
  *  \tparam GITER           Iterator over the mesh elements (mandatory)
- *  \tparam FITER1          Iterator over first  field      (mandatory)
+ *  \tparam FITER1          Iterator over first  field      (optional)
  *  \tparam FITER2, FITER3,
  *          FITER4, FITER5  Optional iterators over other fields.
  */
@@ -135,7 +135,7 @@ public:
 
     //! Construction
     FieldIterator( GITER  gIter,
-                   FITER1 fIter1,
+                   FITER1 fIter1 = FITER1(),
                    FITER2 fIter2 = FITER2(),
                    FITER3 fIter3 = FITER3(),
                    FITER4 fIter4 = FITER4(),

@@ -31,6 +31,20 @@ namespace base{
 }
 
 //------------------------------------------------------------------------------
+/** Storage of the boundary of a mesh.
+ *  Note that the boundary of a mesh is just a list of index pairs; the first
+ *  number refers to the index of the element that lies adjacent to the boundary
+ *  and the second number refers to the face number of this element which forms
+ *  the boundary, see ElementFaces.
+ *
+ *  The action to create this list is delegated to either
+ *  createBoundaryFromUnstructured() in case of an Unstructured mesh or to
+ *  createBoundaryFromStructuredFace() in case of a structured mesh.
+ *
+ *  After creation of this list of index pairs, the function
+ *  generateBoundaryMesh() allows to create a true surface mesh.
+ *
+ */
 class base::mesh::MeshBoundary
     : boost::noncopyable
 {

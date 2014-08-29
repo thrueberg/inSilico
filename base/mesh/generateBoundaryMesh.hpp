@@ -451,7 +451,8 @@ void base::mesh::generateBoundaryMesh( BITER first, BITER last,
                                                 
             } // end loop over boundary element's nodes
 
-            (*bdryElemIter) -> setSurfaceID( boundaryElementID++ );
+            // set element ID
+            (*bdryElemIter) -> setID( boundaryElementID++ );
             
             // increment iterator over boundary elements
             ++bdryElemIter;

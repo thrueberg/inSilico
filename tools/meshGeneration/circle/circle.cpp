@@ -20,58 +20,62 @@
 #include <tools/meshGeneration/meshGeneration.hpp>
 
 //------------------------------------------------------------------------------
-namespace circle{
+namespace tools{
+    namespace meshGeneration{
+        namespace circle{
 
-    // get data from the command line
-    bool userInput( const int argc, char* argv[],
-                    double& radius,
-                    double& length,
-                    std::size_t& N,
-                    std::size_t& M,
-                    std::string& message )
-    {
-        if ( argc != 5 ) {
-            std::cerr << "Usage: "
-                      << argv[0] << " R L N M \n\n"
-                      << "R - Radius of circle around (0,0) \n"
-                      << "L - Section length for transition square-circle\n"
-                      << "N - Number of elements along the length L\n"
-                      << "M - Number of elements along a quarter circle\n"
-                      << std::endl;
-            return false;
+            // get data from the command line
+            bool userInput( const int argc, char* argv[],
+                            double& radius,
+                            double& length,
+                            std::size_t& N,
+                            std::size_t& M,
+                            std::string& message )
+            {
+                if ( argc != 5 ) {
+                    std::cerr << "Usage: "
+                              << argv[0] << " R L N M \n\n"
+                              << "R - Radius of circle around (0,0) \n"
+                              << "L - Section length for transition square-circle\n"
+                              << "N - Number of elements along the length L\n"
+                              << "M - Number of elements along a quarter circle\n"
+                              << std::endl;
+                    return false;
+                }
+
+                // read from input arguments
+                radius = boost::lexical_cast<double     >( argv[1] );
+                length = boost::lexical_cast<double     >( argv[2] );
+                N      = boost::lexical_cast<std::size_t>( argv[3] );
+                M      = boost::lexical_cast<std::size_t>( argv[4] );
+
+                // assert positivity of radius and length
+                VERIFY_MSG( radius > 0., "Enter positive radius" );
+                VERIFY_MSG( length > 0., "Enter positive section length" );
+
+                // assert positivity of radius and length
+                VERIFY_MSG( (M > 0) and (N > 0),
+                            "Enter positive number of elements" );
+
+                // section length must be less than R / sqrt(2)
+                if ( length >= radius / std::sqrt(2.) ) {
+                    std::cerr << ""
+                              << std::endl;
+                    return false;
+                }
+
+                // concatenate the input arguments
+                for ( int c = 0; c < argc; c++ ) {
+                    message += argv[c];
+                    message += " ";
+                }
+
+
+                return true;
+            }
+
         }
-
-        // read from input arguments
-        radius = boost::lexical_cast<double     >( argv[1] );
-        length = boost::lexical_cast<double     >( argv[2] );
-        N      = boost::lexical_cast<std::size_t>( argv[3] );
-        M      = boost::lexical_cast<std::size_t>( argv[4] );
-
-        // assert positivity of radius and length
-        VERIFY_MSG( radius > 0., "Enter positive radius" );
-        VERIFY_MSG( length > 0., "Enter positive section length" );
-
-        // assert positivity of radius and length
-        VERIFY_MSG( (M > 0) and (N > 0),
-                    "Enter positive number of elements" );
-
-        // section length must be less than R / sqrt(2)
-        if ( length >= radius / std::sqrt(2.) ) {
-            std::cerr << ""
-                      << std::endl;
-            return false;
-        }
-
-        // concatenate the input arguments
-        for ( int c = 0; c < argc; c++ ) {
-            message += argv[c];
-            message += " ";
-        }
-
-
-        return true;
     }
-
 }
 
 //------------------------------------------------------------------------------
@@ -94,7 +98,8 @@ int main( int argc, char* argv[] )
     double radius, length;
     std::size_t N, M;
     std::string message;
-    if ( not circle::userInput( argc, argv, radius, length, N, M, message ) )
+    if ( not tools::meshGeneration::circle::userInput( argc, argv, radius,
+                                                       length, N, M, message ) )
         return 1;
 
     // point and element containers

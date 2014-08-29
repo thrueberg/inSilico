@@ -37,6 +37,7 @@ namespace base{
          *  will assign \a file to the variable \a baseName
          *
          */
+        inline
         std::string baseName( const std::string& fileName,
                               const std::string& suffix )
         {
@@ -66,6 +67,7 @@ namespace base{
          *  \param[in] width  Field width determines the leading zeros
          *  \return           String with desired format
          */
+        inline
         std::string leadingZeros( const unsigned value,
                                   const unsigned width = 4 )
         {

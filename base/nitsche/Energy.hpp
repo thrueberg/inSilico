@@ -121,6 +121,28 @@ namespace base{
         }
 
         //----------------------------------------------------------------------
+        // BOTH
+        template<typename SURFACETUPLEBINDER,
+                 typename KERNEL, typename SURFACEQUADRATURE,
+                 typename SOLVER, typename BOUNDFIELD,
+                 typename PARAMETER>
+        void energyLHS( const KERNEL&            kernel, 
+                        const SURFACEQUADRATURE& surfaceQuadrature,
+                        SOLVER&                  solver, 
+                        const BOUNDFIELD&        boundField,
+                        const PARAMETER&         parameter, 
+                        const bool               inOut = true,
+                        const bool               plusMinus = true )
+        {
+            primalEnergyLHS<SURFACETUPLEBINDER>(
+                kernel, surfaceQuadrature, solver, boundField,
+                parameter, inOut, plusMinus );
+            dualEnergyLHS<SURFACETUPLEBINDER>(
+                kernel, surfaceQuadrature, solver, boundField,
+                parameter, inOut, plusMinus );
+        }
+
+        //----------------------------------------------------------------------
         namespace detail_{
             template<typename SURFACETUPLEBINDER, 
                      typename EVALUATIONPOLICY,

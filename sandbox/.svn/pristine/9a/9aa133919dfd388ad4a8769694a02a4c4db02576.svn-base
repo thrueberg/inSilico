@@ -1,0 +1,5 @@
+! elementShape triangle
+! elementNumPoints 3
+! externalNodes    coordinates_prueba2D
+! externalElements connectivity_prueba2D
+830  1550

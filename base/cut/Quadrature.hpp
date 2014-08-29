@@ -26,43 +26,6 @@ namespace base{
                  typename CELL=base::cut::Cell<SHAPE> >
         class Quadrature;
 
-        //----------------------------------------------------------------------
-        namespace detail_{
-
-            template<typename ELEMENT>
-            struct AskVolumeID
-            {
-                static std::size_t apply( const ELEMENT* ep )
-                {
-                    return ep -> getID();
-                }
-            };
-
-            template<typename ELEMENT>
-            struct AskSurfaceID
-            {
-                static std::size_t apply( const ELEMENT* ep )
-                {
-                    return ep -> getSurfaceID();
-                }
-            };
-
-            //! Hack
-            template<typename ELEMENT>
-            struct GetID
-                : public base::IfElse<ELEMENT::dim==ELEMENT::Node::dim,
-                                      AskVolumeID<ELEMENT>,
-                                      AskSurfaceID<ELEMENT> >::Type
-            { };
-
-            template<typename ELEMENT>
-            std::size_t getID( const ELEMENT* ep )
-            {
-                return GetID<ELEMENT>::apply( ep );
-            }
-
-        }
-        
     }
 }
 
@@ -118,8 +81,7 @@ public:
                 typename KERNEL::arg4_type& arg4 ) const
     {
         // get the ID of the element
-        //const std::size_t elemID = arg1.geomElementPtr() -> getID();
-        const std::size_t elemID = detail_::getID( arg1.geomElementPtr() );
+        const std::size_t elemID = arg1.geomElementPtr() -> getID();
 
         // For cut-elements go through stored simplex structure
         if ( cells_[elemID].isCut() ) {

@@ -18,6 +18,15 @@
 #include <tools/meshGeneration/boundaries3D/ParametricSurface.hpp>
 
 //------------------------------------------------------------------------------
+namespace tools{
+    namespace meshGeneration{
+        namespace boundaries3D{
+            class Cylinder;
+        }
+    }
+}
+
+//------------------------------------------------------------------------------
 /** Parametric representation of a cylinder surface.  This function
  *  reads all the relevant parameters and generates the map
  *  \f[
@@ -30,7 +39,7 @@
  *  intervals in 1- and 2-direction are provided and, if wanted, the
  *  parameter space is triangulated.
  */
-class Cylinder
+class tools::meshGeneration::boundaries3D::Cylinder
 {
 public:
     typedef tools::meshGeneration::Point Point;
@@ -116,8 +125,10 @@ int main( int argc, char* argv[] )
         return false;
     }
 
+    typedef tools::meshGeneration::boundaries3D::Cylinder Cylinder;
     Cylinder cylinder( argc, argv );
-    tools::meshGeneration::ParametricSurface<Cylinder>::apply( cylinder, std::cout );
+    tools::meshGeneration::boundaries3D::ParametricSurface<Cylinder>::apply( cylinder,
+                                                                             std::cout );
     
     return 0;
 }

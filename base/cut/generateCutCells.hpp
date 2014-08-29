@@ -27,13 +27,22 @@
 namespace base{
     namespace cut{
 
+        //! Things to do with the cut cell structures
+        enum SetOperation
+        {
+            CREATE,
+            INTERSECT,
+            UNITE,
+            SUBTRACT
+        };
+
         template<typename MESH, typename CELL>
         void generateCutCells(
             const MESH& mesh,
             const std::vector<base::cut::LevelSet<MESH::Node::dim> >& levelSet,
             std::vector<CELL> & cutCells,
-            const bool   update   = false, 
-            const double epsilon  = 1.e-12 );
+            const SetOperation setOp = CREATE,
+            const double epsilon   = 1.e-12 );
 
         //----------------------------------------------------------------------
         namespace detail_{
@@ -95,18 +104,18 @@ namespace base{
  *
  *  \tparam MESH  Type of domain mesh
  *  \tparam CELL  Type of cell for the cut-cell structure
- *  \param[in]  mesh     Access to the domain mesh
- *  \param[in]  levelSet All the level set data
- *  \param[out] cutCells The cells representing elements (inside, outside, cut)
- *  \param[in]  update   If true, the level set data is added to existing cell
- *  \param[in]  epsilon  Small interval around zero to avoid degenerate cases
+ *  \param[in]  mesh      Access to the domain mesh
+ *  \param[in]  levelSet  All the level set data
+ *  \param[out] cutCells  The cells representing elements (inside, outside, cut)
+ *  \param[in]  setOp     Operation to do with cut-cell structure
+ *  \param[in]  epsilon   Small interval around zero to avoid degenerate cases
  */
 template<typename MESH, typename CELL>
 void base::cut::generateCutCells(
     const MESH& mesh,
     const std::vector<base::cut::LevelSet<MESH::Node::dim> >& levelSet,
     std::vector<CELL> & cutCells,
-    const bool   update, 
+    const base::cut::SetOperation setOp, 
     const double epsilon  )
 {
     // number of vertices of a cell
@@ -117,6 +126,9 @@ void base::cut::generateCutCells(
         ( (CELL::shape ==
            base::HyperCubeShape<base::ShapeDim<CELL::shape>::value>::value) and
           (MESH::Element::GeomFun::ordering == base::sfun::LEXICOGRAPHIC) );
+
+    // if existing structure is updated
+    const bool update = (setOp != CREATE);
 
     // treatment of a surface mesh (actually the level-set dim should be used)
     static const bool isSurface = (MESH::Node::dim != CELL::dim);
@@ -147,20 +159,38 @@ void base::cut::generateCutCells(
         // a distance of exactly (!) zero is not good
         for ( std::size_t s = 0; s < signedDistances.size(); s++ ) {
             double sd = signedDistances[s];
+            // check against small value
             if ( std::abs( sd ) < epsilon ) {
                 if ( sd < 0. ) sd -= epsilon;
                 else           sd += epsilon;
-
                 signedDistances[ s ] = sd;
             }
         }
 
-        // if asked to update and cell was cut 
-        if ( update ) {
-            if ( cutCells[ elemNum ].isCut() )
-                cutCells[ elemNum ].update( signedDistances );
+        // create array of reversed signs
+        boost::array<double,numNodes> signedDistancesReversed
+            = signedDistances;
+        for ( std::size_t s = 0; s < signedDistancesReversed.size(); s++ ) 
+            signedDistancesReversed[s] *= -1.;
+
+        // if asked to intersect and cell was cut 
+        if ( update ) { 
+            if ( cutCells[ elemNum ].isCut() ){
+                if ( setOp == INTERSECT ) 
+                    cutCells[ elemNum ].intersect( signedDistances );
+                else { // UNITE or SUBTRACT
+                    
+                    if ( setOp == UNITE ) cutCells[ elemNum ].reverse();
+                    cutCells[ elemNum ].intersect( signedDistancesReversed );
+                    if ( setOp == UNITE ) cutCells[ elemNum ].reverse();
+
+                }
+            }
         }
         else cutCells[ elemNum ].destroy();
+
+        // in case of subtraction, actually intersect with negative distances
+        if ( setOp == SUBTRACT ) signedDistances = signedDistancesReversed;
 
 
         // if necessary, reorder from lexicographic to hierarchic 
@@ -174,7 +204,6 @@ void base::cut::generateCutCells(
 
             for ( unsigned v = 0; v < numNodes; v++ ) {
                 const unsigned hier = Hierarchic::apply( v );
-                //tmp[ v ] = signedDistances[ hier ];
                 tmp[ hier ] = signedDistances[ v ];
             }
 
@@ -182,8 +211,19 @@ void base::cut::generateCutCells(
         }
 
         // create the cut cell structure
-        if ( cutCells[ elemNum ].isInside() )
-            cutCells[ elemNum ].create( signedDistances );
+        // cases:
+        //  - new creation of cut-cells --> cells are by default inside
+        //  - intersection of existing cells --> only act on inside cells
+        //  - union of existing cells --> only act on outside cells
+        //  - subtract from existing cells -> only act on inside cells
+        const bool createCutCell =
+            (setOp == CREATE) or
+            ( (setOp == INTERSECT) and (cutCells[elemNum].isInside( )) ) or
+            ( (setOp == UNITE)     and (cutCells[elemNum].isOutside()) ) or
+            ( (setOp == SUBTRACT)  and (cutCells[elemNum].isInside( )) );
+              
+        
+        if ( createCutCell ) cutCells[ elemNum ].create( signedDistances );
 
     }
 

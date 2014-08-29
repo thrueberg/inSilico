@@ -1,0 +1,5 @@
+meshFile  square_200.smf
+kappa     0.01
+density   1.0
+numSteps  40
+stepSize  0.05

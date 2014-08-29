@@ -167,7 +167,7 @@ int main( int argc, char* argv[] )
     HyperElastic hyperElastic( material );
         
     // create table for writing the convergence behaviour of the nonlinear solves
-    base::io::Table<3>::WidthArray widths = {{ 2, 10, 10 }};
+    base::io::Table<3>::WidthArray widths = {{ 0, 5, 14 }};
     base::io::Table<3> table( widths );
     table % "iteration" % "|F|"  % "|x|";
     std::cout << "#" << table;
@@ -200,11 +200,8 @@ int main( int argc, char* argv[] )
                                         boost::bind( &dirichlet<dim>, _1, disp ), ob,
                                         penaltyFactor );
 
-        base::nitsche::primalEnergyLHS<STB>( hyperElastic, surfaceQuadrature, solver,
-                                             surfaceFieldBinder, ob );
-        
-        base::nitsche::dualEnergyLHS<STB>(   hyperElastic, surfaceQuadrature, solver,
-                                             surfaceFieldBinder, ob );
+        base::nitsche::energyLHS<STB>( hyperElastic, surfaceQuadrature, solver,
+                                       surfaceFieldBinder, ob );
         
         base::nitsche::energyRHS<STB>( hyperElastic, surfaceQuadrature, solver,
                                        surfaceFieldBinder,

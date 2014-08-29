@@ -22,6 +22,8 @@
 #include <boost/tokenizer.hpp>
 // base includes
 #include <base/shape.hpp>
+// base/io includes
+#include <base/io/Format.hpp> 
 // base/io/raw includes
 #include <base/io/raw/ascii.hpp>
 
@@ -219,7 +221,9 @@ private:
                 const std::string value = *iter;
 
                 VERIFY_MSG( detail_::ValidateShape<elementShape>()( value ),
-                            "Smf file has unexpected shape value" );
+                            x2s( "Smf file has unexpected shape value: " ) +
+                            value + x2s( " != " ) +
+                            base::ShapeName<elementShape>::apply() );
                 
             }
             else if ( descriptor.find( "elementNumPoints" ) != std::string::npos ) {
@@ -229,7 +233,9 @@ private:
                 const std::string value = *iter;
 
                 VERIFY_MSG( detail_::ValidateNumber<nNodesPerElement>()( value ),
-                            "Smf file has unexpected number of element nodes" );
+                            x2s( "Smf file has unexpected number of element nodes: " ) +
+                            value + x2s( " != " ) +
+                            x2s( +nNodesPerElement ) );
                 
             }
             else if ( descriptor.find( "externalNodes" ) != std::string::npos ) {

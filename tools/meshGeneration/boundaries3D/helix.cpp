@@ -18,7 +18,16 @@
 #include <tools/meshGeneration/boundaries3D/ParametricSurface.hpp>
 
 //------------------------------------------------------------------------------
-/** Parametric representation of a helix surface
+namespace tools{
+    namespace meshGeneration{
+        namespace boundaries3D{
+            class Helix;
+        }
+    }
+}
+
+//------------------------------------------------------------------------------
+/** Parametric representation of a helix surface.
  *  This function reads all the relevant parameters and generates the map
  *  \f[
  *      [0,1) x [0,1) \to  R^3:  x = H(\xi_1,\xi_2)
@@ -28,7 +37,7 @@
  *  The helix spins around a given centre in x_3 direction, 
  *  has specified inner and outer radii, a given pitch and number of windings.
  */
-class Helix
+class tools::meshGeneration::boundaries3D::Helix
 {
 public:
     typedef tools::meshGeneration::Point Point;
@@ -128,9 +137,10 @@ int main( int argc, char* argv[] )
         return false;
     }
 
-    
+    typedef tools::meshGeneration::boundaries3D::Helix Helix;
     Helix helix( argc, argv );
-    tools::meshGeneration::ParametricSurface<Helix>::apply( helix, std::cout );
+    tools::meshGeneration::boundaries3D::ParametricSurface<Helix>::apply( helix,
+                                                                          std::cout );
     
     return 0;
 }

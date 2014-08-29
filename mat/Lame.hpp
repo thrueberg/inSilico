@@ -19,6 +19,8 @@
 
 namespace mat{
 
+    /** Material parameter conversion object.
+     */
     struct Lame
     {
 

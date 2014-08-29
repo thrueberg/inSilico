@@ -6,7 +6,6 @@
 //! @file   cut/stabiliseBasis.hpp
 //! @author Thomas Rueberg
 //! @date   2014
-//! @todo   Component-wise stabilisation
 
 #ifndef base_cut_stabilisebasis_hpp
 #define base_cut_stabilisebasis_hpp
@@ -17,6 +16,7 @@
 #include <set>
 #include <algorithm>
 #include <limits>
+#include <bitset>
 // base includes
 #include <base/shape.hpp>
 #include <base/geometry.hpp>
@@ -82,7 +82,8 @@ namespace base{
                 const double lowerThreshold, const double upperThreshold,
                 const std::vector<double>& supportAreas,
                 const std::vector<std::vector<std::size_t> >& doFSupports,
-                std::vector<typename FIELD::DegreeOfFreedom*>& toBeConstrained );
+                std::vector<typename FIELD::DegreeOfFreedom*>& toBeConstrained,
+                std::vector<std::bitset<FIELD::DegreeOfFreedom::size> >& components );
 
             //------------------------------------------------------------------
             template<typename MESH, typename FIELD>
@@ -96,6 +97,7 @@ namespace base{
             template<typename GEOMELEM, typename FIELDELEM>
             void generateConstraints(
                 typename FIELDELEM::DegreeOfFreedom* doFPtr,
+                const std::bitset<FIELDELEM::DegreeOfFreedom::size>& component,
                 const GEOMELEM* geomEp, const FIELDELEM* fieldEp,
                 const typename base::GeomTraits<GEOMELEM>::GlobalVecDim& x, 
                 const double tolerance,
@@ -167,7 +169,7 @@ namespace base{
   *  \param[in,out] field          Field to stabilise
   *  \param[in]     supportAreas   Size of the supports
   *  \param[in]     doFLocation    Physical location of every DoF
-  *  \param[in]     tol            Tolerance for coordiante search
+  *  \param[in]     tolerance      Tolerance for coordinate search
   *  \param[in]     maxIter        Number of iterations for coordiante search
   *  \param[in]     upperThresholdFactor Factor times reference element-size
   *                                for deciding the upper threshold
@@ -196,8 +198,9 @@ void base::cut::stabiliseBasis(
 
     // 1) Categorise the DoFs
     std::vector<typename FIELD::DegreeOfFreedom*> toBeConstrained;
+    std::vector<std::bitset<FIELD::DegreeOfFreedom::size> > components;
     detail_::categoriseDoFs( field, lowerThreshold, upperThreshold, supportAreas,
-                             doFSupports, toBeConstrained );
+                             doFSupports, toBeConstrained, components );
 
     // 2) Go through all degenerate DoFs
     for ( std::size_t c = 0; c < toBeConstrained.size(); c++ ) {
@@ -223,6 +226,7 @@ void base::cut::stabiliseBasis(
 
         // Generate linear constraints for the degenerate DoF
         detail_::generateConstraints( toBeConstrained[c],
+                                      components[c],
                                       geomEp, fieldEp, x,
                                       tolerance, maxIter );
     }
@@ -332,7 +336,8 @@ void base::cut::detail_::categoriseDoFs(
     const double lowerThreshold, const double upperThreshold,
     const std::vector<double>& supportAreas,
     const std::vector<std::vector<std::size_t> >&   doFSupports, 
-    std::vector<typename FIELD::DegreeOfFreedom*>&  toBeConstrained )
+    std::vector<typename FIELD::DegreeOfFreedom*>&  toBeConstrained,
+    std::vector<std::bitset<FIELD::DegreeOfFreedom::size> >&components )
 {
     // total number of DoFs
     const std::size_t numDoFs = std::distance( field.doFsBegin(), field.doFsEnd() );
@@ -360,26 +365,35 @@ void base::cut::detail_::categoriseDoFs(
             // if untouched
             if ( not doFMarker[ doFID ] ) {
 
+                std::bitset<FIELD::DegreeOfFreedom::size> component;
+
                 // support area of this DoF
                 const double thisArea = supportAreas[ doFID ];
 
-                // categorise the DoF based on the support area size
-                if ( thisArea >= upperThreshold ) {
-                    // if support area is large enough, activate the DoF
-                    if ( not( (*doFIter) -> isConstrained(0) ) ) 
-                        (*doFIter) -> activateAll();
-                }
-                //else {
-                else if ( not( (*doFIter) -> isConstrained(0) ) ) {
-                    // otherwise, deactive the DoF and change the bool
-                    (*doFIter) -> deactivateAll();
+                for ( unsigned d = 0; d < FIELD::DegreeOfFreedom::size; d++ ) {
+                    // categorise the DoF based on the support area size
+                    if ( thisArea >= upperThreshold ) {
+                        // if support area is large enough, activate the DoF
+                        if ( not ((*doFIter)->isConstrained(d)) )
+                            (*doFIter) -> activate(d);
+                    }
+                    else if ( not ((*doFIter)->isConstrained(d)) ) {
+                        // otherwise, deactive the DoF and change the bool
+                        (*doFIter) -> deactivate(d);
 
-                    // if the area is above the lower threshold,
-                    // register for constraints
-                    if ( thisArea >= lowerThreshold  )
-                        toBeConstrained.push_back( *doFIter );
+                        // if the area is above the lower threshold,
+                        // register for constraints
+                        if ( thisArea >= lowerThreshold  )
+                            component.set(d);
+                            //toBeConstrained.push_back( *doFIter );
+                    }
                 }
 
+                if ( component.any() ) {
+                    toBeConstrained.push_back( *doFIter );
+                    components.push_back( component );
+                }
+                
                 // DoF has been handled by now
                 doFMarker[ doFID ] = true;
             }
@@ -411,24 +425,36 @@ void base::cut::detail_::categoriseDoFs(
 
                 if ( allPrimaryActive ) break;
             }
+            
+            std::bitset<FIELD::DegreeOfFreedom::size> component;
 
             // categorise the DoF according to support size or above flag
             const double thisArea = supportAreas[ doFID ];
-            
-            if ( (thisArea >= upperThreshold) or allPrimaryActive ) {
-                // if support area is large enough, activate the DoF
-                if ( not( (*dIter) -> isConstrained(0) ) ) 
-                    (*dIter) -> activateAll();
-            }
-            //else {
-            else if ( not( (*dIter) -> isConstrained(0) ) ) {
-                // otherwise, deactive the DoF and change the bool
-                (*dIter) -> deactivateAll();
 
-                // if the area is above the lower threshold,
-                // register for constraints
-                if ( thisArea >= lowerThreshold  )
-                    toBeConstrained.push_back( *dIter );
+            for ( unsigned d = 0; d < FIELD::DegreeOfFreedom::size; d++ ) {
+            
+                if ( (thisArea >= upperThreshold) or allPrimaryActive ) {
+                    // if support area is large enough, activate the DoF
+                    if ( not( (*dIter) -> isConstrained(d) ) ) 
+                        (*dIter) -> activate(d);
+                }
+                //else {
+                else if ( not( (*dIter) -> isConstrained(d) ) ) {
+                    // otherwise, deactive the DoF and change the bool
+                    (*dIter) -> deactivate(d);
+
+                    // if the area is above the lower threshold,
+                    // register for constraints
+                    if ( thisArea >= lowerThreshold  )
+                        component.set(d);
+                    //toBeConstrained.push_back( *dIter );
+                }
+                
+            }
+
+            if ( component.any() ) {
+                toBeConstrained.push_back( *dIter );
+                components.push_back( component );
             }
 
             // DoF has been handled by now
@@ -594,6 +620,7 @@ std::size_t base::cut::detail_::findSupportingElement(
 template<typename GEOMELEM, typename FIELDELEM>
 void base::cut::detail_::generateConstraints(
     typename FIELDELEM::DegreeOfFreedom* doFPtr,
+    const std::bitset<FIELDELEM::DegreeOfFreedom::size>& component,
     const GEOMELEM* geomEp, const FIELDELEM* fieldEp,
     const typename base::GeomTraits<GEOMELEM>::GlobalVecDim& x, 
     const double tolerance,
@@ -618,11 +645,14 @@ void base::cut::detail_::generateConstraints(
         // go through all DoF components
         for ( unsigned d = 0; d < FIELDELEM::DegreeOfFreedom::size; d++ ) {
 
-            // generate a constraint object
-            doFPtr -> makeConstraint( d );
+            if ( component.test(d) ) {
+                
+                // generate a constraint object
+                doFPtr -> makeConstraint( d );
             
-            // add the weighted DoFs to constraint
-            doFPtr -> getConstraint(d) -> addWeightedDoF( *dIter, d, weight );
+                // add the weighted DoFs to constraint
+                doFPtr -> getConstraint(d) -> addWeightedDoF( *dIter, d, weight );
+            }
         }
 
     }
@@ -637,7 +667,7 @@ void base::cut::detail_::generateConstraints(
  *  representation at this local coordinate gives the location of the degenerate
  *  DoF. In detail, let \f$ \tau_i \f$ be the chosen element in order to support
  *  the degenerate DoF \f$ u_i \f$ which has the physical location \f$ x_i \f$.
- *  Now, the local coordinates \f$ \xi_ \f$ of that element \f$ \tau_i \f$ are
+ *  Now, the local coordinates \f$ \xi_i \f$ of that element \f$ \tau_i \f$ are
  *  sought such that
  *  \f[
  *        x_i = x_{\tau_i}(\xi_i) = \sum_{j} x^j \phi_j(\xi_i)
@@ -753,14 +783,6 @@ void base::cut::detail_::twoRingOfDoF(
         } // element DoFs
     } // elements in support
         
-    //// sort range (for application of set_difference)
-    //std::sort( elementsInSupport.begin(), elementsInSupport.end() );
-    //
-    //// subtract dof-support elements from one-ring
-    //std::set_difference( tmp.begin(), tmp.end(),
-    //                     elementsInSupport.begin(), elementsInSupport.end(),
-    //                     std::back_inserter( twoRing ) );
-
     twoRing.insert( twoRing.end(), tmp.begin(), tmp.end() );
 
     return;

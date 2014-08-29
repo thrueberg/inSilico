@@ -138,13 +138,13 @@ struct base::mesh::detail_::BuildHierarchicLookUpTable<DEGREE,1,true>
     {
         boost::array<unsigned,numTotal> lookUpTable;
             
-        //! First vertex
+        // First vertex
         lookUpTable[0] = 0;
 
-        //! In-between nodes along the only edge
+        // In-between nodes along the only edge
         for ( int i = 1; i < numTotal-1; i++ ) lookUpTable[i] = i+1;
 
-        //! Second vertex
+        // Second vertex
         if ( DEGREE > 0 ) lookUpTable[ numTotal-1 ] = 1;
 
         return lookUpTable;
@@ -213,30 +213,30 @@ struct base::mesh::detail_::BuildHierarchicLookUpTable<DEGREE,2,true>
         
         lookUpTable.assign( base::invalidInt );
 
-        //! Array of vertex indices
+        // Array of vertex indices
         const boost::array<int,4> vertices = {{ 0, K, K*(K+2), K*(K+1) }};
 
-        //! Edges which form a ring
+        // Edges which form a ring
         const boost::array<std::pair<unsigned,unsigned>,4> edges =
             {{ std::make_pair( 0, 1 ), std::make_pair( 1, 2 ),
                std::make_pair( 2, 3 ), std::make_pair( 3, 0 ) }};
 
-        //! Global counter
+        // Global counter
         unsigned ctr = 0;
 
-        //! Insert vertices first
+        // Insert vertices first
         for ( unsigned i = 0; i < 4; i ++ ) {
             lookUpTable[ static_cast<unsigned>(vertices[i]) ] = ctr++;
         }
 
         //----------------------------------------------------------------------
-        //! Go through edges
+        // Go through edges
         for ( unsigned i = 0; i < 4; i ++ ) {
 
-            //! Begin and end vertices of edge
+            // Begin and end vertices of edge
             const int ev1 = vertices[ edges[i].first  ];
             const int ev2 = vertices[ edges[i].second ];
-            //! Increment along edge
+            // Increment along edge
             const int delta = (ev2 - ev1) / K;
 
             for ( int n = 0; n < K-1; n ++ ) {
@@ -248,14 +248,14 @@ struct base::mesh::detail_::BuildHierarchicLookUpTable<DEGREE,2,true>
         }
 
         //----------------------------------------------------------------------
-        //! Go through face
+        // Go through face
 
-        //! Vertices spanning the face
+        // Vertices spanning the face
         const int fv1 = vertices[0];
         const int fv2 = vertices[1];
         const int fv3 = vertices[3];
 
-        //! Increments per direction of the face
+        // Increments per direction of the face
         const int delta1 = (fv2 - fv1) / K;
         const int delta2 = (fv3 - fv1) / K;
 
@@ -357,13 +357,13 @@ struct base::mesh::detail_::BuildHierarchicLookUpTable<DEGREE,3,true>
             
         lookUpTable.assign( base::invalidInt );
 
-        //! Array of vertex indices
+        // Array of vertex indices
         const unsigned dZ = K * (K+1) * (K+1);
         const boost::array<int,8> vertices =
             {{ 0,  K,    K*(K+2),    K*(K+1),
                dZ, K+dZ, K*(K+2)+dZ, K*(K+1)+dZ }};
 
-        //! Edges which form a ring
+        // Edges which form a ring
         const boost::array<std::pair<unsigned,unsigned>,12> edges =
             {{ std::make_pair( 0, 1 ), std::make_pair( 1, 2 ),
                std::make_pair( 2, 3 ), std::make_pair( 3, 0 ),
@@ -372,28 +372,28 @@ struct base::mesh::detail_::BuildHierarchicLookUpTable<DEGREE,3,true>
                std::make_pair( 0, 4 ), std::make_pair( 1, 5 ),
                std::make_pair( 2, 6 ), std::make_pair( 3, 7 ) }};
 
-        //! Faces defined by 3 vertices which span them
+        // Faces defined by 3 vertices which span them
         const boost::array< boost::tuple<unsigned,unsigned,unsigned>, 6 > faces =
             {{ boost::make_tuple( 0, 1, 3 ), boost::make_tuple( 4, 5, 7 ),
                boost::make_tuple( 0, 1, 4 ), boost::make_tuple( 1, 2, 5 ),
                boost::make_tuple( 2, 3, 6 ), boost::make_tuple( 3, 0, 7 ) }};
 
-        //! Global counter
+        // Global counter
         unsigned ctr = 0;
 
-        //! Insert vertices first
+        // Insert vertices first
         for ( unsigned i = 0; i < 8; i ++ ) {
             lookUpTable[ vertices[i] ] = ctr++;
         }
 
         //----------------------------------------------------------------------
-        //! Go through edges
+        // Go through edges
         for ( unsigned i = 0; i < 12; i ++ ) {
 
-            //! Begin and end vertices of edge
+            // Begin and end vertices of edge
             const int ev1 = vertices[ edges[i].first  ];
             const int ev2 = vertices[ edges[i].second ];
-            //! Increment along edge
+            // Increment along edge
             const int delta = (ev2 - ev1) / K;
 
             for ( int n = 0; n < K-1; n ++ ) {
@@ -405,15 +405,15 @@ struct base::mesh::detail_::BuildHierarchicLookUpTable<DEGREE,3,true>
         }
 
         //----------------------------------------------------------------------
-        //! Go through faces
+        // Go through faces
         for ( unsigned i = 0; i < 6; i ++ ) {
 
-            //! Vertices spanning the face
+            // Vertices spanning the face
             const int fv1 = vertices[ faces[i].get<0>() ];
             const int fv2 = vertices[ faces[i].get<1>() ];
             const int fv3 = vertices[ faces[i].get<2>() ];
 
-            //! Increments per direction of the face
+            // Increments per direction of the face
             const int delta1 = (fv2 - fv1) / K;
             const int delta2 = (fv3 - fv1) / K;
 
@@ -427,7 +427,7 @@ struct base::mesh::detail_::BuildHierarchicLookUpTable<DEGREE,3,true>
         }
 
         //----------------------------------------------------------------------
-        //! Go through cell interior
+        // Go through cell interior
         const int cv1 = vertices[0];
         const int cv2 = vertices[1];
         const int cv3 = vertices[3];

@@ -22,6 +22,7 @@
 //------------------------------------------------------------------------------
 namespace solid{
 
+    //--------------------------------------------------------------------------
     /** Computation of the Cauchy stress tensor.
      *  Given the state of deformation and the material law, the Caucy
      *  stress tensor will be computed by means of the Piola-transform
@@ -30,19 +31,19 @@ namespace solid{
      *  \f]
      *  using the deformation gradient \f$ F \f$ and the 2nd Piola-Kirchhoff
      *  stress tensor \f$ S \f$.
-     *  \tparam GEOMELEMENT  Geometry element
-     *  \tparam FIELDELEMENT Field element
+     *  \tparam FIELDTUPLE   Tuple of field elements
      *  \tparam MATERIAL     Material type
      */
-    template<typename GEOMELEMENT, typename TRIALELEMENT, typename MATERIAL>
-    mat::Tensor cauchy( const GEOMELEMENT*  geomEp,
-                        const TRIALELEMENT* trialEp,
+    template<typename FIELDTUPLE, typename MATERIAL>
+    mat::Tensor cauchy( const FIELDTUPLE& fieldTuple, 
                         const MATERIAL& material,
-                        const typename TRIALELEMENT::FEFun::VecDim& xi )
+                        const typename FIELDTUPLE::TrialElement::FEFun::VecDim& xi )
     {
         // get deformation gradient
         mat::Tensor F;
-        deformationGradient( geomEp, trialEp, xi, F );
+        deformationGradient( fieldTuple.geomElementPtr(),
+                             fieldTuple.trialElementPtr(),
+                             xi, F );
 
         // Material evaluations
         typename mat::Tensor S;      // 2nd PK
@@ -56,15 +57,27 @@ namespace solid{
         return sigma;
     }
 
-    //! Overload call of solid::cauchy for element centroid
-    template<typename GEOMELEMENT, typename TRIALELEMENT, typename MATERIAL>
-    mat::Tensor cauchy( const GEOMELEMENT*  geomEp,
-                        const TRIALELEMENT* trialEp,
-                        const MATERIAL& material )
+    //--------------------------------------------------------------------------
+    /** Computation of the 2nd Piola-Kirchhoff stress tensor.
+     *  \tparam FIELDTUPLE   Tuple of field elements
+     *  \tparam MATERIAL     Material type
+     */
+    template<typename FIELDTUPLE, typename MATERIAL>
+    mat::Tensor secondPKStress( const FIELDTUPLE& fieldTuple, 
+                                const MATERIAL& material,
+                                const typename FIELDTUPLE::TrialElement::FEFun::VecDim& xi )
     {
-        return cauchy<GEOMELEMENT,TRIALELEMENT,MATERIAL>(
-            geomEp, trialEp, material,
-            base::ShapeCentroid<GEOMELEMENT::shape>::apply() );
+        // get deformation gradient
+        mat::Tensor F;
+        deformationGradient( fieldTuple.geomElementPtr(),
+                             fieldTuple.trialElementPtr(),
+                             xi, F );
+
+        // Material evaluations
+        typename mat::Tensor S;      // 2nd PK
+        material.secondPiolaKirchhoff( F, S );
+
+        return S;
     }
 
     //--------------------------------------------------------------------------

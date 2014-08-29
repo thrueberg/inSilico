@@ -56,7 +56,7 @@ namespace base{
 
         //----------------------------------------------------------------------
         template<typename MESH,
-                 typename FIELD1,
+                 typename FIELD1 = const detail_::DummyField,
                  typename FIELD2 = const detail_::DummyField,
                  typename FIELD3 = const detail_::DummyField,
                  typename FIELD4 = const detail_::DummyField,
@@ -97,7 +97,7 @@ namespace base{
 /** Bind a mesh with up to five different fields.
  *
  *  \tparam MESH            Type of mesh to which a field is/fields are bound
- *  \tparam FIELD1          Type of field bound to the mesh
+ *  \tparam FIELD1          Type of field bound to the mesh (optional)
  *  \tparam FIELD2, FIELD3,
  *          FIELD4, FIELD5  Optional fields bound to the mesh
  */
@@ -129,7 +129,7 @@ public:
 
     //--------------------------------------------------------------------------
     //! For convenience, delegate the type specification from here
-    template<int I, int J=-1, int K=-1, int L=-1, int M=-1>
+    template<int I=-1, int J=-1, int K=-1, int L=-1, int M=-1>
     struct TupleBinder
     {
         // Define the type of the tuple-binder
@@ -139,7 +139,7 @@ public:
 
     //! Constructor with mesh, a field and four optional fields
     FieldBinder( Mesh& mesh,
-                 FIELD1& field1,
+                 FIELD1& field1 = detail_::makeDummyField(),
                  FIELD2& field2 = detail_::makeDummyField(),
                  FIELD3& field3 = detail_::makeDummyField(),
                  FIELD4& field4 = detail_::makeDummyField(),

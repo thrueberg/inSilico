@@ -91,7 +91,11 @@ public:
     //@}
 
     //! Modifier: add to the stored value
-    void addTo( const Scalar& value ) { value_ += value; }
+    void addTo( const Scalar& value )
+    {
+#pragma omp atomic
+        value_ += value;
+    }
 
     //! @name Comparison operators
     //@{

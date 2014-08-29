@@ -84,9 +84,10 @@ namespace base{
  *
  *  The fundamental solution \f$ u^* \f$ can be written in the concise notation
  *  \f[
- *        u^*(x,y) = \frac{1}{2(d-1) \pi} \gamma(x,y)
+ *        u^*(x,y) = \frac{1}{\Gamma_d} \gamma(x,y)
  *  \f]
- *  with the dimension dependent kernel function \f$ \gamma \f$ defined as
+ *  with the surface of the d-dimensional unit sphere \f$ \Gamma_d \f$ and 
+ *  dimension-dependent kernel function \f$ \gamma \f$ defined as
  *  \f[
  *        \gamma_{2D} (x,y) = \log \frac{1}{|y-x|}
  *  \f]
@@ -95,6 +96,12 @@ namespace base{
  *        \gamma_{3D} (x,y) = \frac{1}{|y-x|}
  *  \f]
  *  in 3D.
+ *
+ *  \note For the computation of the derivatives the roles of \f$ x \f$ and
+ *        \f$ y \f$ are not interchangeable. Here, the notation is to have
+ *        \f$ x \f$ the location of the unit source (i.e., it becomes a
+ *        parameter) and \f$ y \f$ is the location where the function is
+ *        evaluated.
  *
  *  \tparam DIM  Spatial dimension of the problem.
  */
@@ -110,7 +117,7 @@ public:
     typedef typename base::Matrix<dim,doFSize,double>::Type Grad;
 
     //! Evaluate the fundamental solution for arguments x and y
-    VecDoF fun( const VecDim& x, const VecDim& y ) const
+    VecDoF fun( const VecDim& y, const VecDim& x ) const
     {
         const double dist = base::norm(y - x);
         const double factor = 1./ detail_::UnitSphere<dim>::surface();
@@ -120,11 +127,11 @@ public:
     }
 
     //! Evaluate the gradient of the fundamental solution for given x and y
-    Grad grad( const VecDim& x, const VecDim& y ) const
+    Grad grad( const VecDim& y, const VecDim& x ) const
     {
         const double dist = base::norm(y - x);
         const double factor =
-            1./detail_::UnitSphere<dim>::surface()/(base::Power<dim>::apply( dist ) );
+            -1./detail_::UnitSphere<dim>::surface()/(base::Power<dim>::apply( dist ) );
         
         Grad result;
         for ( unsigned d = 0; d < dim; d++ )
@@ -134,10 +141,10 @@ public:
     }
 
     //! Evaluate the co-normal derivative for given x, y and normal vector
-    VecDoF coNormal( const VecDim& x, const VecDim& y,
+    VecDoF coNormal( const VecDim& y, const VecDim& x,
                      const VecDim& normal ) const
     {
-        const Grad grad = this -> grad( x, y );
+        const Grad grad = this -> grad( y, x );
         return grad.transpose() * normal;
     }
     
@@ -161,61 +168,87 @@ public:
     typedef typename base::Matrix<dim,doFSize,double>::Type Grad;
     typedef          Grad                                   MatDimDim;
 
-
+    //! Convert and store material parameters
     FundSolElastoStatic( const double lambda, const double mu )
-        : lambda_( lambda ), mu_( mu ) { }
+        : G_(  mu ),
+          nu_( lambda/2./(lambda+mu) ) { }
+          
 
-    MatDimDim U( const VecDim& x, const VecDim& y ) const
+    //! Kelvin Tensor
+    MatDimDim U( const VecDim& y, const VecDim& x ) const
     {
-        const double factor =
-            1. /(4. * (dim-1) * M_PI ) *
-            (lambda_ + mu_) / (lambda_ + 2.* mu_) / mu_;
-
-        const double dist   = base::norm(y - x);
+        const double fac1 =
+            1./ (4. * detail_::UnitSphere<dim>::surface() * G_ * (1.-nu_));
+        const double fac2 = 3. - 4. * nu_;
+        const VecDim R      = y - x;
+        const double dist   = base::norm(R);
 
         MatDimDim U;
         for ( unsigned i = 0; i < dim; i++ ) {
             for ( unsigned j = 0; j < dim; j++ ) {
-                U(i,j) = factor *
-                    ( (i==j ?
-                       (lambda_+3.*mu_)/(lambda_+mu_) *
-                       detail_::LaplaceKernel<dim>::apply( dist ) :
-                       0.
-                        ) +
-                      ( (y[i]-x[i])*(y[j]-x[j]) / base::Power<dim>::apply( dist ) )
+                U(i,j) = fac1 *
+                    ( (i==j ? fac2 * detail_::LaplaceKernel<dim>::apply( dist ) : 0. ) +
+                      (R[i]*R[j]) / base::Power<dim>::apply( dist )
                         );
             }
         }
 
         return U;
     }
+
+    //! Traction kernel
+    MatDimDim T( const VecDim& y, const VecDim& x, const VecDim& normal ) const
+    {
+        const double fac1 =
+            -1./ (2. * detail_::UnitSphere<dim>::surface() * (1.-nu_));
+        const double fac2 = 1. - 2. * nu_;
+        const VecDim R    = y - x;
+        const double dist = base::norm( R );
+        const double rXn  = R.dot( normal );
+
+        MatDimDim T;
+        for ( unsigned i = 0; i < dim; i++ ) {
+            for ( unsigned j = 0; j < dim; j++ ) {
+
+                T(i,j) = fac1 / base::Power<dim>::apply( dist ) * (
+                    fac2 * (i==j ? rXn : (normal[j] * R[i] - normal[i] * R[j])  ) +
+                    static_cast<double>( dim ) * (R[i] * R[j] / dist /dist ) * rXn
+                    );
+                
+            }
+        }
+            
+        return T;
+    }
     
 
-    VecDoF fun( const VecDim& x, const VecDim& y, const VecDim& dir ) const
+    VecDoF fun( const VecDim& y, const VecDim& x, const VecDim& dir ) const
     {
         VecDoF result;
-        result.noalias() = U( x, y ) * dir;
+        result.noalias() = U( y, x ) * dir;
         return result;
     }
 
-    Grad grad( const VecDim& x, const VecDim& y, const VecDim& dir ) const
+    Grad grad( const VecDim& y, const VecDim& x, const VecDim& dir ) const
     {
         /* empty */
         VERIFY_MSG( false, "Not implemented" );
+        return Grad();
     }
 
-    VecDoF coNormal( const VecDim& x, const VecDim& y, const VecDim& dir,
+    VecDoF coNormal( const VecDim& y, const VecDim& x, const VecDim& dir,
                      const VecDim& normal ) const
     {
-        /* empty */
-        VERIFY_MSG( false, "Not implemented" );
+        VecDoF result;
+        result.noalias() = (this -> T(y,x,normal)) * dir;
+        return result;
     }
 
 private:
-    //! @name Lame parameters
+    //! @name Material parameters
     //@{
-    const double lambda_;
-    const double mu_;
+    const double G_;
+    const double nu_;
     //@}
     
 };

@@ -1,0 +1,8 @@
+ Number of dofs 159999
+0:  |R| = 0.000177006,  |x| = 0.00144248
+1:  |R| = 1.29566e-07,  |x| = 0.000524099
+2:  |R| = 9.29121e-08,  |x| = 9.98363e-05
+3:  |R| = 6.8631e-09
+Converged to given tolerance in 3 iterations 
+
+L2-error = 0.00231081

@@ -33,6 +33,16 @@ namespace base{
                                      const std::vector<CELL>& cells,
                                      std::vector<VALUETYPE>& nodalValues );
 
+        template<typename FIELDTUPLEBINDER, 
+                 typename VALUETYPE, typename FIELDBINDER, typename OP,
+                 typename CELL>
+        void evaluateInCutCells( const FIELDBINDER& fieldBinder,
+                                 const OP& fieldEvaluator,
+                                 const std::vector<CELL>& cells,
+                                 std::vector<VALUETYPE>& cellValues,
+                                 const bool inOut = true );
+
+
 
         //-----------------------------------------------------------------------
         //! Short cut for pure field evaluation at the cut cell nodes
@@ -160,6 +170,74 @@ void base::cut::evaluateAtCutCellNodes( const MESH& mesh, const FIELD& field,
 
             }
 
+        } // if cell is cut
+    } // end loop over elements
+
+    return;
+}
+
+//------------------------------------------------------------------------------
+/** Evaluate a functor in cut cells.
+ *  Provided is a functor of type
+ *  \code{.cpp}
+ *  VALUETYPE( const MESH::Element*, const FIELD::Element*,
+ *             const FIELD::Element::FEFun::VecDim& )
+ *  \endcode
+ *  and it will be applied to all cells that are cut. This
+ *  functionality allows to evaluate the field or some other related entity
+ *  at the cells and write the result to a file. For every cut cell, all
+ *  sub-elements on the in- or outside part will be queried and the functor
+ *  applied at the geometric centre of that sub-element.
+ *
+ *  \tparam VALUETYPE  Result type of the functor
+ *  \tparam OP         Type of evaluation functor
+ *  \tparam CELL       Type of cell
+ *  \param[in]  mesh           Bulk mesh
+ *  \param[in]  field          Bulk field
+ *  \param[in]  fieldEvaluator Evaluation functor
+ *  \param[in]  cells          Element cell structures
+ *  \param[out] cellValues     Result of the evaluation
+ *  \param[in]  inOut          True for inside evaluation, otherwise outside
+ */
+template<typename FIELDTUPLEBINDER, 
+         typename VALUETYPE, typename FIELDBINDER, typename OP,
+         typename CELL>
+void base::cut::evaluateInCutCells( const FIELDBINDER& fieldBinder,
+                                    const OP& fieldEvaluator,
+                                    const std::vector<CELL>& cells,
+                                    std::vector<VALUETYPE>& cellValues,
+                                    const bool inOut )
+{
+    // Simplex center
+    const typename FIELDBINDER::Mesh::Element::GeomFun::VecDim centre =
+        base::ShapeCentroid<base::SimplexShape<FIELDBINDER::Mesh::Node::dim>::value>::apply();
+    
+    // go through all elements and cells
+    typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+    typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+    for ( std::size_t e = 0; iter != end; ++iter, e++ ) {
+
+        // only act on cut cells
+        if ( cells[e].isCut() ) {
+
+            // number of sub-elements per cell
+            const std::size_t numSubCells =
+                (inOut ?
+                 cells[e].numVolumeInElements() :
+                 cells[e].numVolumeOutElements() );
+
+            for ( unsigned c = 0; c < numSubCells; c++ ) {
+                
+                // create local coordinate
+                const typename CELL::VecDim eta =
+                    cells[e].mapVolumeCoordinate( centre, c, inOut );
+
+                // evaluate
+                cellValues.push_back( fieldEvaluator( FIELDTUPLEBINDER::makeTuple(*iter),
+                                                      eta ) );
+                
+            } // end loop over sub-elements
+            
         } // if cell is cut
     } // end loop over elements
 

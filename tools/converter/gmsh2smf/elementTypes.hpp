@@ -144,7 +144,7 @@ namespace tools{
  *  \endcode
  *
  *  \param[in] type   Type of element (GMSH element ID)
- *  \returns          Number of nodes of the element
+ *  \return           Number of nodes of the element
  */
 unsigned tools::converter::gmsh2smf::numNodesPerElement( const unsigned type )
 {
@@ -206,7 +206,7 @@ unsigned tools::converter::gmsh2smf::numNodesPerElement( const unsigned type )
 //------------------------------------------------------------------------------
 /** For details see numNodesPerElement()
  *  \param[in] type  GMSH ID of element type
- *  \returns         Human-readable aname of element (a la smf specifications)
+ *  \return          Human-readable aname of element (a la smf specifications)
  */
 std::string tools::converter::gmsh2smf::smfNameOfElementType( const unsigned type )
 {

@@ -31,9 +31,10 @@ namespace base{
     namespace mesh{
 
         template<typename EITER>
-        void createBoundaryFromUnstructured( EITER first, EITER last,
-                                             std::vector< std::pair<std::size_t,unsigned> >&
-                                             boundaryElementContainer );
+        void createBoundaryFromUnstructured(
+            EITER first, EITER last,
+            std::vector< std::pair<std::size_t,unsigned> >&
+            boundaryElementContainer );
     }
 }
 
@@ -48,9 +49,10 @@ namespace base{
  *  \param[out] boundaryElements Container of (elemNum,faceNum) pairs
  */
 template<typename EITER>
-void base::mesh::createBoundaryFromUnstructured( EITER first, EITER last,
-                                                 std::vector< std::pair<std::size_t,unsigned> >&
-                                                 boundaryElements )
+void base::mesh::createBoundaryFromUnstructured(
+    EITER first, EITER last,
+    std::vector< std::pair<std::size_t,unsigned> >&
+    boundaryElements )
 {
     // Template parameter: type of element
     typedef typename base::TypeReduction<

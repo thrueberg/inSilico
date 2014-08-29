@@ -1,14 +1,9 @@
-//[std]{ std includes
+// std includes
 #include <iostream> // input- and output streams
 #include <string>   // string objects
 #include <fstream>  // file streams
-//[std]}
-
-//[boost] boost includes
+// boost includes
 #include <boost/lexical_cast.hpp> // lexical cast between objects
-
-//------------------------------------------------------------------------------
-//[headerMesh]{
 // base::Shape and the traits object
 #include <base/shape.hpp>
 // Unstructured mesh
@@ -17,8 +12,6 @@
 #include <base/mesh/MeshBoundary.hpp>
 // Creation of a boundary mesh
 #include <base/mesh/generateBoundaryMesh.hpp>
-//[headerMesh]}
-//[headerIO]{
 // IO helper
 #include <base/io/Format.hpp>
 // SMF Reader
@@ -27,27 +20,45 @@
 #include <base/io/vtk/LegacyWriter.hpp>
 // Write an SMF file
 #include <base/io/smf/Writer.hpp>
-//[headerIO]}
 
+// Make sure that the dimensions are correct
 STATIC_ASSERT_MSG( (SPACEDIM>1) and (SPACEDIM<4), "Inapt choice of dimension" );
 
 //------------------------------------------------------------------------------
 // Message to the user if called without arguments
-template<base::Shape SHAPE, unsigned GEOMDEG>
-void usageMessage( char* arg )
-{
-    std::cout << "Usage: " << arg << " file.smf \n\n"
-              << "[Compiled for shape=" << base::ShapeName<SHAPE>::apply()
-              << " and geometry degree=" << GEOMDEG << "]\n";
+namespace ref01{
+
+    //! Create a message how to call this program
+    template<base::Shape SHAPE, unsigned GEOMDEG>
+    void usageMessage1( char* arg )
+    {
+        std::cout << "Usage: " << arg << " file.smf \n\n"
+                  << "[Compiled for shape=" << base::ShapeName<SHAPE>::apply()
+                  << " and geometry degree=" << GEOMDEG << "]\n";
+    }
+
+    int unstructured( int argc, char* argv[] );
+
 }
 
 //------------------------------------------------------------------------------
-//[main]{
-int main( int argc, char* argv[] )
+/** In- and output of an unstructured mesh.
+ *  This function demonstrates
+ *     - how to define and create a mesh
+ *     - read a  mesh from a file (base::io::smf)
+ *     - extract the boundary from the mesh
+ *     - write output in vtk and SMF format
+ *
+ *  The image shows the reference meshes in this application
+ *  \image html simplexMeshes.png "Triangle (left) and tetrahedron mesh (right)"
+ *  and the boundary meshes are given in the next picture
+ *  \image html boundaryMeshes.png "Line (left) and triangle mesh(right)"
+ *
+ *  \param[in] argc Number of command line arguments
+ *  \param[in] argv Values of command line arguments
+ */
+int ref01::unstructured( int argc, char* argv[] )
 {
-    //[main]}
-
-    //[attributes]{
     //--------------------------------------------------------------------------
     // Definition of the spatial dimension
     const unsigned dim = SPACEDIM;
@@ -55,41 +66,33 @@ int main( int argc, char* argv[] )
     const base::Shape elemShape = base::SimplexShape<dim>::value;
     // Definition of the polynomial degree of the geometry approximation
     const unsigned geomDeg = 1;
-    //[attributes]}
 
-    //[userInput]{
     // Check the number of input arguments
     if ( argc != 2 ) { // note argv[0] is the program name itself
-        usageMessage<elemShape,geomDeg>( argv[0] );
+        usageMessage1<elemShape,geomDeg>( argv[0] );
         return 0;
     }
     // convert input argument to a string object
     const std::string smfFileName = boost::lexical_cast<std::string>( argv[1] );
     // extract the basename of the file
     const std::string baseName = base::io::baseName( smfFileName, ".smf" );
-    //[userInput]}
 
-    //[mesh]{
     typedef base::Unstructured<elemShape,geomDeg>            Mesh;
 
     // Create an empty mesh object
     Mesh mesh;
-    //[mesh]}
 
     //--------------------------------------------------------------------------
     {
-        //[smfInp]{  Input from an smf file
         // input file stream from smf file
         std::ifstream smf( smfFileName.c_str() );
         // read smf mesh
         base::io::smf::readMesh( smf, mesh );
         // close the stream
         smf.close();
-        //[smfInp]}
     }
 
     //--------------------------------------------------------------------------
-    //[boundary]{ Boundary creation
     typedef base::mesh::BoundaryMeshBinder<Mesh::Element>::Type BoundaryMesh;
     BoundaryMesh boundaryMesh;
     {
@@ -102,7 +105,6 @@ int main( int argc, char* argv[] )
                                           meshBoundary.end(),
                                           mesh, boundaryMesh );
     }
-    //[boundary]}
 
     //--------------------------------------------------------------------------
     // Output functions
@@ -110,7 +112,6 @@ int main( int argc, char* argv[] )
 
         // VTK file of the input mesh
         {
-            //[vtk]{
             // file name for vtk mesh file
             const std::string vtkMeshFileName = baseName + ".vtk";
             // output file stream 
@@ -121,12 +122,10 @@ int main( int argc, char* argv[] )
             vtkWriter.writeUnstructuredGrid( mesh );
             // close the stream
             vtk.close();
-            //[vtk]}
         }
 
         // SMF file of the boundary mesh
         {
-            //[smfOut]{
             // file name for boundary mesh output
             const std::string smfBoundaryFileName = baseName + "_boundary.smf";
             // output stream
@@ -135,11 +134,17 @@ int main( int argc, char* argv[] )
             base::io::smf::writeMesh( boundaryMesh, smf );
             // close stream
             smf.close();
-            //[smfOut]}
         }
         
     }
 
 
     return 0;
+}
+
+//------------------------------------------------------------------------------
+// Delegate the call 
+int main( int argc, char* argv[] )
+{
+    return ref01::unstructured( argc, argv );
 }

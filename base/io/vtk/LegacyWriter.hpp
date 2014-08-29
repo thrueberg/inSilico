@@ -71,11 +71,15 @@ namespace base{
                                  const MESH&  mesh, const FIELD& field,
                                  const std::string& name );
 
+            template<typename FIELDTUPLEBINDER, typename FIELDBINDER, typename FUN>
+            void writeCellData( base::io::vtk::LegacyWriter& writer,
+                                const FIELDBINDER& fieldBinder,
+                                FUN fun, const std::string& name );
+
             template<typename MESH, typename FIELD, typename FUN>
             void writeCellData( base::io::vtk::LegacyWriter& writer,
                                 const MESH& mesh, const FIELD& field,
                                 FUN fun, const std::string& name );
-                
         }
     }
 }
@@ -306,6 +310,23 @@ void base::io::vtk::writePointData( base::io::vtk::LegacyWriter& writer,
     writer.writePointData( nodalValues.begin(), nodalValues.end(), name );
 }
 
+
+//------------------------------------------------------------------------------
+template<typename FIELDTUPLEBINDER, typename FIELDBINDER, typename FUN>
+void base::io::vtk::writeCellData( base::io::vtk::LegacyWriter& writer,
+                                   const FIELDBINDER& fieldBinder,
+                                   FUN fun, const std::string& name )
+{
+    std::vector<typename FUN::result_type> cellValues;
+    typename FIELDBINDER::FieldIterator iter = fieldBinder.elementsBegin();
+    typename FIELDBINDER::FieldIterator end  = fieldBinder.elementsEnd();
+    for ( ; iter != end; ++iter ) {
+        cellValues.push_back( fun( FIELDTUPLEBINDER::makeTuple( *iter ) ) );
+        
+    }
+    writer.writeCellData( cellValues.begin(), cellValues.end(), name );
+}
+
 //------------------------------------------------------------------------------
 template<typename MESH, typename FIELD, typename FUN>
 void base::io::vtk::writeCellData( base::io::vtk::LegacyWriter& writer,
@@ -318,6 +339,5 @@ void base::io::vtk::writeCellData( base::io::vtk::LegacyWriter& writer,
                     fun );
     writer.writeCellData( cellValues.begin(), cellValues.end(), name );
 }
-
 
 #endif

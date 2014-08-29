@@ -20,13 +20,14 @@
 //------------------------------------------------------------------------------
 namespace tools{
     namespace meshGeneration{
-
-        template<typename SURF>
-        struct ParametricSurface;
-        
+        namespace boundaries3D{
+            
+            template<typename SURF>
+            struct ParametricSurface;
+            
+        }
     }
 }
-
 //------------------------------------------------------------------------------
 /** Generate mesh of a parametric surface given the coordinate map.
  *  This function generates a mesh from the map
@@ -38,7 +39,7 @@ namespace tools{
  *  \tparam SURF Type of surface which provides the map
  */
 template<typename SURF>
-struct tools::meshGeneration::ParametricSurface
+struct tools::meshGeneration::boundaries3D::ParametricSurface
 {
     typedef tools::meshGeneration::Point Point;
 

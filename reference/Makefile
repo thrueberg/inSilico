@@ -6,8 +6,8 @@ tools:
 	cd $(INSILICOROOT)/tools && $(MAKE) all
 
 
-# generate the tutorials
-tutorials: 
+# generate the reference apps
+references: 
 	for i in $(SUBDIRS); do \
 	$(MAKE) -C $$i;\
 	done
@@ -19,4 +19,11 @@ appTest: tools
 	$(MAKE) -C $$i appTest;\
 	done
 
+# make pictures with gnuplot
+pics:
+	for i in $(SUBDIRS); do \
+	cd $$i; \
+	`find . -type f -name "*.gp" -exec gnuplot {} \;`;\
+	cd ..;\
+	done
 

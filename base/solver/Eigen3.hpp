@@ -213,11 +213,19 @@ public:
 
     void luSolve()
     {
+#ifdef LOAD_PARDISO
+        this -> pardisoLUSolve();
+#elif defined(LOAD_UMFPACK)
+        this -> umfPackLUSolve();
+#elif defined(LOAD_SUPERLU)
+        this -> superLUSolve();
+#else
         Eigen::SparseLU< Eigen::SparseMatrix<number> > luSolver;
         luSolver.analyzePattern( A_ );
         luSolver.factorize( A_ );
         VectorD x = luSolver.solve( b_ );
         b_ = x;
+#endif
         return;
     }
     

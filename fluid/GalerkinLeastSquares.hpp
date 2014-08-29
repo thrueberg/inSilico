@@ -92,7 +92,7 @@ namespace fluid{
 /** Stabilisation in order to circumvent the inf-sup condition.
  *  Stokes' system reads
  *  \f[
- *       -\nabla \cdot \sigm(u,p) = f, \quad \nabla \cdot u = 0
+ *       -\nabla \cdot \sigma(u,p) = f, \quad \nabla \cdot u = 0
  *  \f]
  *  with the fluid Cauchy stress \f$\sigma = 2 \mu \varepsilon(u) - pI\f$
  *  base on the velocity field \f$ u \f$, the pressure \f$ p \f$ and

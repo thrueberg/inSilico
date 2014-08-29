@@ -1,7 +1,7 @@
 # determine mode of compilation
 DEBUG  = NO
 # name the compilation targets
-TARGET = torus cylinder
+TARGET = torus cylinder helix
 # destination folder of binaries
 BIN=$(INSILICOROOT)/tools/bin
 

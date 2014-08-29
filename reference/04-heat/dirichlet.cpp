@@ -35,23 +35,48 @@
 #include <heat/Laplace.hpp>
 
 //------------------------------------------------------------------------------
-// Function for the point-wise constraint of the Boundary
-//[dirichlet]{
-template<typename FUN, typename DOF>
-void dirichletBC( const typename FUN::arg1_type x, DOF* doFPtr, FUN fun )
-{
-    const typename FUN::result_type value = fun( x );
+namespace ref04 {
+    //! Function for the point-wise constraint of the Boundary
+    template<typename FUN, typename DOF>
+    void prescribeUsingAFunction( const typename FUN::arg1_type x,
+                                  DOF* doFPtr, FUN fun )
+    {
+        const typename FUN::result_type value = fun( x );
     
-    if ( doFPtr -> isActive(0) ) {
-        doFPtr -> constrainValue( 0, value[0] );
+        if ( doFPtr -> isActive(0) ) {
+            doFPtr -> constrainValue( 0, value[0] );
+        }
+
     }
 
+    int dirichlet( int argc, char * argv[] );
 }
-//[dirichlet]}
-
 
 //------------------------------------------------------------------------------
-int main( int argc, char * argv[] )
+/** Solution to a Dirichlet problem.
+ *  Consider the boundary value problem
+ *  \f[
+ *       - \Delta u = 0 \quad x \in \Omega\,, \qquad
+ *         u = \bar{u}  \quad x \in \Gamma
+ *  \f]
+ *  Here \f$ u(x) = U(x,y) \f$ with the fundamental solution \f$ U \f$ and the
+ *  source point \f$ y = (-0.5, ..., -0.5) \f$ is used. In the test application
+ *  this function uses a unit square for the domain \f$ \Omega \f$, but is not
+ *  restricted to it. Only one has to ensure that \f$ y \f$ is placed outside of
+ *  the domain. Having an analytic solution available, the function computes
+ *  the error in the \f$ L_2 \f$-norm.
+ *
+ *  Main features of this application are
+ *  - application of Dirichlet boundary condition essentially
+ *  - numbering of the degrees of freedom
+ *  - computation of element stiffness matrices and assembly
+ *  - solution of the system and visualisation of output
+ *  - using a reference solution and computation of the numerical error
+ *
+ *  \param[in] argc Number of command line arguments
+ *  \param[in] argv Values of command line arguments
+ */
+int ref04::dirichlet( int argc, char * argv[] )
 {
     if ( argc != 2 ) {
         std::cout << "Usage:  " << argv[0] << " file.smf \n\n";
@@ -112,8 +137,8 @@ int main( int argc, char * argv[] )
     base::dof::constrainBoundary<FEBasis>( meshBoundary.begin(),
                                            meshBoundary.end(),
                                            mesh, field, 
-                                           boost::bind( &dirichletBC<FSolFun,
-                                                                     Field::DegreeOfFreedom>,
+                                           boost::bind( &prescribeUsingAFunction<FSolFun,
+                                                        Field::DegreeOfFreedom>,
                                                         _1, _2, fSolFun ) );
 
     // Number of DoFs after constraint application!
@@ -165,4 +190,10 @@ int main( int argc, char * argv[] )
               << '\n';
 
     return 0;
+}
+
+//------------------------------------------------------------------------------
+int main( int argc, char * argv[] )
+{
+    return ref04::dirichlet( argc, argv );
 }

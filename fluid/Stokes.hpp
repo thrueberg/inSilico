@@ -39,7 +39,7 @@ namespace fluid{
  *  Based on the typical weighted residual approach, this system converts to
  *  \f[
  *      \int_\Omega \sigma(u,p) : \nabla v d x -
- *      \int_\Omega q (\nablda \cdot u) d x -
+ *      \int_\Omega q (\nabla \cdot u) d x -
  *      \int_\Gamma \sigma \cdot n \cdot v d s = \int_\Omega f \cdot v d s
  *  \f]
  *  where \f$ v \f$ is the velocity test field and \f$ q \f$ the pressure

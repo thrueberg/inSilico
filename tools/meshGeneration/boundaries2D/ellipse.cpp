@@ -18,42 +18,48 @@
 #include <tools/meshGeneration/boundaries2D/boundaries2D.hpp>
 
 //------------------------------------------------------------------------------
-namespace circle{
-    bool userInput( const int argc, char* argv[],
-                    double& radius1, double& radius2,
-                    tools::meshGeneration::Point& centre,
-                    std::size_t& numElements,
-                    std::string& message )
-    {
-        if ( argc != 6 ) {
-            std::cerr << "Usage: " << argv[0]
-                      << " r1 r2 cx cy nInt \n\n"
-                      << "To create an ellipse radii r1 & r2 with nInt line "
-                      << "elements around the centre (cx,cy)\n\n";
-            return false;
-        }
+namespace tools{
+    namespace meshGeneration{
+        namespace boundaries2D{
+            namespace ellipse{
 
-        // radius
-        radius1 = boost::lexical_cast<double>(   argv[1] );
-        radius2 = boost::lexical_cast<double>(   argv[2] ); 
+                bool userInput( const int argc, char* argv[],
+                                double& radius1, double& radius2,
+                                tools::meshGeneration::Point& centre,
+                                std::size_t& numElements,
+                                std::string& message )
+                {
+                    if ( argc != 6 ) {
+                        std::cerr << "Usage: " << argv[0]
+                                  << " r1 r2 cx cy nInt \n\n"
+                                  << "To create an ellipse radii r1 & r2 with nInt line "
+                                  << "elements around the centre (cx,cy)\n\n";
+                        return false;
+                    }
+
+                    // radius
+                    radius1 = boost::lexical_cast<double>(   argv[1] );
+                    radius2 = boost::lexical_cast<double>(   argv[2] ); 
     
-        // centre point
-        centre[0] = boost::lexical_cast<double>( argv[3] );
-        centre[1] = boost::lexical_cast<double>( argv[4] );
-        centre[2] = 0.;
-        // number of elements
-        numElements = boost::lexical_cast<std::size_t>( argv[5] );
+                    // centre point
+                    centre[0] = boost::lexical_cast<double>( argv[3] );
+                    centre[1] = boost::lexical_cast<double>( argv[4] );
+                    centre[2] = 0.;
+                    // number of elements
+                    numElements = boost::lexical_cast<std::size_t>( argv[5] );
 
-        // concatenate the input arguments
-        for ( int c = 0; c < argc; c++ ) {
-            message += argv[c];
-            message += " ";
+                    // concatenate the input arguments
+                    for ( int c = 0; c < argc; c++ ) {
+                        message += argv[c];
+                        message += " ";
+                    }
+
+                    return true;
+                }
+            }
         }
-
-        return true;
     }
 }
-
 //------------------------------------------------------------------------------
 int main( int argc, char* argv[] )
 {
@@ -66,7 +72,8 @@ int main( int argc, char* argv[] )
     std::size_t nElem;
     std::string message;
     const bool input =
-        circle::userInput( argc, argv, radius1, radius2, centre, nElem, message);
+        tools::meshGeneration::boundaries2D::userInput( argc, argv, radius1,
+                                                        radius2, centre, nElem, message);
     if ( not input ) return 0;
 
     // angle increment

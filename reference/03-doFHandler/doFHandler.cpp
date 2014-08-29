@@ -1,4 +1,3 @@
-//[prevTut]{
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -6,7 +5,6 @@
 #include <base/shape.hpp>
 #include <base/Unstructured.hpp>
 #include <base/io/smf/Reader.hpp>
-//[prevTut]}
 
 #include <base/fe/Basis.hpp>
 #include <base/Field.hpp>
@@ -14,11 +12,39 @@
 #include <base/dof/generate.hpp>
 #include <base/io/Format.hpp>
 
+// Make sure that linear, quadratic or cubic shape functions are used
 STATIC_ASSERT_MSG( (FUNDEG==1) or (FUNDEG==2) or (FUNDEG==3),
                    "Choice of polynomial degree not allowed" );
 
 //------------------------------------------------------------------------------
-int main( int argc, char * argv[] )
+namespace ref03{
+
+    int doFHandler( int argc, char * argv[] );
+
+}
+
+//------------------------------------------------------------------------------
+/** Degrees of freedom.
+ *  This function demonstrates
+ *     - how to define a field
+ *     - how to generate degrees of freedom
+ *
+ *  The degrees of freedom imply a sparsity pattern which is written to a file
+ *  'sparsity.D.dat' (D = polynomial degree set during compilation). With
+ *  gnuplot you can visualise this file using the command 
+ *  \code{.txt}
+ *  plot 'sparsity.D.dat' w p
+ *  \endcode
+ *  in the gnuplot terminal. For the provided quadrilateral mesh and the
+ *  Lagrangian basis functions of degree 1, 2 and 3 the image below shows
+ *  the sparsity pattern
+ *
+ *  \image html sparsity.png "Sparsity patterns"
+ *
+ *  \param[in] argc Number of command line arguments
+ *  \param[in] argv Values of command line arguments
+ */
+int ref03::doFHandler( int argc, char * argv[] )
 {
     // Check the number of input arguments
     if ( argc != 2 ) { 
@@ -103,4 +129,11 @@ int main( int argc, char * argv[] )
               << ") \n";
 
     return 0;
+}
+
+//------------------------------------------------------------------------------
+// delegate
+int main( int argc, char * argv[] )
+{
+    return ref03::doFHandler( argc, argv );
 }

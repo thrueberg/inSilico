@@ -1,6 +1,7 @@
-set term pdfcairo enh color dashed font "CMR10,20"  #6 is default!
-
-set output 'convergence.pdf'
+#set term pdfcairo enh color dashed font "CMR10,20"  #6 is default!
+# set output 'convergence.pdf'
+set term pngcairo enhanced color transparent size 480, 320
+set output 'convergence.png'
 
 #------------------------------------------------------------------------------
 # line styles

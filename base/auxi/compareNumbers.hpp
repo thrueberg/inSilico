@@ -3,12 +3,12 @@
 // </preamble>
 //------------------------------------------------------------------------------
 
-//! @file   compareFloats.hpp
+//! @file   compareNumbers.hpp
 //! @author Thomas Rueberg
 //! @date   2014
 
-#ifndef base_auxi_comparefloats_hpp
-#define base_auxi_comparefloats_hpp
+#ifndef base_auxi_comparenumbers_hpp
+#define base_auxi_comparenumbers_hpp
 
 // std includes
 #include <limits>

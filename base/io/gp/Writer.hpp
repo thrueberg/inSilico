@@ -81,7 +81,7 @@ struct base::io::gp::Writer
                 out << '\n';
             }
 
-            out << '\n';
+            out << "\n\n";
         }
 
         return;

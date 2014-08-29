@@ -76,6 +76,21 @@ ifeq ($(INSILICOCOMPENV),INTEL)
   DEBCPPFLAGS = -g -Wall -ansi -wd383,869,981,1418,1419 -mkl=sequential
   RELCPPFLAGS = -g -O3 -openmp -wd858 -mkl=parallel
 
+else ifeq ($(INSILICOCOMPENV),CLANG)
+
+  # Compiler: clang
+  CPLUSPLUS = clang++
+
+  # includes for the system (bug in Ubuntu)
+  SYSINCLUDES += -I /usr/lib/llvm-3.2/lib/clang/3.2/include
+
+  # compilation flags (debug or release)
+  DEBCPPFLAGS = -g3 -Wall -Wextra -ansi -pedantic -Wno-unused-parameter \
+		-Wno-variadic-macros -Wconversion -std=c++0x \
+		-Wno-sign-conversion -Wno-sign-compare
+  RELCPPFLAGS = -g -O3 -fopenmp
+
+# DEFAULT: GNU
 else
 
   # Default Compiler: system's gnu c++ compiler
@@ -85,7 +100,6 @@ else
   DEBCPPFLAGS = -g3 -Wall -Wextra -ansi -pedantic -Wno-unused-parameter \
 		-Wno-variadic-macros -Wconversion -std=c++0x
   RELCPPFLAGS = -g -O3 -fopenmp
-
 
 endif
 

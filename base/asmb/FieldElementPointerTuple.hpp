@@ -36,7 +36,8 @@ namespace base{
         }
 
         //----------------------------------------------------------------------
-        template<typename GEOMEPTR, typename FIELD1EPTR,
+        template<typename GEOMEPTR,
+                 typename FIELD1EPTR = detail_::DummyElementPtr,
                  typename FIELD2EPTR = detail_::DummyElementPtr,
                  typename FIELD3EPTR = detail_::DummyElementPtr,
                  typename FIELD4EPTR = detail_::DummyElementPtr,
@@ -209,7 +210,7 @@ public:
     //! Constructor with all pointers
     FieldElementPointerTuple(
         GeomElementPtr      geomElementPtr,     
-        TestElementPtr      testElementPtr,  
+        TestElementPtr      testElementPtr      = detail_::makeDummyElementPtr(),
         TrialElementPtr     trialElementPtr     = detail_::makeDummyElementPtr(),
         AuxField1ElementPtr auxField1ElementPtr = detail_::makeDummyElementPtr(),
         AuxField2ElementPtr auxField2ElementPtr = detail_::makeDummyElementPtr(),

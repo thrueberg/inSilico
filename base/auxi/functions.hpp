@@ -10,12 +10,17 @@
 #ifndef base_auxi_functions_hpp
 #define base_auxi_functions_hpp
 
+#include <base/linearAlgebra.hpp>
+
 //------------------------------------------------------------------------------
 namespace base{
     namespace auxi{
 
         template<typename RETURNTYPE>
         class ConstantFun;
+
+        template<unsigned SIZE>
+        struct ReturnZeroVector;
     }
 }
 
@@ -50,6 +55,15 @@ private:
     const RETURNTYPE constant_;
 };
 
-
+//--------------------------------------------------------------------------
+template<unsigned SIZE>
+struct base::auxi::ReturnZeroVector
+    : public base::auxi::ConstantFun<typename base::Vector<SIZE>::Type>
+{
+    ReturnZeroVector()
+        : base::auxi::ConstantFun<typename base::Vector<SIZE>::Type>(
+            base::constantVector<SIZE>( 0. ) )
+    { }
+};
 
 #endif

@@ -30,7 +30,16 @@ namespace base{
         template<base::Shape SHAPE, unsigned DEGREE=1>
         class Cell;
 
-        
+        template<typename CELL>
+        struct CellStatus
+        {
+            static double apply( const CELL& cell )
+            {
+                if ( cell.isInside()  ) return  1.0;
+                if ( cell.isOutside() ) return -1.0;
+                return 0.;
+            }
+        };
     }
 }
 
@@ -165,11 +174,11 @@ public:
 
     //--------------------------------------------------------------------------
     //! Construct with signed distance function values of the vertices
-    void update( const boost::array<double,numElementNodes>& signedDistances )
+    void intersect( const boost::array<double,numElementNodes>& signedDistances )
     {
 
         if ( geomDegree > 1 ) {
-            std::cerr << "(WW) The update of cut-cells does not work for "
+            std::cerr << "(WW) The intersection of cut-cells does not work for "
                       << "higher-order geometry\n";
 
         }
@@ -185,15 +194,12 @@ public:
         if ( (distMin * distMax) <= 0. ) {
 
             // copy existing inside volume and surface to temporaries
-            std::vector<VolIndexSimplex>  volumeInTmp = volumeIn_;
-            std::vector<SurfIndexSimplex> surfaceTmp  = surface_;
-
-            std::vector<VolIndexSimplex>  volumeOutTmp = volumeOut_;
+            std::vector<VolIndexSimplex>  volumeInTmp  = volumeIn_;
+            std::vector<SurfIndexSimplex> surfaceTmp   = surface_;
 
             // delete the existing ones
             volumeIn_.clear();
             surface_.clear();
-
             volumeOut_.clear();
 
             // register already existing nodes
@@ -226,40 +232,6 @@ public:
                 
             }
 
-#if 0 
-            
-            // apply marching simplex to every volume simplex
-            for ( std::size_t vs = 0; vs < volumeOutTmp.size(); vs++ ) {
-                // create an index vertex and an array of distance values
-                boost::array<unsigned,dim+1>  volSimplex;
-                boost::array<double,nVolVert> distances;
-                
-                for ( unsigned v = 0; v < nVolVert; v++ ) {
-                    const unsigned vertexNum = volumeOutTmp[vs][v];
-                    
-                    if ( v < dim+1 ) volSimplex[v] = vertexNum;
-                    // interpolate distance to vertex node
-                    distances[v]   =
-                        detail_::InterpolatedDistance<shape,geomDegree>::evaluate(
-                            nodes_[ vertexNum ], signedDistances );
-                }
-
-                base::cut::MarchingProxy<volumeSimplex,geomDegree>::apply(
-                    distances,
-                    volSimplex,
-                    nodes_,
-                    uniqueNodes,
-                    surface_,
-                    volumeOut_,
-                    volumeOut_, true );
-                
-            }
-
-            // extract surfaces ...
-            base::cut::GetInteriorSurface<shape,geomDegree>::apply(
-                nodes_, surface_, volumeIn_, volumeOut_ );
-#else
-
             // subtract cell boundary from surface
             static const unsigned surfSurfDim = dim > 1 ? dim - 2 : 0;
             static const base::Shape surfSurfSimplex = base::SimplexShape<surfSurfDim>::value;
@@ -290,8 +262,6 @@ public:
                                                                  surface_,
                                                                  volOutDummy );
             }
-            
-#endif
 
         }
         else if ( distMax < 0. ) { // outside --> destroy old structure
@@ -514,7 +484,6 @@ public:
         // memorise the indices of the simplex elements to be deleted
         std::vector<std::size_t> volInSkip, volOutSkip, surfSkip;
 
-        
         // check volume-in
         for ( std::size_t s = 0; s < volumeIn_.size(); s++ ) {
             typename base::cut::VecSimplex<dim,dim>::Type simplex;
@@ -564,6 +533,26 @@ public:
         for ( std::size_t s = 0; s < surfSkip.size();   s++ )
             surface_.erase(   surface_.begin() + surfSkip[s] );
 
+    }
+
+    //--------------------------------------------------------------------------
+    //! Change status from in- to outside, reverse surface orientation
+    void reverse()
+    {
+        // reverse flags for not-cut cells
+        if ( not isCut_ ) {
+            isInside_  = not isInside_;
+            isOutside_ = not isOutside_;
+        }
+
+        // swap in- and outside volume simplices
+        std::vector<VolIndexSimplex> tmp = volumeOut_;
+        volumeOut_ = volumeIn_;
+        volumeIn_  = tmp;
+
+        // reverse the orientation of the surfaces
+        for ( std::size_t s = 0; s < surface_.size(); s++ )
+            base::cut::detail_::reverseSimplex<dim-1>( surface_[s] );
     }
     
 private:

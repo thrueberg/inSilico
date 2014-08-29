@@ -117,12 +117,13 @@ namespace base{
     //--------------------------------------------------------------------------
     //! @name Traits
     //@{
+    //! Compile-time size of matrix
     template<typename MAT>
     struct MatSize { static const int value = MAT::SizeAtCompileTime; };
-
+    //! Compile-time number of rows of matrix
     template<typename MAT>
     struct MatRows { static const int value = MAT::RowsAtCompileTime; };
-
+    //! Compile-time number of columns of matrix
     template<typename MAT>
     struct MatCols { static const int value = MAT::ColsAtCompileTime; };
     //@}

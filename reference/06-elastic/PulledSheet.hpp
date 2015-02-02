@@ -3,7 +3,7 @@
 // </preamble>
 //------------------------------------------------------------------------------
 
-//! @file   PulledSheet
+//! @file   PulledSheet.hpp
 //! @author Thomas Rueberg
 //! @date   2014
 

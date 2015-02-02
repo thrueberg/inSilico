@@ -148,8 +148,10 @@ public:
     }
 
     //--------------------------------------------------------------------------
-    /**
-     *  \param[in] symmetric Assume a symmetric system matrix
+    /** Perform non-linear iteration within one load step.
+     *  \param[in] stepNum   Number of the current load step
+     *  \param[in] maxIter   Maximal number of nonlinear iterations
+     *  \param[in] tolerance Convergence tolerance
      */
     unsigned  solve( const unsigned stepNum,
                      const unsigned maxIter,

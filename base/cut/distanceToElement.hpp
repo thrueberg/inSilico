@@ -428,7 +428,7 @@ struct base::cut::detail_::SignedDistanceToPlane<2>
      *                      V                (P)
      *  \endcode
      *  where a point \f$ P\f$ is to be tested against the line segment
-     *  \f$ [A,B] \f$. The vertical line between \f$ p \f$ and the infinite
+     *  \f$ [A,B] \f$. The vertical line between \f$ P \f$ and the infinite
      *  extension of \f$ [A,B] \f$ is of interest. The signed distance between
      *  \f$ P \f$ and that line is given by
      *  \f[
@@ -439,7 +439,7 @@ struct base::cut::detail_::SignedDistanceToPlane<2>
      *  In this picture the result will be negative since the vectors \f$ n \f$
      *  and \f$ PA \f$ point in opposite directions.
      *  
-     *  \tparam ARRAY Type of arry with element vertices
+     *  \tparam ARRAY Type of array with element vertices
      *  \param[in] array Element's vertices
      *  \param[in] P     Point to check
      *  \return          Signed distance to line

@@ -93,8 +93,12 @@ public:
     //! Modifier: add to the stored value
     void addTo( const Scalar& value )
     {
+#ifdef _OPENMP
 #pragma omp atomic
         value_ += value;
+#else
+        value_ += value;
+#endif
     }
 
     //! @name Comparison operators

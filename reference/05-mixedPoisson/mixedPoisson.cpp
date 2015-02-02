@@ -210,6 +210,15 @@ int ref05::mixedPoisson( int argc, char * argv[] )
         base::io::vtk::LegacyWriter vtkWriter( vtk );
         vtkWriter.writeUnstructuredGrid( mesh );
         base::io::vtk::writePointData( vtkWriter, mesh, field, "temperature" );
+
+        const base::Vector<dim>::Type xi =
+            base::ShapeCentroid<Mesh::Element::shape>::apply();
+        base::io::vtk::writeCellData( vtkWriter, mesh, field,
+                                      boost::bind(
+                                          base::post::evaluateFieldGradient<
+                                          Mesh::Element,
+                                          Field::Element>, _1, _2, xi ),
+                                      "flux" );
         vtk.close();
     }
 

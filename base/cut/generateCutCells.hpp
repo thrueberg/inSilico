@@ -138,7 +138,7 @@ void base::cut::generateCutCells(
 
     // make space for the cells
     if ( update )
-        VERIFY_MSG( (std::distance(eIter,eEnd) == cutCells.size()),
+        VERIFY_MSG( (static_cast<std::size_t>(std::distance(eIter,eEnd)) == cutCells.size()),
                     "Expect existing cut-cell structures" );
     else cutCells.resize( std::distance( eIter, eEnd ) );
 

@@ -18,7 +18,6 @@
 #include <base/dof/numbering.hpp>
 #include <base/dof/generate.hpp>
 #include <base/dof/Distribute.hpp>
-#include <base/cut/ScaledField.hpp>
 #include <base/cut/tagBasis.hpp>
 
 #include <base/Quadrature.hpp>
@@ -38,6 +37,8 @@
 #include <base/cut/generateCutCells.hpp>
 #include <base/cut/generateSurfaceMesh.hpp>
 #include <base/cut/ComputeSupport.hpp>
+#include <base/cut/stabiliseBasis.hpp>
+
 #include <base/cut/analyticLevelSet.hpp>
 #include <base/cut/extractMeshFromCutCells.hpp>
 
@@ -122,7 +123,7 @@ int main( int argc, char * argv[] )
     //--------------------------------------------------------------------------
     // FE
     typedef Helper::FEBasis FEBasis;
-    typedef base::cut::ScaledField<FEBasis,doFSize> Field;
+    typedef base::Field<FEBasis,doFSize> Field;
     Field fieldIn, fieldOut;
 
     base::dof::generate<FEBasis>( mesh, fieldIn  );
@@ -194,10 +195,13 @@ int main( int argc, char * argv[] )
     base::cut::supportComputation( mesh, fieldIn,  cutQuadratureIn,  supportsIn );
     base::cut::supportComputation( mesh, fieldOut, cutQuadratureOut, supportsOut);
 
-    fieldIn.scaleAndTagBasis(  supportsIn,  1.e-10 );
-    fieldOut.scaleAndTagBasis( supportsOut, 1.e-10 );
     // base::cut::tagBasis( fieldIn,  supportsIn, 1.e-10 );
     // base::cut::tagBasis( fieldOut, supportsOut, 1.e-10 );
+    std::vector<std::pair<std::size_t,Mesh::Node::VecDim> > doFLocation;
+    base::dof::associateLocation( fieldIn, doFLocation );
+    base::cut::stabiliseBasis( mesh,  fieldIn,  supportsIn, doFLocation );
+    base::cut::stabiliseBasis( mesh, fieldOut, supportsOut, doFLocation );
+
     
     // number DoFs, create solver
     const std::size_t activeDoFsIn = 

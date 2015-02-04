@@ -255,10 +255,10 @@ public:
      *  \tparam KERNEL Type of integration kernel defining the bilinear form
      *  \tparam QUAD   Type of quadrature
      *  \tparam SOLVER Type of equation solver
-     *  \param[in] kernel     The integrand
-     *  \param[in] quadrature Numerical integration object
-     *  \param[in] solver     Equation solver object
-     *  \param[in] iter       Iteration counter in case of nonlinear problems
+     *  \param[in] kernel      The integrand
+     *  \param[in] quadrature  Numerical integration object
+     *  \param[in] solver      Equation solver object
+     *  \param[in] incremental Type of analysis
      */
     template<typename KERNEL, typename QUAD, typename SOLVER>
     void assembleBilinearForm( const KERNEL& kernel,

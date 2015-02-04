@@ -192,8 +192,7 @@ void base::cut::evaluateAtCutCellNodes( const MESH& mesh, const FIELD& field,
  *  \tparam VALUETYPE  Result type of the functor
  *  \tparam OP         Type of evaluation functor
  *  \tparam CELL       Type of cell
- *  \param[in]  mesh           Bulk mesh
- *  \param[in]  field          Bulk field
+ *  \param[in]  fieldBinder    Binder of fields to mesh
  *  \param[in]  fieldEvaluator Evaluation functor
  *  \param[in]  cells          Element cell structures
  *  \param[out] cellValues     Result of the evaluation

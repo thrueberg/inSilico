@@ -32,7 +32,7 @@ namespace base{
 
 //------------------------------------------------------------------------------
 /** Kernel for the integral over a field.
- *  The integral over the field \$ u \f$ is computed as
+ *  The integral over the field \f$ u \f$ is computed as
  *  \f[
  *        M = \int_\Omega u d x
  *  \f]

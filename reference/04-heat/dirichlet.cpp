@@ -88,8 +88,8 @@ int ref04::dirichlet( int argc, char * argv[] )
 
     //--------------------------------------------------------------------------
     const unsigned    geomDeg  = 1;
-    const unsigned    fieldDeg = 2;
-    const base::Shape shape    = base::QUAD;
+    const unsigned    fieldDeg = 1;
+    const base::Shape shape    = base::TET; //TRI; //base::QUAD;
     
     const unsigned    doFSize = 1; // temperature
 
@@ -180,7 +180,19 @@ int ref04::dirichlet( int argc, char * argv[] )
         base::io::vtk::LegacyWriter vtkWriter( vtk );
         vtkWriter.writeUnstructuredGrid( mesh );
 
+        // write solution
         base::io::vtk::writePointData( vtkWriter, mesh, field, "temperature" );
+
+        // write solution gradient
+        const base::Vector<dim>::Type xi =
+            base::ShapeCentroid<Mesh::Element::shape>::apply();
+        base::io::vtk::writeCellData( vtkWriter, mesh, field,
+                                      boost::bind(
+                                          base::post::evaluateFieldGradient<
+                                          Mesh::Element,
+                                          Field::Element>, _1, _2, xi ),
+                                      "flux" );
+
         vtk.close();
     }
 
